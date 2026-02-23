@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Container } from '@/components/ui/container';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
-import { ArrowRight, Mail, Lock, User, Building2, CheckCircle, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { ArrowRight, Mail, Lock, User, Building2, CheckCircle, Eye, EyeOff, AlertCircle, Globe, FileImage } from 'lucide-react';
 
 const benefits = [
   "No credit card required",
@@ -24,25 +24,47 @@ export default function SignupPage() {
     lastName: '',
     email: '',
     organization: '',
+    organizationSlug: '',
+    organizationDescription: '',
     password: '',
     confirmPassword: '',
   });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToUpdates, setAgreedToUpdates] = useState(false);
   const [localError, setLocalError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successEmail, setSuccessEmail] = useState('');
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target;
     setFormData(prev => ({ ...prev, [id]: value }));
+  };
+
+  const handleLogoChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeLogo = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLocalError('');
     clearError();
-    setSuccessMessage('');
 
     // Validation
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.organization || !formData.password) {
@@ -68,26 +90,25 @@ export default function SignupPage() {
     try {
       const response = await signup({
         company_name: formData.organization,
+        company_slug: formData.organizationSlug || null,
+        company_description: formData.organizationDescription || null,
         email: formData.email,
+        user_username: `${formData.firstName.toLowerCase()}_${formData.lastName.toLowerCase()}`,
         password: formData.password,
-        user_username: `${formData.firstName.toLowerCase()}${formData.lastName.toLowerCase()}`,
+        logo: logoFile,
       });
 
       // Check if email verification is required
       if (response.requires_verification) {
-        setSuccessMessage(`Account created! Please check your email (${response.email}) to verify your account.`);
-        // Clear form
-        setFormData({
-          firstName: '',
-          lastName: '',
-          email: '',
-          organization: '',
-          password: '',
-          confirmPassword: '',
-        });
+        setSuccessEmail(response.email || formData.email);
+        setShowSuccessModal(true);
       } else if (response.access_token) {
         // Auto-login successful, redirect to dashboard
         router.push('/dashboard');
+      } else {
+        // Show success modal and redirect to login
+        setSuccessEmail(response.email || formData.email);
+        setShowSuccessModal(true);
       }
     } catch {
       // Error is handled by auth context
@@ -95,6 +116,11 @@ export default function SignupPage() {
   };
 
   const displayError = localError || (authError ? String(authError) : '');
+
+  const handleContinueToLogin = () => {
+    setShowSuccessModal(false);
+    router.push('/login');
+  };
 
   return (
     <div className="min-h-screen bg-navy-50">
@@ -154,14 +180,8 @@ export default function SignupPage() {
                   </div>
                 )}
 
-                {successMessage && (
-                  <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-green-700">{successMessage}</p>
-                  </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  {/* Name Fields */}
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div>
                       <label htmlFor="firstName" className="block text-sm font-medium text-navy-700 mb-2">
@@ -196,6 +216,7 @@ export default function SignupPage() {
                     </div>
                   </div>
 
+                  {/* Email */}
                   <div>
                     <label htmlFor="email" className="block text-sm font-medium text-navy-700 mb-2">
                       Email Address *
@@ -215,6 +236,7 @@ export default function SignupPage() {
                     </div>
                   </div>
 
+                  {/* Organization Name */}
                   <div>
                     <label htmlFor="organization" className="block text-sm font-medium text-navy-700 mb-2">
                       Church/Organization Name *
@@ -233,6 +255,78 @@ export default function SignupPage() {
                     </div>
                   </div>
 
+                  {/* Organization Slug */}
+                  <div>
+                    <label htmlFor="organizationSlug" className="block text-sm font-medium text-navy-700 mb-2">
+                      Organization URL Slug
+                    </label>
+                    <div className="relative">
+                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
+                      <input
+                        type="text"
+                        id="organizationSlug"
+                        value={formData.organizationSlug}
+                        onChange={handleChange}
+                        className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
+                        placeholder="grace-assembly-lagos (optional)"
+                      />
+                    </div>
+                    <p className="text-xs text-navy-500 mt-1">Your page will be at volatilive.com/{formData.organizationSlug || 'your-org'}</p>
+                  </div>
+
+                  {/* Organization Description */}
+                  <div>
+                    <label htmlFor="organizationDescription" className="block text-sm font-medium text-navy-700 mb-2">
+                      Organization Description
+                    </label>
+                    <textarea
+                      id="organizationDescription"
+                      value={formData.organizationDescription}
+                      onChange={handleChange}
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all resize-none"
+                      placeholder="Tell us about your organization (optional)"
+                    />
+                  </div>
+
+                  {/* Logo Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-navy-700 mb-2">
+                      Organization Logo
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center justify-center w-20 h-20 border-2 border-dashed border-navy-300 rounded-lg cursor-pointer hover:border-sky-400 hover:bg-sky-50 transition-all">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoChange}
+                          className="hidden"
+                        />
+                        {logoPreview ? (
+                          <img src={logoPreview} alt="Logo preview" className="w-full h-full object-cover rounded-lg" />
+                        ) : (
+                          <FileImage className="w-8 h-8 text-navy-400" />
+                        )}
+                      </label>
+                      <div className="flex-1">
+                        {logoFile && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-navy-600">{logoFile.name}</span>
+                            <button
+                              type="button"
+                              onClick={removeLogo}
+                              className="text-sm text-red-500 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        )}
+                        <p className="text-xs text-navy-500">Upload your organization logo (optional)</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Password */}
                   <div>
                     <label htmlFor="password" className="block text-sm font-medium text-navy-700 mb-2">
                       Password *
@@ -260,6 +354,7 @@ export default function SignupPage() {
                     <p className="text-xs text-navy-500 mt-1">At least 8 characters</p>
                   </div>
 
+                  {/* Confirm Password */}
                   <div>
                     <label htmlFor="confirmPassword" className="block text-sm font-medium text-navy-700 mb-2">
                       Confirm Password *
@@ -276,6 +371,7 @@ export default function SignupPage() {
                     />
                   </div>
 
+                  {/* Checkboxes */}
                   <div className="space-y-3">
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input 
@@ -327,6 +423,38 @@ export default function SignupPage() {
           </div>
         </Container>
       </main>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => {}} />
+          <div className="relative bg-white rounded-2xl p-8 shadow-xl max-w-md w-full mx-4 animate-slide-up">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-navy-900 mb-2">Account Created!</h2>
+              <p className="text-navy-600 mb-2">
+                Your account has been created successfully.
+              </p>
+              <p className="text-sm text-navy-500 mb-6">
+                We've sent a verification email to <strong>{successEmail}</strong>
+              </p>
+              <p className="text-sm text-navy-600 mb-6">
+                Please check your email and click the verification link to activate your account, then login to start streaming.
+              </p>
+              <Button 
+                onClick={handleContinueToLogin}
+                size="lg" 
+                className="w-full"
+              >
+                Continue to Login
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
