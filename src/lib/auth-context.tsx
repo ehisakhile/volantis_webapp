@@ -1,0 +1,144 @@
+'use client';
+
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { authApi } from '@/lib/api/auth';
+import type { VolUserResponse, LoginRequest, SignupRequest, VolSignupResponse, VolTokenResponse } from '@/types/auth';
+
+interface AuthContextType {
+  user: VolUserResponse | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  login: (data: LoginRequest) => Promise<void>;
+  signup: (data: SignupRequest) => Promise<VolSignupResponse>;
+  logout: () => Promise<void>;
+  fetchUser: () => Promise<void>;
+  clearError: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<VolUserResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Check auth status on mount
+  useEffect(() => {
+    const initAuth = async () => {
+      if (authApi.isAuthenticated()) {
+        try {
+          const userData = await authApi.getMe();
+          setUser(userData);
+        } catch {
+          // Token might be invalid, clear auth
+          authApi.clearAuth();
+        }
+      }
+      setIsLoading(false);
+    };
+
+    initAuth();
+  }, []);
+
+  const fetchUser = useCallback(async () => {
+    if (!authApi.isAuthenticated()) {
+      setUser(null);
+      return;
+    }
+
+    try {
+      const userData = await authApi.getMe();
+      setUser(userData);
+    } catch {
+      authApi.clearAuth();
+      setUser(null);
+    }
+  }, []);
+
+  const login = useCallback(async (data: LoginRequest) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response: VolTokenResponse = await authApi.login(data);
+      
+      // Fetch user data after successful login
+      const userData = await authApi.getMe();
+      setUser(userData);
+    } catch (err: unknown) {
+      const errorMessage = err && typeof err === 'object' && 'detail' in err 
+        ? String(err.detail) 
+        : 'Login failed. Please check your credentials.';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const signup = useCallback(async (data: SignupRequest): Promise<VolSignupResponse> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await authApi.signup(data);
+      
+      // If signup returns tokens, fetch user
+      if (response.access_token) {
+        await fetchUser();
+      }
+      
+      return response;
+    } catch (err: unknown) {
+      const errorMessage = err && typeof err === 'object' && 'detail' in err 
+        ? String(err.detail) 
+        : 'Signup failed. Please try again.';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchUser]);
+
+  const logout = useCallback(async () => {
+    setIsLoading(true);
+    
+    try {
+      await authApi.logout();
+    } finally {
+      setUser(null);
+      setIsLoading(false);
+    }
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const value: AuthContextType = {
+    user,
+    isAuthenticated: !!user,
+    isLoading,
+    error,
+    login,
+    signup,
+    logout,
+    fetchUser,
+    clearError,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}

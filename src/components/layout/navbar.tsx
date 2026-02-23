@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ChevronDown, Radio } from "lucide-react";
+import { Menu, X, ChevronDown, Radio, User, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 
 const features = [
   { name: "Live Streaming", href: "/features", description: "Broadcast in real-time" },
@@ -29,7 +30,10 @@ export function Navbar() {
   const [isOpen, setIsOpen] = React.useState(false);
   const [featuresOpen, setFeaturesOpen] = React.useState(false);
   const [solutionsOpen, setSolutionsOpen] = React.useState(false);
+  const [userMenuOpen, setUserMenuOpen] = React.useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, isAuthenticated, logout, isLoading } = useAuth();
 
   React.useEffect(() => {
     setIsOpen(false);
@@ -92,10 +96,63 @@ export function Navbar() {
 
           {/* Desktop CTA */}
           <div className="hidden lg:flex items-center gap-4">
-            <Link href="/login" className="text-slate-600 hover:text-sky-600 font-medium transition-colors">
-              Login
-            </Link>
-            <Button size="sm">Start Free</Button>
+            {isAuthenticated && user ? (
+              <div className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2 text-slate-600 hover:text-sky-600 font-medium transition-colors"
+                >
+                  <div className="w-8 h-8 bg-sky-100 rounded-full flex items-center justify-center">
+                    <User className="w-4 h-4 text-sky-600" />
+                  </div>
+                  <span className="max-w-[120px] truncate">{user.username || user.email}</span>
+                  <ChevronDown className={cn("w-4 h-4 transition-transform", userMenuOpen ? "rotate-180" : "")} />
+                </button>
+                <AnimatePresence>
+                  {userMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-2"
+                    >
+                      <div className="px-4 py-2 border-b border-slate-100">
+                        <p className="text-sm font-medium text-slate-900 truncate">{user.username}</p>
+                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                      </div>
+                      <Link
+                        href="/dashboard"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-sky-600"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Settings className="w-4 h-4" />
+                        Dashboard
+                      </Link>
+                      <button
+                        onClick={async () => {
+                          setUserMenuOpen(false);
+                          await logout();
+                          router.push('/');
+                        }}
+                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-red-600"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Logout
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <>
+                <Link href="/login" className="text-slate-600 hover:text-sky-600 font-medium transition-colors">
+                  Login
+                </Link>
+                <Link href="/signup">
+                  <Button size="sm">Start Free</Button>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}

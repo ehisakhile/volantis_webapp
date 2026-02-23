@@ -1,13 +1,12 @@
-import { Metadata } from "next";
-import Link from "next/link";
-import { Container } from "@/components/ui/container";
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Mail, Lock, User, Building2, CheckCircle } from "lucide-react";
+'use client';
 
-export const metadata: Metadata = {
-  title: "Sign Up - Volantislive",
-  description: "Create your free Volantislive account and start streaming.",
-};
+import { useState, FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Container } from '@/components/ui/container';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/auth-context';
+import { ArrowRight, Mail, Lock, User, Building2, CheckCircle, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const benefits = [
   "No credit card required",
@@ -17,6 +16,86 @@ const benefits = [
 ];
 
 export default function SignupPage() {
+  const router = useRouter();
+  const { signup, error: authError, clearError, isLoading } = useAuth();
+  
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    organization: '',
+    password: '',
+    confirmPassword: '',
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [agreedToUpdates, setAgreedToUpdates] = useState(false);
+  const [localError, setLocalError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setFormData(prev => ({ ...prev, [id]: value }));
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setLocalError('');
+    clearError();
+    setSuccessMessage('');
+
+    // Validation
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.organization || !formData.password) {
+      setLocalError('Please fill in all required fields');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setLocalError('Passwords do not match');
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      setLocalError('Password must be at least 8 characters');
+      return;
+    }
+
+    if (!agreedToTerms) {
+      setLocalError('You must agree to the Terms of Service');
+      return;
+    }
+
+    try {
+      const response = await signup({
+        company_name: formData.organization,
+        email: formData.email,
+        password: formData.password,
+        user_username: `${formData.firstName.toLowerCase()}${formData.lastName.toLowerCase()}`,
+      });
+
+      // Check if email verification is required
+      if (response.requires_verification) {
+        setSuccessMessage(`Account created! Please check your email (${response.email}) to verify your account.`);
+        // Clear form
+        setFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          organization: '',
+          password: '',
+          confirmPassword: '',
+        });
+      } else if (response.access_token) {
+        // Auto-login successful, redirect to dashboard
+        router.push('/dashboard');
+      }
+    } catch {
+      // Error is handled by auth context
+    }
+  };
+
+  const displayError = localError || (authError ? String(authError) : '');
+
   return (
     <div className="min-h-screen bg-navy-50">
       {/* Simple Header */}
@@ -68,91 +147,168 @@ export default function SignupPage() {
                   <p className="text-navy-600">Create your free account</p>
                 </div>
 
-                <form className="space-y-6">
+                {displayError && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-700">{displayError}</p>
+                  </div>
+                )}
+
+                {successMessage && (
+                  <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-green-700">{successMessage}</p>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div>
                       <label htmlFor="firstName" className="block text-sm font-medium text-navy-700 mb-2">
-                        First Name
+                        First Name *
                       </label>
                       <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
                         <input
                           type="text"
                           id="firstName"
-                          className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none"
+                          value={formData.firstName}
+                          onChange={handleChange}
+                          className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
                           placeholder="John"
+                          required
                         />
                       </div>
                     </div>
                     <div>
                       <label htmlFor="lastName" className="block text-sm font-medium text-navy-700 mb-2">
-                        Last Name
+                        Last Name *
                       </label>
                       <input
                         type="text"
                         id="lastName"
-                        className="w-full px-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none"
+                        value={formData.lastName}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
                         placeholder="Doe"
+                        required
                       />
                     </div>
                   </div>
 
                   <div>
                     <label htmlFor="email" className="block text-sm font-medium text-navy-700 mb-2">
-                      Email Address
+                      Email Address *
                     </label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
                       <input
                         type="email"
                         id="email"
-                        className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none"
+                        value={formData.email}
+                        onChange={handleChange}
+                        className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
                         placeholder="you@example.com"
+                        required
+                        autoComplete="email"
                       />
                     </div>
                   </div>
 
                   <div>
                     <label htmlFor="organization" className="block text-sm font-medium text-navy-700 mb-2">
-                      Church/Organization Name
+                      Church/Organization Name *
                     </label>
                     <div className="relative">
                       <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
                       <input
                         type="text"
                         id="organization"
-                        className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none"
+                        value={formData.organization}
+                        onChange={handleChange}
+                        className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
                         placeholder="Grace Assembly Lagos"
+                        required
                       />
                     </div>
                   </div>
 
                   <div>
                     <label htmlFor="password" className="block text-sm font-medium text-navy-700 mb-2">
-                      Password
+                      Password *
                     </label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
                       <input
-                        type="password"
+                        type={showPassword ? 'text' : 'password'}
                         id="password"
-                        className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none"
+                        value={formData.password}
+                        onChange={handleChange}
+                        className="w-full pl-10 pr-12 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
                         placeholder="Create a strong password"
+                        required
+                        autoComplete="new-password"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-navy-400 hover:text-navy-600 transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
                     </div>
                     <p className="text-xs text-navy-500 mt-1">At least 8 characters</p>
                   </div>
 
                   <div>
-                    <label className="flex items-start gap-3">
-                      <input type="checkbox" className="mt-1 rounded border-navy-300 text-sky-500 focus:ring-sky-500" />
+                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-navy-700 mb-2">
+                      Confirm Password *
+                    </label>
+                    <input
+                      type="password"
+                      id="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
+                      placeholder="Confirm your password"
+                      required
+                      autoComplete="new-password"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={agreedToTerms}
+                        onChange={(e) => setAgreedToTerms(e.target.checked)}
+                        className="mt-1 rounded border-navy-300 text-sky-500 focus:ring-sky-500" 
+                        required
+                      />
+                      <span className="text-sm text-navy-600">
+                        I agree to the <Link href="/terms" className="text-sky-600 hover:underline">Terms of Service</Link> and <Link href="/privacy" className="text-sky-600 hover:underline">Privacy Policy</Link> *
+                      </span>
+                    </label>
+
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={agreedToUpdates}
+                        onChange={(e) => setAgreedToUpdates(e.target.checked)}
+                        className="mt-1 rounded border-navy-300 text-sky-500 focus:ring-sky-500" 
+                      />
                       <span className="text-sm text-navy-600">
                         I agree to receive updates and communications from Volantislive
                       </span>
                     </label>
                   </div>
 
-                  <Button type="submit" size="lg" className="w-full">
+                  <Button 
+                    type="submit" 
+                    size="lg" 
+                    className="w-full"
+                    loading={isLoading}
+                  >
                     Create Free Account
                     <ArrowRight className="ml-2 w-5 h-5" />
                   </Button>
