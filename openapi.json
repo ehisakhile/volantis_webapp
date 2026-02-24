@@ -896,6 +896,63 @@
                 }
             }
         },
+        "/livestreams/active": {
+            "get": {
+                "tags": [
+                    "volantis-public-livestreams"
+                ],
+                "summary": "Get All Active Livestreams",
+                "description": "Get all active livestreams across the platform.\nPublic endpoint - no authentication required.\n\nReturns all live streams from all active companies.",
+                "operationId": "get_all_active_livestreams_livestreams_active_get",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 200,
+                            "minimum": 1,
+                            "default": 50,
+                            "title": "Limit"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0,
+                            "title": "Offset"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ActiveStreamsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/livestreams/{slug}": {
             "get": {
                 "tags": [
@@ -2183,10 +2240,588 @@
                     }
                 }
             }
+        },
+        "/subscriptions/{company_slug}/subscribe": {
+            "post": {
+                "tags": [
+                    "volantis-subscriptions"
+                ],
+                "summary": "Subscribe To Company",
+                "description": "Subscribe to a company channel.\nRequires authentication.",
+                "operationId": "subscribe_to_company_subscriptions__company_slug__subscribe_post",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "company_slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Slug"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/subscriptions/{company_slug}/unsubscribe": {
+            "delete": {
+                "tags": [
+                    "volantis-subscriptions"
+                ],
+                "summary": "Unsubscribe From Company",
+                "description": "Unsubscribe from a company channel.\nRequires authentication.",
+                "operationId": "unsubscribe_from_company_subscriptions__company_slug__unsubscribe_delete",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "company_slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Slug"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/subscriptions": {
+            "get": {
+                "tags": [
+                    "volantis-subscriptions"
+                ],
+                "summary": "Get User Subscriptions",
+                "description": "Get all subscriptions for the current user.\nRequires authentication.",
+                "operationId": "get_user_subscriptions_subscriptions_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/CompanySubscriptionOut"
+                                    },
+                                    "type": "array",
+                                    "title": "Response Get User Subscriptions Subscriptions Get"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/subscriptions/{company_slug}/subscribers/count": {
+            "get": {
+                "tags": [
+                    "volantis-subscriptions"
+                ],
+                "summary": "Get Subscriber Count",
+                "description": "Get subscriber count for a company.\nPublic endpoint - no authentication required.",
+                "operationId": "get_subscriber_count_subscriptions__company_slug__subscribers_count_get",
+                "parameters": [
+                    {
+                        "name": "company_slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Slug"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SubscriberCountOut"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/subscriptions/{company_slug}/stats": {
+            "get": {
+                "tags": [
+                    "volantis-subscriptions"
+                ],
+                "summary": "Get Company Stats",
+                "description": "Get streaming statistics for a company.\nPublic endpoint - no authentication required.",
+                "operationId": "get_company_stats_subscriptions__company_slug__stats_get",
+                "parameters": [
+                    {
+                        "name": "company_slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Slug"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CompanyStatsOut"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/livestream/{slug}/viewers/count": {
+            "get": {
+                "tags": [
+                    "volantis-anonymous-viewers"
+                ],
+                "summary": "Get Viewer Count",
+                "description": "Get current viewer count for a livestream.\nPublic endpoint - no authentication required.",
+                "operationId": "get_viewer_count_livestream__slug__viewers_count_get",
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Slug"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/livestream/{slug}/viewers": {
+            "get": {
+                "tags": [
+                    "volantis-anonymous-viewers"
+                ],
+                "summary": "Get Viewers",
+                "description": "Get list of anonymous viewers for a livestream.\nPublic endpoint - no authentication required.\n\nReturns currently connected anonymous viewers.",
+                "operationId": "get_viewers_livestream__slug__viewers_get",
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Slug"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 200,
+                            "minimum": 1,
+                            "default": 50,
+                            "title": "Limit"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/{company_slug}/live": {
+            "get": {
+                "tags": [
+                    "volantis-public-livestreams"
+                ],
+                "summary": "Get Company Live Page",
+                "description": "Get company live page with current stream info.\nPublic endpoint - no authentication required.\n\nReturns company info and current active livestream (if any).",
+                "operationId": "get_company_live_page__company_slug__live_get",
+                "parameters": [
+                    {
+                        "name": "company_slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Slug"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/{company_slug}/streams": {
+            "get": {
+                "tags": [
+                    "volantis-public-livestreams"
+                ],
+                "summary": "Get Company Streams",
+                "description": "Get all livestreams (active and inactive) for a company.\nPublic endpoint - no authentication required.\n\nReturns streams sorted by creation date (newest first).",
+                "operationId": "get_company_streams__company_slug__streams_get",
+                "parameters": [
+                    {
+                        "name": "company_slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Slug"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 200,
+                            "minimum": 1,
+                            "default": 50,
+                            "title": "Limit"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0,
+                            "title": "Offset"
+                        }
+                    },
+                    {
+                        "name": "include_inactive",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "boolean",
+                            "default": true,
+                            "title": "Include Inactive"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/VolLivestreamOut"
+                                    },
+                                    "title": "Response Get Company Streams  Company Slug  Streams Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/{company_slug}/history": {
+            "get": {
+                "tags": [
+                    "volantis-public-livestreams"
+                ],
+                "summary": "Get Company Stream History",
+                "description": "Get stream history for a company (completed streams only).\nPublic endpoint - no authentication required.",
+                "operationId": "get_company_stream_history__company_slug__history_get",
+                "parameters": [
+                    {
+                        "name": "company_slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Slug"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "default": 20,
+                            "title": "Limit"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": true
+                                    },
+                                    "title": "Response Get Company Stream History  Company Slug  History Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
         "schemas": {
+            "ActiveStreamOut": {
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "title": "Id"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "slug": {
+                        "type": "string",
+                        "title": "Slug"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "title": "Company Id"
+                    },
+                    "company_slug": {
+                        "type": "string",
+                        "title": "Company Slug"
+                    },
+                    "company_name": {
+                        "type": "string",
+                        "title": "Company Name"
+                    },
+                    "company_logo_url": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Company Logo Url"
+                    },
+                    "is_live": {
+                        "type": "boolean",
+                        "title": "Is Live"
+                    },
+                    "viewer_count": {
+                        "type": "integer",
+                        "title": "Viewer Count"
+                    },
+                    "thumbnail_url": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Thumbnail Url"
+                    },
+                    "started_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Started At"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "title",
+                    "slug",
+                    "company_id",
+                    "company_slug",
+                    "company_name",
+                    "is_live",
+                    "viewer_count",
+                    "started_at"
+                ],
+                "title": "ActiveStreamOut",
+                "description": "Active livestream for listing"
+            },
+            "ActiveStreamsResponse": {
+                "properties": {
+                    "streams": {
+                        "items": {
+                            "$ref": "#/components/schemas/ActiveStreamOut"
+                        },
+                        "type": "array",
+                        "title": "Streams"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "title": "Total"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "streams",
+                    "total"
+                ],
+                "title": "ActiveStreamsResponse",
+                "description": "Response for all active streams"
+            },
             "Body_add_user_to_company_companies__company_id__users_post": {
                 "properties": {
                     "email": {
@@ -2429,6 +3064,113 @@
                 ],
                 "title": "Body_upload_recording_livestreams__slug__upload_recording_post"
             },
+            "CompanyStatsOut": {
+                "properties": {
+                    "company_slug": {
+                        "type": "string",
+                        "title": "Company Slug"
+                    },
+                    "company_name": {
+                        "type": "string",
+                        "title": "Company Name"
+                    },
+                    "total_streams": {
+                        "type": "integer",
+                        "title": "Total Streams"
+                    },
+                    "total_streamed_time": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Total Streamed Time"
+                    },
+                    "subscriber_count": {
+                        "type": "integer",
+                        "title": "Subscriber Count"
+                    },
+                    "current_viewers": {
+                        "type": "integer",
+                        "title": "Current Viewers"
+                    },
+                    "is_live": {
+                        "type": "boolean",
+                        "title": "Is Live"
+                    },
+                    "active_stream_title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Active Stream Title"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "company_slug",
+                    "company_name",
+                    "total_streams",
+                    "total_streamed_time",
+                    "subscriber_count",
+                    "current_viewers",
+                    "is_live"
+                ],
+                "title": "CompanyStatsOut",
+                "description": "Company streaming stats response"
+            },
+            "CompanySubscriptionOut": {
+                "properties": {
+                    "company_id": {
+                        "type": "integer",
+                        "title": "Company Id"
+                    },
+                    "company_name": {
+                        "type": "string",
+                        "title": "Company Name"
+                    },
+                    "company_slug": {
+                        "type": "string",
+                        "title": "Company Slug"
+                    },
+                    "company_logo_url": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Company Logo Url"
+                    },
+                    "subscribed_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Subscribed At"
+                    },
+                    "is_live": {
+                        "type": "boolean",
+                        "title": "Is Live",
+                        "default": false
+                    },
+                    "current_viewers": {
+                        "type": "integer",
+                        "title": "Current Viewers",
+                        "default": 0
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "company_id",
+                    "company_name",
+                    "company_slug",
+                    "subscribed_at"
+                ],
+                "title": "CompanySubscriptionOut",
+                "description": "Company subscription info for user"
+            },
             "HTTPValidationError": {
                 "properties": {
                     "detail": {
@@ -2450,6 +3192,30 @@
                 ],
                 "title": "StreamType",
                 "description": "Type of livestream - audio only or video"
+            },
+            "SubscriberCountOut": {
+                "properties": {
+                    "company_id": {
+                        "type": "integer",
+                        "title": "Company Id"
+                    },
+                    "company_slug": {
+                        "type": "string",
+                        "title": "Company Slug"
+                    },
+                    "subscriber_count": {
+                        "type": "integer",
+                        "title": "Subscriber Count"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "company_id",
+                    "company_slug",
+                    "subscriber_count"
+                ],
+                "title": "SubscriberCountOut",
+                "description": "Subscriber count response"
             },
             "ValidationError": {
                 "properties": {
@@ -2698,6 +3464,17 @@
                         ],
                         "title": "End Time"
                     },
+                    "duration_seconds": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Duration Seconds"
+                    },
                     "cf_live_input_uid": {
                         "anyOf": [
                             {
@@ -2771,6 +3548,11 @@
                     "peak_viewers": {
                         "type": "integer",
                         "title": "Peak Viewers"
+                    },
+                    "total_views": {
+                        "type": "integer",
+                        "title": "Total Views",
+                        "default": 0
                     },
                     "created_by_username": {
                         "type": "string",

@@ -60,7 +60,7 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-slate-400 mb-6 max-w-sm">
-              Live audio streaming built for Africa. Reach your audience anywhere, 
+              Live audio streaming built for Africa. Reach your audience anywhere,
               even on slow connections.
             </p>
             <div className="flex gap-4">
@@ -83,9 +83,9 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">{footerLinks.product.title}</h3>
             <ul className="space-y-3">
-              {footerLinks.product.links.map((link) => (
-                <li key={link.href}>
-                  <Link href={link.href} className="400 hover:text-whitetext-slate- transition-colors">
+              {footerLinks.product.links.map((link, index) => (
+                <li key={`product-${index}`}>
+                  <Link href={link.href} className="text-slate-400 hover:text-white transition-colors">
                     {link.name}
                   </Link>
                 </li>
@@ -97,8 +97,8 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">{footerLinks.solutions.title}</h3>
             <ul className="space-y-3">
-              {footerLinks.solutions.links.map((link) => (
-                <li key={link.href}>
+              {footerLinks.solutions.links.map((link, index) => (
+                <li key={`solutions-${index}`}>
                   <Link href={link.href} className="text-slate-400 hover:text-white transition-colors">
                     {link.name}
                   </Link>
@@ -111,8 +111,8 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">{footerLinks.resources.title}</h3>
             <ul className="space-y-3">
-              {footerLinks.resources.links.map((link) => (
-                <li key={link.href}>
+              {footerLinks.resources.links.map((link, index) => (
+                <li key={`resources-${index}`}>
                   <Link href={link.href} className="text-slate-400 hover:text-white transition-colors">
                     {link.name}
                   </Link>
@@ -125,8 +125,8 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">{footerLinks.company.title}</h3>
             <ul className="space-y-3">
-              {footerLinks.company.links.map((link) => (
-                <li key={link.href}>
+              {footerLinks.company.links.map((link, index) => (
+                <li key={`company-${index}`}>
                   <Link href={link.href} className="text-slate-400 hover:text-white transition-colors">
                     {link.name}
                   </Link>

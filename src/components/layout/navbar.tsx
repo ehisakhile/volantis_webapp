@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ChevronDown, Radio, User, LogOut, Settings } from "lucide-react";
+import { Menu, X, ChevronDown, Radio, User, LogOut, Settings, Headphones } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -44,6 +44,7 @@ export function Navbar() {
   const navLinks = [
     { name: "Features", href: "/features", hasDropdown: true },
     { name: "Solutions", href: "/solutions/churches", hasDropdown: true },
+    { name: "Listen", href: "/listen", isHighlighted: true },
     { name: "Pricing", href: "/pricing" },
     { name: "How It Works", href: "/how-it-works" },
   ];
@@ -82,11 +83,13 @@ export function Navbar() {
                     href={link.href}
                     className={cn(
                       "font-medium transition-colors",
-                      pathname === link.href
+                      link.isHighlighted && "px-4 py-2 bg-sky-500 text-white rounded-full hover:bg-sky-600 hover:text-white shadow-md shadow-sky-500/20",
+                      !link.isHighlighted && (pathname === link.href
                         ? "text-sky-600"
-                        : "text-slate-600 hover:text-sky-600"
+                        : "text-slate-600 hover:text-sky-600")
                     )}
                   >
+                    {link.isHighlighted && <Headphones className="w-4 h-4 inline-block mr-1.5" />}
                     {link.name}
                   </Link>
                 )}

@@ -110,6 +110,118 @@ export const livestreamApi = {
     );
     return response;
   },
+
+  // ==================== Public Endpoints (No Auth Required) ====================
+
+  /**
+   * Get all active livestreams across the platform
+   * Public endpoint - no authentication required
+   */
+  async getActiveLivestreams(
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<ActiveStreamsResponse> {
+    const response = await apiClient.request<ActiveStreamsResponse>(
+      `/livestreams/active?limit=${limit}&offset=${offset}`,
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
+   * Get company live page with current stream info
+   * Public endpoint - no authentication required
+   * Returns company info and current active livestream (if any)
+   */
+  async getCompanyLivePage(companySlug: string): Promise<CompanyLivePageResponse> {
+    const response = await apiClient.request<CompanyLivePageResponse>(
+      `/${encodeURIComponent(companySlug)}/live`,
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
+   * Get all livestreams (active and inactive) for a company
+   * Public endpoint - no authentication required
+   */
+  async getCompanyStreams(
+    companySlug: string,
+    limit: number = 50,
+    offset: number = 0,
+    includeInactive: boolean = true
+  ): Promise<VolLivestreamOut[]> {
+    const response = await apiClient.request<VolLivestreamOut[]>(
+      `/${encodeURIComponent(companySlug)}/streams?limit=${limit}&offset=${offset}&include_inactive=${includeInactive}`,
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
+   * Get stream history for a company (completed streams only)
+   * Public endpoint - no authentication required
+   */
+  async getCompanyStreamHistory(
+    companySlug: string,
+    limit: number = 20
+  ): Promise<VolLivestreamOut[]> {
+    const response = await apiClient.request<VolLivestreamOut[]>(
+      `/${encodeURIComponent(companySlug)}/history?limit=${limit}`,
+      { method: 'GET' }
+    );
+    return response;
+  },
 };
+
+// ==================== Types for Public Endpoints ====================
+
+// Response from /livestreams/active endpoint
+export interface ActiveStreamsResponse {
+  streams: ActiveStreamItem[];
+  total: number;
+}
+
+export interface ActiveStreamItem {
+  id: number;
+  title: string;
+  slug: string;
+  company_id: number;
+  company_slug: string;
+  company_name: string;
+  company_logo_url: string | null;
+  is_live: boolean;
+  viewer_count: number;
+  thumbnail_url: string | null;
+  started_at: string;
+}
+
+// For backward compatibility, keep the old type but map to it
+export type ActiveStreamWithCompany = ActiveStreamItem;
+
+export interface CompanyLivePageResponse {
+  company: {
+    id: number;
+    name: string;
+    slug: string;
+    logo_url: string | null;
+    description: string | null;
+  };
+  livestream: {
+    id: number;
+    title: string;
+    slug: string;
+    description: string | null;
+    is_live: boolean;
+    viewer_count: number;
+    peak_viewers: number;
+    total_views: number;
+    webrtc_playback_url: string | null;
+    hls_url: string | null;
+    started_at: string;
+  } | null;
+  subscribers_count: number;
+  message?: string;
+}
 
 export default livestreamApi;
