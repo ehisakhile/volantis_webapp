@@ -32,6 +32,7 @@ export default function CompanyPage() {
     startPlayback,
     stop: stopPlayback,
     retryConnection,
+    audioStats,
   } = useWebRTC();
   
   // Fetch company and streams
@@ -277,6 +278,7 @@ export default function CompanyPage() {
                 connectionState={connectionState}
                 isPlaying={isPlaying}
                 onRetry={handleRetry}
+                audioStats={audioStats}
               />
               
               {/* Share info */}

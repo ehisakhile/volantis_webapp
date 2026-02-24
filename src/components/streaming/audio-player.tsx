@@ -17,6 +17,11 @@ interface AudioPlayerProps {
   onPause?: () => void;
   onRetry?: () => void;
   isPlaying?: boolean;
+  audioStats?: {
+    bitrate?: number;
+    jitter?: number;
+    codec?: string;
+  };
 }
 
 export function AudioPlayer({
@@ -27,6 +32,7 @@ export function AudioPlayer({
   onPause,
   onRetry,
   isPlaying = false,
+  audioStats,
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isMuted, setIsMuted] = useState(false);
@@ -241,6 +247,28 @@ export function AudioPlayer({
               )}
             </AnimatePresence>
           </div>
+          
+          {/* Audio Stats */}
+          {audioStats && connectionState === 'connected' && (
+            <div className="mt-4 flex items-center justify-center gap-6 text-xs text-slate-400">
+              {audioStats.codec && (
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Codec: {audioStats.codec}
+                </span>
+              )}
+              {audioStats.jitter !== undefined && (
+                <span>
+                  Jitter: {audioStats.jitter.toFixed(1)} ms
+                </span>
+              )}
+              {audioStats.bitrate !== undefined && (
+                <span>
+                  {audioStats.bitrate} kbps
+                </span>
+              )}
+            </div>
+          )}
         </div>
         
         {/* Reconnecting overlay */}

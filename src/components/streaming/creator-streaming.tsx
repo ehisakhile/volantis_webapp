@@ -13,55 +13,44 @@ import {
   SignalHigh,
   Clock,
   Users,
-  Loader2
+  Loader2,
+  Monitor,
+  AlertCircle,
+  Volume2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useWebRTC } from '@/hooks/useWebRTC';
-import { useAudioAnalyzer } from '@/hooks/useAudioAnalyzer';
 import { livestreamApi } from '@/lib/api/livestream';
-import type { AudioSource, VolLivestreamOut } from '@/types/livestream';
+import {
+  ICE_CONFIG,
+  captureMicrophone,
+  captureSystemAudio,
+  mixAudioStreams,
+  startVisualizer,
+  waitForIce,
+  preferOpus,
+  detectAudioCodec,
+  getAudioInputDevices,
+} from '@/lib/webrtc-utils';
+import type { VolLivestreamOut } from '@/types/livestream';
 
-// Audio visualizer component - defined first
+// Audio visualizer component using canvas (like test_webrtc.html)
 interface AudioVisualizerProps {
   isActive: boolean;
   level: number;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  accentColor?: string;
 }
 
-function AudioVisualizer({ isActive, level }: AudioVisualizerProps) {
-  const barCount = 40;
-  
+function AudioVisualizer({ isActive, level, canvasRef, accentColor = '#00e5a0' }: AudioVisualizerProps) {
   return (
-    <div className="flex items-center justify-center gap-0.5 h-full w-full px-8">
-      {Array.from({ length: barCount }).map((_, i) => {
-        const offset = Math.sin(i * 0.4) * 0.4 + 0.3;
-        const baseHeight = isActive 
-          ? Math.max(4, (level * offset * 100)) 
-          : 4;
-        
-        return (
-          <motion.div
-            key={i}
-            animate={{
-              height: `${baseHeight}%`,
-            }}
-            transition={{
-              duration: 0.08,
-              ease: "easeOut"
-            }}
-            className={cn(
-              "w-1.5 rounded-full",
-              isActive 
-                ? "bg-gradient-to-t from-sky-500 via-sky-400 to-sky-300" 
-                : "bg-slate-700"
-            )}
-            style={{
-              opacity: isActive ? 0.4 + (i / barCount) * 0.6 : 0.2,
-            }}
-          />
-        );
-      })}
-    </div>
+    <canvas
+      ref={canvasRef}
+      width={800}
+      height={128}
+      className="w-full h-32"
+      style={{ display: isActive ? 'block' : 'none' }}
+    />
   );
 }
 
@@ -81,89 +70,83 @@ export function CreatorStreaming({
   const [streamDescription, setStreamDescription] = useState('');
   const [currentStream, setCurrentStream] = useState<VolLivestreamOut | null>(null);
   
-  // Audio sources
-  const [audioSources, setAudioSources] = useState<AudioSource[]>([]);
-  const [selectedSource, setSelectedSource] = useState<string>('');
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [hasPermission, setHasPermission] = useState(false);
-  const [permissionError, setPermissionError] = useState<string | null>(null);
+  // Audio source selection (like test_webrtc.html)
+  const [useMic, setUseMic] = useState(true);
+  const [useSystemAudio, setUseSystemAudio] = useState(false);
+  const [mixAudio, setMixAudio] = useState(false);
+  
+  // Microphone device selection
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMicDevice, setSelectedMicDevice] = useState<string>('');
+  const [showMicPicker, setShowMicPicker] = useState(false);
   
   // Stream duration
   const [streamDuration, setStreamDuration] = useState(0);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
-  // Audio analyzer
-  const { currentLevel, start: startAnalyzer, stop: stopAnalyzer, isActive: isAnalyzing } = useAudioAnalyzer();
+  // Connection state
+  const [connectionState, setConnectionState] = useState<string>('idle');
+  const [error, setError] = useState<string | null>(null);
   
-  // WebRTC connection
-  const { 
-    connectionState, 
-    startPublishing, 
-    stop: stopWebRTC,
-    error: webrtcError,
-  } = useWebRTC({
-    onConnectionStateChange: (state) => {
-      if (state === 'connected') {
-        console.log('WebRTC connected successfully');
+  // Stats
+  const [codec, setCodec] = useState<string>('—');
+  const [bitrate, setBitrate] = useState<string>('—');
+  const [iceState, setIceState] = useState<string>('—');
+  
+  // Refs for WebRTC and streams
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const pubStreamRef = useRef<MediaStream | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const systemStreamRef = useRef<MediaStream | null>(null);
+  const stopVizRef = useRef<(() => void) | null>(null);
+  const statsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Visualizer canvas ref
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  
+  // Load microphone devices on mount and when showing picker
+  useEffect(() => {
+    if (showMicPicker) {
+      loadMicDevices();
+    }
+  }, [showMicPicker]);
+
+  const loadMicDevices = useCallback(async () => {
+    try {
+      // Request permission first
+      await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const devices = await getAudioInputDevices();
+      setMicDevices(devices);
+      if (devices.length > 0 && !selectedMicDevice) {
+        setSelectedMicDevice(devices[0].deviceId);
       }
-    },
-  });
-
-  // Enumerate audio devices
-  const enumerateAudioSources = useCallback(async () => {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioInputs = devices
-        .filter(device => device.kind === 'audioinput')
-        .map(device => ({
-          deviceId: device.deviceId,
-          label: device.label || `Microphone ${device.deviceId.slice(0, 4)}`,
-          kind: 'audioinput' as const,
-        }));
-      setAudioSources(audioInputs);
     } catch (err) {
-      console.error('Failed to enumerate devices:', err);
+      console.error('Failed to load mic devices:', err);
     }
-  }, []);
+  }, [selectedMicDevice]);
 
-  // Request microphone permission
-  const requestMicrophoneAccess = useCallback(async () => {
-    try {
-      setPermissionError(null);
-      
-      // First enumerate to get labels
-      await enumerateAudioSources();
-      
-      // Then get the stream with selected device
-      const constraints: MediaStreamConstraints = {
-        audio: selectedSource 
-          ? { deviceId: { exact: selectedSource } }
-          : true,
-        video: false, // Audio only
-      };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      setLocalStream(stream);
-      setHasPermission(true);
-      
-      // Start audio analyzer
-      startAnalyzer(stream);
-      
-      // Refresh device list after permission granted
-      await enumerateAudioSources();
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to access microphone');
-      setPermissionError(error.message);
-      setHasPermission(false);
-    }
-  }, [selectedSource, enumerateAudioSources, startAnalyzer]);
-
-  // Start streaming - calls API first, then connects WebRTC
+  // Handle start streaming - exactly like test_webrtc.html
   const handleStartStream = useCallback(async () => {
-    if (!localStream || !streamTitle.trim()) return;
-    
+    if (!streamTitle.trim()) {
+      setError('Please enter a stream title');
+      return;
+    }
+
+    // Validate audio source selection
+    if (!useMic && !useSystemAudio) {
+      setError('Select at least one audio source');
+      return;
+    }
+
+    if (mixAudio && (!useMic || !useSystemAudio)) {
+      setError('Mix requires both Microphone and System Audio');
+      return;
+    }
+
     setIsStarting(true);
-    
+    setError(null);
+    setConnectionState('connecting');
+
     try {
       // Step 1: Call API to start audio stream
       const streamData = await livestreamApi.startAudioStream({
@@ -172,37 +155,193 @@ export function CreatorStreaming({
       });
       
       setCurrentStream(streamData);
-      
-      // Step 2: Get the publish URL from API response
-      if (streamData.cf_webrtc_publish_url) {
-        // Step 3: Connect via WebRTC with the publish URL
-        await startPublishing(localStream, streamData.cf_webrtc_publish_url);
-        
-        setIsStreaming(true);
-        
-        // Start duration counter
-        durationIntervalRef.current = setInterval(() => {
-          setStreamDuration(prev => prev + 1);
-        }, 1000);
-        
-        onStreamStarted?.(streamData);
-      } else {
+
+      if (!streamData.cf_webrtc_publish_url) {
         throw new Error('No publish URL returned from API');
       }
+
+      // Step 2: Capture audio based on selection (exactly like test_webrtc.html)
+      let pubStream: MediaStream;
+      
+      if (useMic && !useSystemAudio) {
+        // Microphone only
+        console.log('Requesting microphone with device:', selectedMicDevice || 'default');
+        pubStream = await captureMicrophone(selectedMicDevice || undefined);
+        console.log('Microphone acquired');
+      } else if (useSystemAudio && !useMic) {
+        // System audio only
+        console.log('Requesting system audio...');
+        pubStream = await captureSystemAudio();
+      } else if (useMic && useSystemAudio && mixAudio) {
+        // Mixed audio
+        console.log('Requesting microphone and system audio...');
+        const [mic, system] = await Promise.all([
+          captureMicrophone(selectedMicDevice || undefined),
+          captureSystemAudio()
+        ]);
+        micStreamRef.current = mic;
+        systemStreamRef.current = system;
+        
+        // Mix them together
+        pubStream = mixAudioStreams([micStreamRef.current, systemStreamRef.current]);
+        console.log('Audio streams mixed');
+      } else if (useMic && useSystemAudio && !mixAudio) {
+        // Both but not mixed - use system audio
+        console.log('Requesting system audio (both selected)...');
+        pubStream = await captureSystemAudio();
+      } else {
+        throw new Error('Invalid audio source configuration');
+      }
+
+      pubStreamRef.current = pubStream;
+
+      // Step 3: Start visualizer (like test_webrtc.html)
+      if (canvasRef.current) {
+        stopVizRef.current = startVisualizer(pubStream, canvasRef.current, '#00e5a0');
+      }
+
+      // Step 4: Create WebRTC connection (exactly like test_webrtc.html)
+      const pc = new RTCPeerConnection(ICE_CONFIG);
+      pcRef.current = pc;
+
+      pc.oniceconnectionstatechange = () => {
+        const s = pc.iceConnectionState;
+        setIceState(s);
+        console.log(`Publish ICE → ${s}`);
+        
+        if (s === 'connected') {
+          setConnectionState('connected');
+          startPubStats();
+        } else if (s === 'failed' || s === 'disconnected') {
+          setConnectionState('failed');
+        }
+      };
+
+      pc.onicegatheringstatechange = () => {
+        console.log(`Publish ICE gathering → ${pc.iceGatheringState}`);
+      };
+
+      // Add audio track
+      pubStream.getAudioTracks().forEach(t => pc.addTrack(t, pubStream));
+
+      // Create offer
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: false,
+        offerToReceiveVideo: false
+      });
+
+      // Prefer Opus with low-latency settings (exactly like test_webrtc.html)
+      const sdpWithOpus = preferOpus(offer.sdp || '');
+      await pc.setLocalDescription({ type: offer.type, sdp: sdpWithOpus });
+
+      console.log('Waiting for ICE gathering...');
+      
+      // Wait for ICE
+      await waitForIce(pc, 2000);
+
+      console.log(`Sending offer to: ${streamData.cf_webrtc_publish_url}`);
+      
+      // Send to server (WHIP protocol)
+      const res = await fetch(streamData.cf_webrtc_publish_url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/sdp',
+          'Accept': 'application/sdp'
+        },
+        body: pc.localDescription!.sdp
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Server ${res.status}: ${txt.slice(0, 200)}`);
+      }
+
+      const answerSdp = await res.text();
+      console.log(`Answer received (${answerSdp.length} bytes)`);
+
+      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+      // Detect codec
+      const detectedCodec = detectAudioCodec(answerSdp);
+      setCodec(detectedCodec);
+      console.log(`Negotiated codec: ${detectedCodec}`);
+
+      // Start duration counter
+      durationIntervalRef.current = setInterval(() => {
+        setStreamDuration(prev => prev + 1);
+      }, 1000);
+
+      setIsStreaming(true);
+      onStreamStarted?.(streamData);
+
     } catch (err) {
-      console.error('Failed to start stream:', err);
-      const error = err instanceof Error ? err : new Error('Failed to start stream');
-      setPermissionError(error.message);
+      console.error('Publish error:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to start stream';
+      setError(errorMsg);
+      setConnectionState('failed');
+      teardownPublish();
     } finally {
       setIsStarting(false);
     }
-  }, [localStream, streamTitle, streamDescription, startPublishing, onStreamStarted]);
+  }, [streamTitle, streamDescription, useMic, useSystemAudio, mixAudio, onStreamStarted]);
 
-  // Stop streaming
+  // Stats tracking (like test_webrtc.html)
+  const startPubStats = useCallback(() => {
+    let lastBytes = 0;
+    let lastTs = 0;
+    
+    statsTimerRef.current = setInterval(async () => {
+      if (!pcRef.current) return;
+      const stats = await pcRef.current.getStats();
+      stats.forEach(r => {
+        if (r.type === 'outbound-rtp' && r.kind === 'audio') {
+          const now = r.timestamp;
+          const bytes = r.bytesSent;
+          if (lastTs) {
+            const dt = (Number(now) - lastTs) / 1000;
+            const kbps = Math.round(((bytes - lastBytes) * 8) / dt / 1000);
+            setBitrate(kbps + ' kbps');
+          }
+          lastBytes = Number(bytes);
+          lastTs = Number(now);
+        }
+      });
+    }, 1500);
+  }, []);
+
+  // Teardown function (exactly like test_webrtc.html)
+  const teardownPublish = useCallback(() => {
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+    if (pubStreamRef.current) {
+      pubStreamRef.current.getTracks().forEach(t => t.stop());
+      pubStreamRef.current = null;
+    }
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(t => t.stop());
+      micStreamRef.current = null;
+    }
+    if (systemStreamRef.current) {
+      systemStreamRef.current.getTracks().forEach(t => t.stop());
+      systemStreamRef.current = null;
+    }
+    if (stopVizRef.current) {
+      stopVizRef.current();
+      stopVizRef.current = null;
+    }
+    if (statsTimerRef.current) {
+      clearInterval(statsTimerRef.current);
+      statsTimerRef.current = null;
+    }
+    setBitrate('—');
+    setIceState('—');
+  }, []);
+
+  // Handle stop streaming
   const handleStopStream = useCallback(async () => {
-    // Stop WebRTC connection
-    stopWebRTC();
-    stopAnalyzer();
+    teardownPublish();
     
     // Stop duration counter
     if (durationIntervalRef.current) {
@@ -222,9 +361,11 @@ export function CreatorStreaming({
     setIsStreaming(false);
     setStreamDuration(0);
     setCurrentStream(null);
+    setCodec('—');
+    setConnectionState('idle');
     
     onStreamStopped?.();
-  }, [currentStream, stopWebRTC, stopAnalyzer, onStreamStopped]);
+  }, [currentStream, teardownPublish, onStreamStopped]);
 
   // Format duration
   const formatDuration = (seconds: number) => {
@@ -242,27 +383,25 @@ export function CreatorStreaming({
   const getConnectionQuality = () => {
     switch (connectionState) {
       case 'connected':
-        return { icon: SignalHigh, color: 'text-green-500', label: 'Excellent' };
+        return { icon: SignalHigh, color: 'text-green-500', label: 'Live' };
       case 'connecting':
         return { icon: Signal, color: 'text-yellow-500', label: 'Connecting' };
-      case 'reconnecting':
-        return { icon: SignalLow, color: 'text-yellow-500', label: 'Reconnecting' };
+      case 'failed':
+        return { icon: SignalLow, color: 'text-red-500', label: 'Failed' };
       default:
-        return { icon: Signal, color: 'text-slate-400', label: 'Not connected' };
+        return { icon: Signal, color: 'text-slate-400', label: 'Offline' };
     }
   };
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
+      teardownPublish();
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current);
       }
     };
-  }, [localStream]);
+  }, [teardownPublish]);
 
   const connectionQuality = getConnectionQuality();
 
@@ -273,7 +412,7 @@ export function CreatorStreaming({
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold">Creator Studio</h1>
-            <p className="text-slate-400">Audio Broadcasting</p>
+            <p className="text-slate-400">WHIP Audio Streaming</p>
           </div>
           
           {/* Connection status */}
@@ -292,69 +431,120 @@ export function CreatorStreaming({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Panel - Controls */}
           <div className="lg:col-span-1 space-y-6">
-            {/* Audio Source Selector */}
+            {/* Audio Source Selection (exactly like test_webrtc.html) */}
             <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Mic className="w-5 h-5 text-sky-500" />
-                Audio Source
+                <Settings className="w-5 h-5 text-sky-500" />
+                Audio Sources
               </h2>
               
-              {/* Source dropdown */}
-              <select
-                value={selectedSource}
-                onChange={(e) => setSelectedSource(e.target.value)}
-                disabled={isStreaming || isStarting}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50"
-              >
-                <option value="">Default Microphone</option>
-                {audioSources.map((source) => (
-                  <option key={source.deviceId} value={source.deviceId}>
-                    {source.label}
-                  </option>
-                ))}
-              </select>
-              
-              {/* Request permission button */}
-              {!hasPermission && (
-                <Button
-                  onClick={requestMicrophoneAccess}
-                  className="w-full"
-                  disabled={isStarting}
-                >
-                  <Mic className="w-4 h-4 mr-2" />
-                  Allow Microphone Access
-                </Button>
-              )}
-              
-              {/* Permission error */}
-              {permissionError && (
-                <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                  <p className="text-red-400 text-sm">{permissionError}</p>
-                </div>
-              )}
-              
-              {/* Audio level meter */}
-              <div className="mt-4">
-                <div className="flex items-center justify-between text-sm text-slate-400 mb-2">
-                  <span>Input Level</span>
-                  <span>{Math.round(currentLevel * 100)}%</span>
-                </div>
-                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                  <motion.div
-                    className={cn(
-                      "h-full rounded-full",
-                      currentLevel > 0.8 ? "bg-red-500" : currentLevel > 0.5 ? "bg-yellow-500" : "bg-sky-500"
-                    )}
-                    style={{ width: `${currentLevel * 100}%` }}
+              {/* Audio Source Checkboxes */}
+              <div className="space-y-3 mb-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useMic}
+                    onChange={(e) => {
+                      setUseMic(e.target.checked);
+                      if (!e.target.checked) setMixAudio(false);
+                    }}
+                    disabled={isStreaming || isStarting}
+                    className="w-4 h-4 accent-sky-500"
                   />
-                </div>
+                  <Mic className="w-4 h-4 text-sky-400" />
+                  <span className="text-sm">Microphone</span>
+                </label>
+                
+                {/* Microphone Picker - show when mic is enabled */}
+                {useMic && (
+                  <div className="ml-7 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowMicPicker(!showMicPicker)}
+                      disabled={isStreaming || isStarting}
+                      className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1"
+                    >
+                      <Settings className="w-3 h-3" />
+                      {selectedMicDevice
+                        ? (micDevices.find(d => d.deviceId === selectedMicDevice)?.label || 'Select microphone')
+                        : 'Select microphone'}
+                    </button>
+                    
+                    {showMicPicker && (
+                      <div className="mt-2 bg-slate-800 rounded-lg p-2 max-h-32 overflow-y-auto">
+                        {micDevices.length === 0 ? (
+                          <span className="text-xs text-slate-500">No devices found</span>
+                        ) : (
+                          micDevices.map(device => (
+                            <button
+                              key={device.deviceId}
+                              type="button"
+                              onClick={() => {
+                                setSelectedMicDevice(device.deviceId);
+                                setShowMicPicker(false);
+                              }}
+                              className={cn(
+                                "w-full text-left text-xs px-2 py-1.5 rounded hover:bg-slate-700",
+                                selectedMicDevice === device.deviceId && "bg-sky-500/20 text-sky-400"
+                              )}
+                            >
+                              {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useSystemAudio}
+                    onChange={(e) => {
+                      setUseSystemAudio(e.target.checked);
+                      if (!e.target.checked) setMixAudio(false);
+                    }}
+                    disabled={isStreaming || isStarting}
+                    className="w-4 h-4 accent-purple-500"
+                  />
+                  <Monitor className="w-4 h-4 text-purple-400" />
+                  <span className="text-sm">System Audio</span>
+                </label>
+                
+                <label 
+                  className={cn(
+                    "flex items-center gap-3 cursor-pointer",
+                    (!useMic || !useSystemAudio) && "opacity-50"
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={mixAudio}
+                    onChange={(e) => setMixAudio(e.target.checked)}
+                    disabled={!useMic || !useSystemAudio || isStreaming || isStarting}
+                    className="w-4 h-4 accent-yellow-500"
+                  />
+                  <Volume2 className="w-4 h-4 text-yellow-400" />
+                  <span className="text-sm">Mix (Mic + System)</span>
+                </label>
               </div>
+              
+              {/* Error display */}
+              {error && (
+                <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <p className="text-red-400 text-sm flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    {error}
+                  </p>
+                </div>
+              )}
             </div>
             
             {/* Stream Settings */}
             <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-sky-500" />
+                <Radio className="w-5 h-5 text-sky-500" />
                 Stream Settings
               </h2>
               
@@ -389,7 +579,7 @@ export function CreatorStreaming({
                 {!isStreaming ? (
                   <Button
                     onClick={handleStartStream}
-                    disabled={!hasPermission || !streamTitle.trim() || isStarting}
+                    disabled={!streamTitle.trim() || isStarting}
                     className="flex-1 bg-emerald-500 hover:bg-emerald-600"
                   >
                     {isStarting ? (
@@ -414,13 +604,6 @@ export function CreatorStreaming({
                   </Button>
                 )}
               </div>
-              
-              {/* WebRTC error */}
-              {webrtcError && (
-                <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                  <p className="text-red-400 text-sm">{webrtcError}</p>
-                </div>
-              )}
             </div>
           </div>
           
@@ -430,12 +613,44 @@ export function CreatorStreaming({
             <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
               <h2 className="text-lg font-semibold mb-4">Live Preview</h2>
               
-              {/* Audio visualizer */}
-              <div className="bg-slate-950 rounded-xl h-48 flex items-center justify-center mb-4">
-                <AudioVisualizer 
-                  isActive={isStreaming && isAnalyzing} 
-                  level={currentLevel}
+              {/* Canvas Visualizer (like test_webrtc.html) */}
+              <div className="bg-slate-950 rounded-xl h-32 mb-4 overflow-hidden border border-slate-800 relative">
+                <canvas
+                  ref={canvasRef}
+                  width={800}
+                  height={128}
+                  className={cn(
+                    "w-full h-32",
+                    isStreaming ? "block" : "hidden"
+                  )}
                 />
+                {!isStreaming && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-slate-500 text-sm">Visualizer will appear here when streaming</span>
+                  </div>
+                )}
+                {/* Label like in test_webrtc.html */}
+                {isStreaming && (
+                  <span className="absolute top-2 right-3 text-xs text-slate-500 uppercase tracking-wider">
+                    MIC INPUT
+                  </span>
+                )}
+              </div>
+              
+              {/* Stats Row (exactly like test_webrtc.html) */}
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="bg-slate-800 rounded-lg p-3 text-center">
+                  <div className="text-xs text-slate-400 mb-1">State</div>
+                  <div className="text-sm font-semibold">{iceState || '—'}</div>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-3 text-center">
+                  <div className="text-xs text-slate-400 mb-1">Codec</div>
+                  <div className="text-sm font-semibold">{codec}</div>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-3 text-center">
+                  <div className="text-xs text-slate-400 mb-1">Bitrate</div>
+                  <div className="text-sm font-semibold">{bitrate}</div>
+                </div>
               </div>
               
               {/* Stream info */}
@@ -480,7 +695,7 @@ export function CreatorStreaming({
                   </span>
                 </div>
                 
-                {/* Audio Level */}
+                {/* Audio Status */}
                 <div className="bg-slate-800 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-slate-400 mb-1">
                     <Headphones className="w-4 h-4" />
@@ -488,9 +703,9 @@ export function CreatorStreaming({
                   </div>
                   <span className={cn(
                     "font-semibold",
-                    hasPermission ? "text-emerald-500" : "text-slate-500"
+                    isStreaming ? "text-emerald-500" : "text-slate-500"
                   )}>
-                    {hasPermission ? "Active" : "Inactive"}
+                    {isStreaming ? "Active" : "Inactive"}
                   </span>
                 </div>
               </div>
@@ -498,19 +713,12 @@ export function CreatorStreaming({
             
             {/* Stream Title Display */}
             {isStreaming && streamTitle && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-sky-500/10 border border-sky-500/20 rounded-xl p-5"
-              >
-                <h3 className="text-sm text-sky-400 mb-1">Now Streaming</h3>
-                <p className="text-xl font-semibold">{streamTitle}</p>
-                {currentStream && (
-                  <p className="text-slate-400 text-sm mt-1">
-                    Slug: {currentStream.slug}
-                  </p>
+              <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
+                <h3 className="text-lg font-semibold mb-2">{streamTitle}</h3>
+                {streamDescription && (
+                  <p className="text-slate-400 text-sm">{streamDescription}</p>
                 )}
-              </motion.div>
+              </div>
             )}
           </div>
         </div>
