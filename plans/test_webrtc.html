@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volantis WebRTC Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .container { margin-bottom: 20px; }
+        input, button { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+        video { width: 100%; background: #000; margin-top: 10px; }
+        h2 { margin-top: 30px; }
+        .info { background: #f0f0f0; padding: 10px; border-radius: 5px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Volantis WebRTC Test</h1>
+    
+    <div class="container">
+        <h2>1. Get Camera Ready</h2>
+        <p>Click to start your camera first, then enter the publish URL from the API</p>
+        <button id="startCamera" style="background: #FF9800; color: white;">Start Camera</button>
+        <video id="localVideo" autoplay muted playsinline></video>
+        <div id="cameraStatus" class="info">Camera not started</div>
+    </div>
+
+    <div class="container" style="border: 2px solid #4CAF50; padding: 15px; border-radius: 10px;">
+        <h2>2. Audio-Only Livestream</h2>
+        <p>Start an audio-only livestream using <code>POST /livestreams/start/audio</code></p>
+        <p>Then paste the <code>cf_webrtc_publish_url</code> below:</p>
+        <input type="text" id="audioPublishUrl" placeholder="Paste Audio WebRTC publish URL here">
+        <button id="startAudioPublish" style="background: #4CAF50; color: white;">Start Audio Stream</button>
+        <video id="audioVideo" autoplay muted playsinline></video>
+        <div id="audioPublishStatus" class="info">Not connected</div>
+    </div>
+
+    <div class="container" style="border: 2px solid #2196F3; padding: 15px; border-radius: 10px;">
+        <h2>3. Video Livestream</h2>
+        <p>Start a video livestream using <code>POST /livestreams/start/video</code></p>
+        <p>Then paste the <code>cf_webrtc_publish_url</code> below:</p>
+        <input type="text" id="videoPublishUrl" placeholder="Paste Video WebRTC publish URL here">
+        <button id="startVideoPublish" style="background: #2196F3; color: white;">Start Video Stream</button>
+        <video id="videoPublishVideo" autoplay muted playsinline></video>
+        <div id="videoPublishStatus" class="info">Not connected</div>
+    </div>
+
+    <div class="container">
+        <h2>4. Record Stream (Save to Device)</h2>
+        <p>Start recording while streaming - saves to your device when stopped</p>
+        <div style="display: flex; gap: 10px;">
+            <button id="startRecording" style="background: #E91E63; color: white;">Start Recording</button>
+            <button id="stopRecording" style="background: #9C27B0; color: white;" disabled>Stop & Save</button>
+        </div>
+        <div id="recordingStatus" class="info">Recording not started</div>
+    </div>
+
+    <div class="container">
+        <h2>4. Playback (Watch)</h2>
+        <p>After starting a livestream via the API, copy the <code>cf_webrtc_playback_url</code> from the response and paste it below:</p>
+        <input type="text" id="playbackUrl" placeholder="Paste WebRTC playback URL (WHEP endpoint) here">
+        <button id="startPlayback" style="background: #2196F3; color: white;">Start Playback</button>
+        <video id="remoteVideo" autoplay playsinline></video>
+        <div id="playbackStatus" class="info"></div>
+    </div>
+
+    <script>
+        // Step 1: Get Camera
+        document.getElementById("startCamera").onclick = async () => {
+            const statusDiv = document.getElementById("cameraStatus");
+            statusDiv.textContent = "Getting camera...";
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                
+                document.getElementById("localVideo").srcObject = stream;
+                statusDiv.textContent = "✅ Camera ready! Now paste the publish URL below and click Connect.";
+                
+                // Store the stream for later use
+                window.localStream = stream;
+            } catch (err) {
+                statusDiv.textContent = "Error: " + err.message;
+            }
+        };
+
+        // Step 2a: Audio-Only Publishing (with 1x1 black pixel video)
+        document.getElementById("startAudioPublish").onclick = async () => {
+            const publishUrl = document.getElementById("audioPublishUrl").value;
+            const statusDiv = document.getElementById("audioPublishStatus");
+            const videoEl = document.getElementById("audioVideo");
+            
+            if (!publishUrl) {
+                statusDiv.textContent = "Please paste the audio publish URL from /start/audio";
+                return;
+            }
+            
+            statusDiv.textContent = "Getting audio...";
+            
+            try {
+                // Get audio only
+                const audioStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    },
+                    video: false
+                });
+                
+                // Try to create a minimal black video using getUserMedia with minimal constraints
+                // This creates a 1x1 black frame which is the smallest possible video
+                let videoStream;
+                try {
+                    videoStream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            width: { ideal: 1 },
+                            height: { ideal: 1 },
+                            frameRate: { ideal: 1 }
+                        }
+                    });
+                } catch (e) {
+                    // If that fails, try with no constraints - use fake video
+                    statusDiv.textContent = "Creating synthetic video...";
+                    videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    // Stop the video track immediately to create black frame
+                    videoStream.getVideoTracks().forEach(track => {
+                        track.stop();
+                    });
+                }
+                
+                // Create a new stream with the audio + a fresh video track
+                const combinedStream = new MediaStream();
+                
+                // Add all audio tracks
+                audioStream.getAudioTracks().forEach(track => {
+                    combinedStream.addTrack(track);
+                });
+                
+                // Get fresh video track (will be black if no camera)
+                try {
+                    const blackVideoStream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: 1, height: 1 }
+                    });
+                    blackVideoStream.getVideoTracks().forEach(track => {
+                        combinedStream.addTrack(track);
+                    });
+                } catch (e) {
+                    statusDiv.textContent = "Cannot create video track: " + e.message;
+                    return;
+                }
+                
+                videoEl.srcObject = combinedStream;
+                statusDiv.textContent = "Connecting to Cloudflare...";
+                
+                const pc = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.cloudflare.com:3478' },
+                        { urls: 'stun:stun.l.google.com:19302' }
+                    ]
+                });
+                
+                pc.oniceconnectionstatechange = () => {
+                    statusDiv.textContent = "ICE: " + pc.iceConnectionState;
+                    if (pc.iceConnectionState === "connected") {
+                        statusDiv.textContent = "🎤 SUCCESS! Audio stream is LIVE!";
+                    } else if (pc.iceConnectionState === "failed") {
+                        statusDiv.textContent = "❌ FAILED - check console";
+                    }
+                };
+                
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        console.log("ICE candidate:", event.candidate);
+                    }
+                };
+                
+                // Add both tracks
+                combinedStream.getTracks().forEach(track => {
+                    pc.addTrack(track, combinedStream);
+                    console.log("Added track:", track.kind);
+                });
+                
+                const offer = await pc.createOffer();
+                console.log("Offer created, SDP length:", offer.sdp.length);
+                
+                await pc.setLocalDescription(offer);
+                
+                // Wait for ICE gathering
+                await new Promise((resolve) => {
+                    setTimeout(resolve, 1000); // Give 1 second for candidates
+                });
+                
+                console.log("Sending SDP to:", publishUrl);
+                
+                const res = await fetch(publishUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/sdp",
+                        "Accept": "application/sdp"
+                    },
+                    body: pc.localDescription.sdp
+                });
+                
+                console.log("Response status:", res.status);
+                
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error("Server error: " + errorText);
+                }
+                
+                const answerSDP = await res.text();
+                console.log("Answer SDP length:", answerSDP.length);
+                
+                await pc.setRemoteDescription({
+                    type: "answer",
+                    sdp: answerSDP
+                });
+                
+                window.audioStream = combinedStream;
+                window.audioPc = pc;
+                
+            } catch (err) {
+                console.error("Error:", err);
+                statusDiv.textContent = "❌ Error: " + err.message;
+            }
+        };
+        
+        // Step 2b: Video Publishing
+        document.getElementById("startVideoPublish").onclick = async () => {
+            const publishUrl = document.getElementById("videoPublishUrl").value;
+            const statusDiv = document.getElementById("videoPublishStatus");
+            const videoEl = document.getElementById("videoPublishVideo");
+            
+            if (!publishUrl) {
+                statusDiv.textContent = "Please paste the video publish URL from /start/video";
+                return;
+            }
+            
+            statusDiv.textContent = "Getting camera and microphone...";
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: true
+                });
+                
+                videoEl.srcObject = stream;
+                statusDiv.textContent = "Connecting to Cloudflare for video stream...";
+                
+                const pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.cloudflare.com:3478' }]
+                });
+                
+                pc.oniceconnectionstatechange = () => {
+                    statusDiv.textContent = "ICE State: " + pc.iceConnectionState;
+                    if (pc.iceConnectionState === "connected") {
+                        statusDiv.textContent = "📹 SUCCESS! Video stream is LIVE!";
+                    } else if (pc.iceConnectionState === "failed") {
+                        statusDiv.textContent = "❌ FAILED to connect";
+                    }
+                };
+                
+                // Video and audio
+                stream.getTracks().forEach(track => pc.addTrack(track, stream));
+                
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                
+                await new Promise((resolve) => {
+                    if (pc.iceGatheringState === "complete") resolve();
+                    else pc.onicecandidate = (e) => { if (!e.candidate) resolve(); };
+                });
+                
+                const res = await fetch(publishUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/sdp" },
+                    body: pc.localDescription.sdp
+                });
+                
+                if (!res.ok) throw new Error(await res.text());
+                
+                const answerSDP = await res.text();
+                await pc.setRemoteDescription({ type: "answer", sdp: answerSDP });
+                
+                window.videoStream = stream;
+                window.videoPc = pc;
+                
+            } catch (err) {
+                statusDiv.textContent = "❌ Error: " + err.message;
+            }
+        };
+
+        // Step 3: Record Stream - Client-side recording using MediaRecorder API
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        
+        document.getElementById("startRecording").onclick = async () => {
+            const statusDiv = document.getElementById("recordingStatus");
+            
+            // Check for any active stream (audio or video)
+            const stream = window.audioStream || window.videoStream || window.localStream;
+            
+            if (!stream) {
+                statusDiv.textContent = "Start an audio or video stream first";
+                return;
+            }
+            
+            // Determine if audio-only or video
+            const hasVideo = stream.getVideoTracks().length > 0;
+            statusDiv.textContent = hasVideo ? "Starting video recording..." : "Starting audio-only recording...";
+            
+            // Check if MediaRecorder is supported
+            if (!window.MediaRecorder) {
+                statusDiv.textContent = "MediaRecorder not supported in this browser";
+                return;
+            }
+            
+            recordedChunks = [];
+            
+            // Determine the MIME type based on browser support
+            let mimeType = "video/webm;codecs=vp9,opus";
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = "video/webm;codecs=vp8,opus";
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = "video/webm";
+                    if (!MediaRecorder.isTypeSupported(mimeType)) {
+                        mimeType = "";
+                    }
+                }
+            }
+            
+            try {
+                const options = mimeType ? { mimeType } : undefined;
+                mediaRecorder = new MediaRecorder(stream, options);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstart = () => {
+                    statusDiv.textContent = "🔴 Recording... Click 'Stop & Save' when done";
+                    document.getElementById("startRecording").disabled = true;
+                    document.getElementById("stopRecording").disabled = false;
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    // Create a blob from recorded chunks
+                    const blob = new Blob(recordedChunks, {
+                        type: mimeType || "video/webm"
+                    });
+                    
+                    statusDiv.textContent = "⏫ Auto-uploading to server...";
+                    
+                    // Auto-upload to server
+                    try {
+                        await uploadRecording(blob, mimeType || "video/webm");
+                    } catch (err) {
+                        // If auto-upload fails, show download option
+                        statusDiv.innerHTML = "⚠️ Auto-upload failed. Download locally:<br>";
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `recording_${new Date().toISOString().slice(0,19).replace(/:/g,"-")}.webm`;
+                        a.textContent = "Download Recording";
+                        a.style.display = "block";
+                        a.style.marginTop = "10px";
+                        a.style.padding = "10px";
+                        a.style.background = "#4CAF50";
+                        a.style.color = "white";
+                        a.style.textAlign = "center";
+                        a.style.textDecoration = "none";
+                        a.style.borderRadius = "5px";
+                        statusDiv.appendChild(a);
+                    }
+                    
+                    document.getElementById("startRecording").disabled = false;
+                    document.getElementById("stopRecording").disabled = true;
+                };
+                
+                // Start recording
+                mediaRecorder.start(1000); // Collect data every second
+                
+            } catch (err) {
+                statusDiv.textContent = "Error starting recording: " + err.message;
+            }
+        };
+        
+        document.getElementById("stopRecording").onclick = () => {
+            const statusDiv = document.getElementById("recordingStatus");
+            
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                statusDiv.textContent = "🛑 Recording stopped. Processing...";
+            }
+        };
+        
+        // Function to upload recording to the stop endpoint
+        async function uploadRecording(blob, mimeType) {
+            const statusDiv = document.getElementById("recordingStatus");
+            const slug = document.getElementById("publishUrl").value.split("/").pop();
+            
+            // Get auth token (you need to provide this)
+            const token = prompt("Enter your access token:");
+            if (!token) {
+                statusDiv.textContent = "Token required for upload";
+                return;
+            }
+            
+            statusDiv.textContent = "Uploading...";
+            
+            try {
+                const formData = new FormData();
+                formData.append("recording", blob, "recording.webm");
+                
+                const res = await fetch(`/livestreams/${slug}/stop`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                    },
+                    body: formData,
+                });
+                
+                if (!res.ok) {
+                    const error = await res.text();
+                    throw new Error(error);
+                }
+                
+                const data = await res.json();
+                statusDiv.innerHTML = `✅ Uploaded! Recording URL: <a href="${data.recording_url}" target="_blank">${data.recording_url}</a>`;
+                
+            } catch (err) {
+                statusDiv.textContent = "Upload failed: " + err.message;
+            }
+        }
+        document.getElementById("startPlayback").onclick = async () => {
+            const playbackUrl = document.getElementById("playbackUrl").value;
+            const statusDiv = document.getElementById("playbackStatus");
+            
+            if (!playbackUrl) {
+                statusDiv.textContent = "Please paste the playback URL from the API response";
+                return;
+            }
+            
+            statusDiv.textContent = "Connecting to playback...";
+            
+            const pc = new RTCPeerConnection({
+                iceServers: [
+                    { urls: 'stun:stun.cloudflare.com:3478' }
+                ]
+            });
+            
+            pc.ontrack = (event) => {
+                document.getElementById("remoteVideo").srcObject = event.streams[0];
+            };
+            
+            pc.oniceconnectionstatechange = () => {
+                statusDiv.textContent = "ICE State: " + pc.iceConnectionState;
+                if (pc.iceConnectionState === "connected") {
+                    statusDiv.textContent = "✅ SUCCESS! Receiving stream!";
+                } else if (pc.iceConnectionState === "failed") {
+                    statusDiv.textContent = "❌ FAILED to connect";
+                }
+            };
+            
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                
+                // Wait for ICE gathering to complete
+                await new Promise((resolve) => {
+                    if (pc.iceGatheringState === "complete") {
+                        resolve();
+                    } else {
+                        pc.onicecandidate = (event) => {
+                            if (event.candidate === null) {
+                                resolve();
+                            }
+                        };
+                    }
+                });
+                
+                const completeSdp = pc.localDescription.sdp;
+                
+                const res = await fetch(playbackUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/sdp" },
+                    body: completeSdp
+                });
+                
+                if (!res.ok) {
+                    statusDiv.textContent = "Error: " + await res.text();
+                    return;
+                }
+                
+                const answerSDP = await res.text();
+                await pc.setRemoteDescription({ type: "answer", sdp: answerSDP });
+                
+                statusDiv.textContent = "📺 Receiving stream...";
+            } catch (err) {
+                statusDiv.textContent = "❌ Error: " + err.message;
+            }
+        };
+    </script>
+</body>
+</html>
