@@ -16,7 +16,10 @@ import {
   Loader2,
   Monitor,
   AlertCircle,
-  Volume2
+  Volume2,
+  Wifi,
+  WifiOff,
+  Play
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -35,6 +38,7 @@ import {
 import type { VolLivestreamOut } from '@/types/livestream';
 import { useStreamRecorder } from '@/hooks/useStreamRecorder';
 import { RecordingPrompt, RecordingStatus } from './recording-prompt';
+import { CreatorNotStreamingModal } from './creator-not-streaming-modal';
 
 // Audio visualizer component using canvas (like test_webrtc.html)
 interface AudioVisualizerProps {
@@ -90,6 +94,18 @@ export function CreatorStreaming({
   const [connectionState, setConnectionState] = useState<string>('idle');
   const [error, setError] = useState<string | null>(null);
   
+  // Active stream detection state
+  const [existingActiveStream, setExistingActiveStream] = useState<VolLivestreamOut | null>(null);
+  const [isCheckingActiveStream, setIsCheckingActiveStream] = useState(false);
+  const [showReconnectPrompt, setShowReconnectPrompt] = useState(false);
+  
+  // Derived state - true when there's an existing active stream that can be resumed
+  const hasActiveStream = !!existingActiveStream && !isStreaming;
+  
+  // Network status
+  const [isOnline, setIsOnline] = useState(true);
+  const [networkRecovered, setNetworkRecovered] = useState(false);
+  
   // Stats
   const [codec, setCodec] = useState<string>('—');
   const [bitrate, setBitrate] = useState<string>('—');
@@ -140,6 +156,92 @@ export function CreatorStreaming({
     }
   }, [selectedMicDevice]);
 
+  // Check for existing active streams on mount and auto-reconnect
+  const checkForActiveStream = useCallback(async () => {
+    setIsCheckingActiveStream(true);
+    try {
+      const activeStreams = await livestreamApi.getActiveStreams(50, 0);
+      if (activeStreams.length > 0) {
+        // Found an existing active stream - automatically reconnect
+        console.log('Found existing active stream:', activeStreams[0]);
+        setExistingActiveStream(activeStreams[0]);
+        // Pre-fill the title and description from the existing stream
+        setStreamTitle(activeStreams[0].title);
+        setStreamDescription(activeStreams[0].description || '');
+        // Don't show the modal, just update the UI to show resume button
+        setShowReconnectPrompt(false);
+      }
+    } catch (err) {
+      console.error('Failed to check for active streams:', err);
+    } finally {
+      setIsCheckingActiveStream(false);
+    }
+  }, []);
+
+  // Network status monitoring
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('Network: Online');
+      setIsOnline(true);
+      if (isStreaming && connectionState === 'failed') {
+        // Network recovered while streaming - check for active stream
+        setNetworkRecovered(true);
+      }
+    };
+
+    const handleOffline = () => {
+      console.log('Network: Offline');
+      setIsOnline(false);
+      setNetworkRecovered(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Set initial state
+    setIsOnline(navigator.onLine);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [isStreaming, connectionState]);
+
+  // Handle network recovery - check for active stream
+  useEffect(() => {
+    if (networkRecovered && isStreaming) {
+      const handleNetworkRecovery = async () => {
+        console.log('Network recovered, checking for active stream...');
+        try {
+          const activeStreams = await livestreamApi.getActiveStreams(50, 0);
+          const myStream = activeStreams.find(s => s.id === currentStream?.id);
+          
+          if (myStream) {
+            // Our stream is still active - update existing stream
+            console.log('Our stream is still active');
+            setExistingActiveStream(myStream);
+            setNetworkRecovered(false);
+          } else {
+            // Stream may have ended while offline
+            console.log('Stream may have ended while offline');
+            setIsStreaming(false);
+            setCurrentStream(null);
+            setConnectionState('idle');
+          }
+        } catch (err) {
+          console.error('Failed to check active stream after network recovery:', err);
+        }
+      };
+
+      handleNetworkRecovery();
+    }
+  }, [networkRecovered, isStreaming, currentStream]);
+
+  // Check for active streams on mount
+  useEffect(() => {
+    checkForActiveStream();
+  }, [checkForActiveStream]);
+
   // Handle start streaming - exactly like test_webrtc.html
   const handleStartStream = useCallback(async () => {
     if (!streamTitle.trim()) {
@@ -176,6 +278,8 @@ export function CreatorStreaming({
       });
       
       setCurrentStream(streamData);
+      // Clear any existing stream reference since we started a new one
+      setExistingActiveStream(null);
 
       if (!streamData.cf_webrtc_publish_url) {
         throw new Error('No publish URL returned from API');
@@ -310,7 +414,7 @@ export function CreatorStreaming({
     } finally {
       setIsStarting(false);
     }
-  }, [streamTitle, streamDescription, useMic, useSystemAudio, mixAudio, onStreamStarted, recorder]);
+  }, [streamTitle, streamDescription, useMic, useSystemAudio, mixAudio, selectedMicDevice, onStreamStarted, recorder]);
 
   // Stats tracking (like test_webrtc.html)
   const startPubStats = useCallback(() => {
@@ -366,6 +470,143 @@ export function CreatorStreaming({
     setIceState('—');
   }, []);
 
+  // Handle reconnect to existing stream
+  const handleReconnectToStream = useCallback(async () => {
+    if (!existingActiveStream) return;
+
+    setShowReconnectPrompt(false);
+    setIsStarting(true);
+    setError(null);
+    setConnectionState('connecting');
+
+    try {
+      // Get the existing stream data
+      const streamData = existingActiveStream;
+
+      if (!streamData.cf_webrtc_publish_url) {
+        throw new Error('No publish URL available for reconnection');
+      }
+
+      setCurrentStream(streamData);
+
+      // Capture audio based on selection
+      let pubStream: MediaStream;
+      
+      if (useMic && !useSystemAudio) {
+        pubStream = await captureMicrophone(selectedMicDevice || undefined);
+      } else if (useSystemAudio && !useMic) {
+        pubStream = await captureSystemAudio();
+      } else if (useMic && useSystemAudio && mixAudio) {
+        const [mic, system] = await Promise.all([
+          captureMicrophone(selectedMicDevice || undefined),
+          captureSystemAudio()
+        ]);
+        micStreamRef.current = mic;
+        systemStreamRef.current = system;
+        pubStream = mixAudioStreams([micStreamRef.current, systemStreamRef.current]);
+      } else if (useMic && useSystemAudio && !mixAudio) {
+        pubStream = await captureSystemAudio();
+      } else {
+        throw new Error('Select at least one audio source');
+      }
+
+      pubStreamRef.current = pubStream;
+
+      // Start visualizer
+      if (canvasRef.current) {
+        stopVizRef.current = startVisualizer(pubStream, canvasRef.current, '#00e5a0');
+      }
+
+      // Create WebRTC connection
+      const pc = new RTCPeerConnection(ICE_CONFIG);
+      pcRef.current = pc;
+
+      pc.oniceconnectionstatechange = () => {
+        const s = pc.iceConnectionState;
+        setIceState(s);
+        console.log(`Publish ICE → ${s}`);
+        
+        if (s === 'connected') {
+          setConnectionState('connected');
+          startPubStats();
+        } else if (s === 'failed' || s === 'disconnected') {
+          setConnectionState('failed');
+        }
+      };
+
+      pc.onicegatheringstatechange = () => {
+        console.log(`Publish ICE gathering → ${pc.iceGatheringState}`);
+      };
+
+      // Add audio track
+      pubStream.getAudioTracks().forEach(t => pc.addTrack(t, pubStream));
+
+      // Create offer
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: false,
+        offerToReceiveVideo: false
+      });
+
+      const sdpWithOpus = preferOpus(offer.sdp || '');
+      await pc.setLocalDescription({ type: offer.type, sdp: sdpWithOpus });
+
+      console.log('Waiting for ICE gathering...');
+      await waitForIce(pc, 2000);
+
+      console.log(`Reconnecting to: ${streamData.cf_webrtc_publish_url}`);
+      
+      // Send to server (WHIP protocol)
+      const res = await fetch(streamData.cf_webrtc_publish_url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/sdp',
+          'Accept': 'application/sdp'
+        },
+        body: pc.localDescription!.sdp
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Server ${res.status}: ${txt.slice(0, 200)}`);
+      }
+
+      const answerSdp = await res.text();
+      console.log(`Answer received (${answerSdp.length} bytes)`);
+
+      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+      // Detect codec
+      const detectedCodec = detectAudioCodec(answerSdp);
+      setCodec(detectedCodec);
+      console.log(`Negotiated codec: ${detectedCodec}`);
+
+      // Start duration counter
+      durationIntervalRef.current = setInterval(() => {
+        setStreamDuration(prev => prev + 1);
+      }, 1000);
+
+      setIsStreaming(true);
+      onStreamStarted?.(streamData);
+
+    } catch (err) {
+      console.error('Reconnect error:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to reconnect to stream';
+      setError(errorMsg);
+      setConnectionState('failed');
+      teardownPublish();
+    } finally {
+      setIsStarting(false);
+    }
+  }, [existingActiveStream, useMic, useSystemAudio, mixAudio, selectedMicDevice, onStreamStarted, teardownPublish, startPubStats]);
+
+  // Handle starting a new stream (dismiss reconnect prompt)
+  const handleStartNewStream = useCallback(() => {
+    setShowReconnectPrompt(false);
+    setExistingActiveStream(null);
+    setStreamTitle('');
+    setStreamDescription('');
+  }, []);
+
   // Handle stop streaming
   const handleStopStream = useCallback(async () => {
     // Stop recording if it's running (this will auto-download)
@@ -396,8 +637,11 @@ export function CreatorStreaming({
     setCodec('—');
     setConnectionState('idle');
     
+    // Check for any remaining active streams after stopping
+    checkForActiveStream();
+    
     onStreamStopped?.();
-  }, [currentStream, teardownPublish, onStreamStopped, recorder]);
+  }, [currentStream, teardownPublish, onStreamStopped, recorder, checkForActiveStream]);
 
   // Format duration
   const formatDuration = (seconds: number) => {
@@ -466,6 +710,14 @@ export function CreatorStreaming({
           onAccept={recorder.acceptRecording}
           onDecline={recorder.declineRecording}
         />
+
+        {/* Network Status Banner */}
+        {!isOnline && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+            <WifiOff className="w-4 h-4" />
+            <span className="text-sm font-medium">Network connection lost</span>
+          </div>
+        )}
 
         {/* Recording Status - show after stream ends or during recording */}
         {(recorder.state.isRecording || recorder.state.recordedBlob) && (
@@ -603,53 +855,105 @@ export function CreatorStreaming({
                 <Radio className="w-5 h-5 text-sky-500" />
                 Stream Settings
               </h2>
-              
-              {/* Stream title */}
-              <div className="mb-4">
-                <label className="block text-sm text-slate-400 mb-2">Stream Title</label>
-                <input
-                  type="text"
-                  value={streamTitle}
-                  onChange={(e) => setStreamTitle(e.target.value)}
-                  placeholder="Enter stream title..."
-                  disabled={isStreaming || isStarting}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50"
-                />
-              </div>
-              
-              {/* Stream description */}
-              <div className="mb-4">
-                <label className="block text-sm text-slate-400 mb-2">Description (optional)</label>
-                <textarea
-                  value={streamDescription}
-                  onChange={(e) => setStreamDescription(e.target.value)}
-                  placeholder="What's your stream about?"
-                  disabled={isStreaming || isStarting}
-                  rows={2}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 resize-none"
-                />
-              </div>
-              
+               
+              {/* Show existing stream info when resuming, otherwise show input fields */}
+              {!isStreaming && hasActiveStream ? (
+                /* Resume Broadcast Mode - Show existing stream info */
+                <div className="mb-4 p-4 bg-sky-500/10 border border-sky-500/30 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Radio className="w-4 h-4 text-sky-400" />
+                    <span className="text-sm font-medium text-sky-400">Active Stream Detected</span>
+                  </div>
+                  <p className="text-white font-semibold">{existingActiveStream?.title}</p>
+                  {existingActiveStream?.description && (
+                    <p className="text-slate-400 text-sm mt-1">{existingActiveStream.description}</p>
+                  )}
+                  <p className="text-slate-500 text-xs mt-2">
+                    Started: {new Date(existingActiveStream?.created_at || '').toLocaleString()}
+                  </p>
+                </div>
+              ) : (
+                !isStreaming && (
+                  <>
+                    {/* Stream title */}
+                    <div className="mb-4">
+                      <label className="block text-sm text-slate-400 mb-2">Stream Title</label>
+                      <input
+                        type="text"
+                        value={streamTitle}
+                        onChange={(e) => setStreamTitle(e.target.value)}
+                        placeholder="Enter stream title..."
+                        disabled={isStreaming || isStarting}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50"
+                      />
+                    </div>
+                    
+                    {/* Stream description */}
+                    <div className="mb-4">
+                      <label className="block text-sm text-slate-400 mb-2">Description (optional)</label>
+                      <textarea
+                        value={streamDescription}
+                        onChange={(e) => setStreamDescription(e.target.value)}
+                        placeholder="What's your stream about?"
+                        disabled={isStreaming || isStarting}
+                        rows={2}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 resize-none"
+                      />
+                    </div>
+                  </>
+                )
+              )}
+               
               {/* Start/Stop buttons */}
               <div className="flex gap-3">
                 {!isStreaming ? (
-                  <Button
-                    onClick={handleStartStream}
-                    disabled={!streamTitle.trim() || isStarting}
-                    className="flex-1 bg-emerald-500 hover:bg-emerald-600"
-                  >
-                    {isStarting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Starting...
-                      </>
-                    ) : (
-                      <>
-                        <Radio className="w-4 h-4 mr-2" />
-                        Go Live
-                      </>
-                    )}
-                  </Button>
+                  hasActiveStream ? (
+                    /* Resume Broadcast button - shows existing stream title */
+                    <Button
+                      onClick={handleReconnectToStream}
+                      disabled={isStarting || isCheckingActiveStream}
+                      className="flex-1 bg-sky-500 hover:bg-sky-600"
+                      title={`Resume: ${existingActiveStream?.title}`}
+                    >
+                      {isStarting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Resuming...
+                        </>
+                      ) : isCheckingActiveStream ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Checking...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 mr-2" />
+                          Resume: {existingActiveStream?.title?.length > 20 
+                            ? existingActiveStream?.title.substring(0, 20) + '...' 
+                            : existingActiveStream?.title}
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    /* Start New Stream button */
+                    <Button
+                      onClick={handleStartStream}
+                      disabled={!streamTitle.trim() || isStarting}
+                      className="flex-1 bg-emerald-500 hover:bg-emerald-600"
+                    >
+                      {isStarting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Starting...
+                        </>
+                      ) : (
+                        <>
+                          <Radio className="w-4 h-4 mr-2" />
+                          Go Live
+                        </>
+                      )}
+                    </Button>
+                  )
                 ) : (
                   <Button
                     onClick={handleStopStream}
@@ -660,6 +964,18 @@ export function CreatorStreaming({
                   </Button>
                 )}
               </div>
+
+              {/* Option to start fresh if there's an existing stream */}
+              {!isStreaming && hasActiveStream && (
+                <div className="mt-3 text-center">
+                  <button
+                    onClick={handleStartNewStream}
+                    className="text-xs text-slate-500 hover:text-slate-400 underline"
+                  >
+                    Start a new stream instead
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           

@@ -73,6 +73,23 @@ export const livestreamApi = {
   },
 
   /**
+   * Get active streams for the current user's company
+   * Used to check if there's an existing active stream when reconnecting
+   * or handling network issues
+   */
+  async getActiveStreams(
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<VolLivestreamOut[]> {
+    const response = await apiClient.request<VolLivestreamOut[]>(
+      `/livestreams?limit=${limit}&offset=${offset}`,
+      { method: 'GET' }
+    );
+    // Filter to only return active streams
+    return response.filter(stream => stream.is_active);
+  },
+
+  /**
    * Get all livestreams for the current user's company
    */
   async getCompanyLivestreams(

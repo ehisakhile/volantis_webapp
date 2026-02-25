@@ -366,7 +366,10 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Server error: ${response.status} - ${errorText.slice(0, 200)}`);
+      // Create a custom error with status code for 409 handling
+      const error = new Error(`Server error: ${response.status} - ${errorText.slice(0, 200)}`) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     }
 
     const answerSDP = await response.text();

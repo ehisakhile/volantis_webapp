@@ -17,6 +17,7 @@ import { LiveChat } from '@/components/streaming/live-chat';
 import { livestreamApi, type CompanyLivePageResponse } from '@/lib/api/livestream';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import type { VolLivestreamOut } from '@/types/livestream';
+import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
 import type { VolCompanyResponse } from '@/types/company';
 
 /* ─────────────────────── Waveform Visualizer ─────────────────────── */
@@ -611,6 +612,13 @@ export default function CompanyPage() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [showAllPast, setShowAllPast] = useState(false);
+  
+  // Creator not streaming modal
+  const [showCreatorNotStreaming, setShowCreatorNotStreaming] = useState(false);
+  const [creatorNotStreamingInfo, setCreatorNotStreamingInfo] = useState<{
+    creatorName: string;
+    streamTitle?: string;
+  } | null>(null);
 
   const {
     remoteStream,
@@ -757,9 +765,27 @@ export default function CompanyPage() {
       return;
     }
     setCurrentStream(stream);
-    await startPlayback(stream.cf_webrtc_playback_url);
-    setIsPlaying(true);
-    setIsMinimized(false);
+    
+    try {
+      await startPlayback(stream.cf_webrtc_playback_url);
+      setIsPlaying(true);
+      setIsMinimized(false);
+    } catch (err) {
+      // Check for 409 Conflict - creator not streaming
+      const error = err as { status?: number; message?: string };
+      if (error.status === 409) {
+        // Show creator not streaming modal
+        setCreatorNotStreamingInfo({
+          creatorName: company?.name || 'The Creator',
+          streamTitle: stream.title,
+        });
+        setShowCreatorNotStreaming(true);
+        return;
+      }
+      
+      // Re-throw other errors
+      throw err;
+    }
   };
 
   const handleStopPlayback = () => {
@@ -794,6 +820,14 @@ export default function CompanyPage() {
 
   return (
     <>
+      {/* Creator Not Streaming Modal */}
+      <CreatorNotStreamingModal
+        isOpen={showCreatorNotStreaming}
+        onClose={() => setShowCreatorNotStreaming(false)}
+        creatorName={creatorNotStreamingInfo?.creatorName || 'The Creator'}
+        streamTitle={creatorNotStreamingInfo?.streamTitle}
+      />
+      
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=Space+Mono:wght@400;700&display=swap');
         * { font-family: 'DM Sans', sans-serif; }

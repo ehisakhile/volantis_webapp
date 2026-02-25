@@ -11,6 +11,7 @@ import {
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
 import { livestreamApi, type ActiveStreamItem, type ActiveStreamsResponse } from '@/lib/api/livestream';
+import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
 
 // Gradient presets for company cards
 const GRADIENT_PRESETS = [
@@ -60,6 +61,14 @@ export default function ListenPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  
+  // Creator not streaming modal
+  const [showCreatorNotStreaming, setShowCreatorNotStreaming] = useState(false);
+  const [creatorNotStreamingInfo, setCreatorNotStreamingInfo] = useState<{
+    creatorName: string;
+    streamTitle?: string;
+  } | null>(null);
+  
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   
@@ -342,6 +351,20 @@ export default function ListenPage() {
       setCurrentStream(stream);
     } catch (err) {
       console.error('Failed to connect:', err);
+      
+      // Check for 409 Conflict - creator not streaming
+      const error = err as { status?: number; message?: string };
+      if (error.status === 409) {
+        // Show creator not streaming modal
+        setCreatorNotStreamingInfo({
+          creatorName: stream.company_name,
+          streamTitle: stream.title,
+        });
+        setShowCreatorNotStreaming(true);
+        setIsConnecting(false);
+        return;
+      }
+      
       setConnectionError('Failed to connect to stream. Please try again.');
       setIsConnecting(false);
     }
@@ -427,6 +450,14 @@ export default function ListenPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Creator Not Streaming Modal */}
+      <CreatorNotStreamingModal
+        isOpen={showCreatorNotStreaming}
+        onClose={() => setShowCreatorNotStreaming(false)}
+        creatorName={creatorNotStreamingInfo?.creatorName || 'The Creator'}
+        streamTitle={creatorNotStreamingInfo?.streamTitle}
+      />
+      
       <Navbar />
       
       {/* Hero Section */}
