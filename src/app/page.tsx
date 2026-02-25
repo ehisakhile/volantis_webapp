@@ -6,8 +6,9 @@ import Image from "next/image";
 import {
   ArrowRight, Play, Radio, Users, Zap, Shield, Clock,
   CheckCircle, Star, Menu, X, Volume2, Signal, ChevronRight,
-  Wifi, Globe, Mic, BarChart3
+  Wifi, Globe, Mic, BarChart3, Headphones, RadioIcon
 } from "lucide-react";
+import { Navbar } from "@/components/layout/navbar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface StatItem { value: string; label: string; }
@@ -246,9 +247,7 @@ function StatCard({ stat, index, trigger }: { stat: StatItem; index: number; tri
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function HomePage() {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [activeFeature, setActiveFeature] = useState(0);
   const statsSection = useScrollAnimation();
   const featuresSection = useScrollAnimation();
   const testimonialsSection = useScrollAnimation();
@@ -262,275 +261,15 @@ export default function HomePage() {
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+     
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-          font-family: 'DM Sans', sans-serif;
-          background: #f8fafc;
-          color: #0f172a;
-          overflow-x: hidden;
-        }
-
-        h1, h2, h3, h4, h5 {
-          font-family: 'Bricolage Grotesque', sans-serif;
-        }
-
-        :root {
-          --sky: #0ea5e9;
-          --sky-light: #38bdf8;
-          --sky-dark: #0369a1;
-          --navy: #0f172a;
-          --slate: #1e293b;
-        }
-
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-        }
-        @keyframes bounce-slow {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-5px); }
-        }
-        @keyframes slide-up {
-          from { opacity: 0; transform: translateY(30px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes shimmer {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
-        @keyframes grain {
-          0%, 100% { transform: translate(0, 0); }
-          10% { transform: translate(-1%, -2%); }
-          20% { transform: translate(2%, 1%); }
-          30% { transform: translate(-1%, 3%); }
-          40% { transform: translate(3%, -1%); }
-          50% { transform: translate(-2%, 2%); }
-          60% { transform: translate(2%, -3%); }
-          70% { transform: translate(-3%, 1%); }
-          80% { transform: translate(1%, 2%); }
-          90% { transform: translate(-1%, -1%); }
-        }
-        @keyframes marquee {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
-        }
-        @keyframes pulse-ring {
-          0% { transform: scale(0.8); opacity: 1; }
-          100% { transform: scale(2.5); opacity: 0; }
-        }
-
-        .animate-float { animation: float 4s ease-in-out infinite; }
-        .animate-bounce-slow { animation: bounce-slow 2s ease-in-out infinite; }
-        .animate-slide-up { animation: slide-up 0.6s ease forwards; }
-        .animate-fade-in { animation: fade-in 0.8s ease forwards; }
-        .animate-marquee { animation: marquee 20s linear infinite; }
-
-        .hero-grain::before {
-          content: '';
-          position: absolute;
-          inset: -50%;
-          width: 200%;
-          height: 200%;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.4'/%3E%3C/svg%3E");
-          opacity: 0.025;
-          pointer-events: none;
-          animation: grain 8s steps(10) infinite;
-        }
-
-        .feature-card {
-          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .feature-card:hover {
-          transform: translateY(-4px);
-        }
-
-        .testimonial-card {
-          transition: all 0.3s ease;
-        }
-        .testimonial-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 20px 60px rgba(14, 165, 233, 0.15);
-        }
-
-        .cta-btn {
-          position: relative;
-          overflow: hidden;
-          transition: all 0.3s ease;
-        }
-        .cta-btn::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-          transform: translateX(-100%);
-          transition: transform 0.5s ease;
-        }
-        .cta-btn:hover::before {
-          transform: translateX(100%);
-        }
-        .cta-btn:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 8px 30px rgba(14, 165, 233, 0.4);
-        }
-
-        .reveal {
-          opacity: 0;
-          transform: translateY(24px);
-          transition: opacity 0.7s ease, transform 0.7s ease;
-        }
-        .reveal.visible {
-          opacity: 1;
-          transform: translateY(0);
-        }
-        .reveal-delay-1 { transition-delay: 0.1s; }
-        .reveal-delay-2 { transition-delay: 0.2s; }
-        .reveal-delay-3 { transition-delay: 0.3s; }
-        .reveal-delay-4 { transition-delay: 0.4s; }
-
-        .nav-link {
-          position: relative;
-          color: #475569;
-          text-decoration: none;
-          font-size: 0.9rem;
-          font-weight: 500;
-          transition: color 0.2s;
-          padding-bottom: 2px;
-        }
-        .nav-link::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          width: 0;
-          height: 2px;
-          background: var(--sky);
-          transition: width 0.3s ease;
-        }
-        .nav-link:hover {
-          color: var(--sky-dark);
-        }
-        .nav-link:hover::after {
-          width: 100%;
-        }
-
-        .scroll-indicator {
-          animation: bounce-slow 2s ease-in-out infinite;
-        }
-
-        .mesh-bg {
-          background: radial-gradient(ellipse at 20% 50%, rgba(14,165,233,0.08) 0%, transparent 60%),
-                      radial-gradient(ellipse at 80% 20%, rgba(56,189,248,0.06) 0%, transparent 50%),
-                      radial-gradient(ellipse at 60% 80%, rgba(3,105,161,0.05) 0%, transparent 50%),
-                      #f8fafc;
-        }
-
-        .problem-card {
-          transition: all 0.3s ease;
-          border: 1px solid #e2e8f0;
-        }
-        .problem-card:hover {
-          border-color: #bae6fd;
-          background: #f0f9ff;
-          transform: translateY(-2px);
-        }
-
-        .section-tag {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: rgba(14,165,233,0.1);
-          color: #0369a1;
-          padding: 4px 14px;
-          border-radius: 100px;
-          font-size: 0.8rem;
-          font-weight: 600;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-          border: 1px solid rgba(14,165,233,0.2);
-          margin-bottom: 16px;
-        }
-      `}</style>
-
-      {/* ─── Navbar ─────────────────────────────────────────────────────── */}
-      <nav
-        style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-          padding: scrolled ? '12px 0' : '20px 0',
-          background: scrolled ? 'rgba(255,255,255,0.95)' : 'transparent',
-          backdropFilter: scrolled ? 'blur(20px)' : 'none',
-          borderBottom: scrolled ? '1px solid rgba(226,232,240,0.8)' : 'none',
-          transition: 'all 0.4s ease',
-        }}
-      >
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {/* Logo */}
-          <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #0ea5e9, #0369a1)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(14,165,233,0.3)',
-            }}>
-              <Radio size={18} color="white" />
-            </div>
-            <span style={{ fontFamily: 'Bricolage Grotesque', fontWeight: 700, fontSize: '1.2rem', color: '#0f172a' }}>
-              Volantis<span style={{ color: '#0ea5e9' }}>live</span>
-            </span>
-          </a>
-
-          {/* Desktop nav */}
-          <div style={{ display: 'none', gap: 32, alignItems: 'center' }} className="desktop-nav">
-            {[['Features', '/features'], ['Solutions', '/solutions'], ['Pricing', '/pricing'], ['How It Works', '/how-it-works']].map(([label, href]) => (
-              <a key={label} href={href} className="nav-link">{label}</a>
-            ))}
-          </div>
-
-          {/* CTA + mobile */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <a href="/login" style={{ color: '#475569', fontSize: '0.9rem', fontWeight: 500, textDecoration: 'none', display: 'none' }} className="desktop-only">Log in</a>
-            <a
-              href="/signup"
-              className="cta-btn"
-              style={{
-                background: 'linear-gradient(135deg, #0ea5e9, #0369a1)',
-                color: 'white', padding: '10px 22px', borderRadius: 10,
-                fontWeight: 600, fontSize: '0.9rem', textDecoration: 'none',
-                display: 'flex', alignItems: 'center', gap: 6,
-              }}
-            >
-              Start Free <ArrowRight size={15} />
-            </a>
-            <button onClick={() => setMenuOpen(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0f172a', padding: 4 }}>
-              {menuOpen ? <X size={22} /> : <Menu size={22} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile menu */}
-        {menuOpen && (
-          <div style={{
-            background: 'white', borderTop: '1px solid #e2e8f0',
-            padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16,
-          }}>
-            {[['Features', '/features'], ['Solutions', '/solutions'], ['Pricing', '/pricing'], ['How It Works', '/how-it-works'], ['Log in', '/login']].map(([label, href]) => (
-              <a key={label} href={href} style={{ color: '#374151', fontSize: '1rem', fontWeight: 500, textDecoration: 'none' }}>{label}</a>
-            ))}
-          </div>
-        )}
-      </nav>
+      {/* ─── Shared Navbar ─────────────────────────────────────────────────────── */}
+      <Navbar />
 
       <main>
         {/* ─── HERO ───────────────────────────────────────────────────────── */}
         <section className="hero-grain" style={{
-          position: 'relative', paddingTop: 120, paddingBottom: 80, overflow: 'hidden',
+          position: 'relative', paddingTop: 100, paddingBottom: 80, overflow: 'hidden',
           background: 'linear-gradient(160deg, #f0f9ff 0%, #f8fafc 50%, #e0f2fe 100%)',
         }}>
           {/* Decorative circles */}
@@ -596,6 +335,20 @@ export default function HomePage() {
                     Start Streaming Free <ArrowRight size={18} />
                   </a>
                   <a
+                    href="/listen"
+                    className="cta-btn"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      color: 'white', padding: '14px 28px', borderRadius: 12,
+                      fontWeight: 700, fontSize: '1rem', textDecoration: 'none',
+                      boxShadow: '0 4px 20px rgba(16,185,129,0.3)',
+                    }}
+                  >
+                    <Headphones size={18} />
+                    Listen Live Now
+                  </a>
+                  <a
                     href="/how-it-works"
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,
@@ -624,9 +377,9 @@ export default function HomePage() {
               </div>
 
               {/* Right: Live Card */}
-              <div style={{ animation: 'slide-up 0.9s ease forwards', paddingTop: 20 }}>
+              {/* <div style={{ animation: 'slide-up 0.9s ease forwards', paddingTop: 20 }}>
                 <LiveBroadcastCard />
-              </div>
+              </div> */}
             </div>
           </div>
 

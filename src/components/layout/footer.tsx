@@ -1,20 +1,30 @@
 import Link from "next/link";
-import { Facebook, Twitter, Instagram, Youtube, MessageCircle, Radio } from "lucide-react";
+import { Facebook, Twitter, Instagram, Youtube, MessageCircle, Radio, Headphones } from "lucide-react";
 
 const footerLinks = {
   product: {
     title: "Product",
     links: [
+      { name: "Listen Live", href: "/listen" },
       { name: "Features", href: "/features" },
       { name: "Pricing", href: "/pricing" },
       { name: "How It Works", href: "/how-it-works" },
       { name: "Start Free Trial", href: "/signup" },
     ],
   },
+  listen: {
+    title: "Listen",
+    links: [
+      { name: "Browse Live Streams", href: "/listen" },
+      { name: "For Listeners", href: "/listen" },
+      { name: "Low Data Mode", href: "/features" },
+    ],
+  },
   solutions: {
     title: "Solutions",
     links: [
       { name: "Churches", href: "/solutions/churches" },
+      { name: "Ministries", href: "/contact" },
       { name: "Contact Sales", href: "/contact" },
     ],
   },
@@ -48,9 +58,9 @@ export function Footer() {
     <footer className="bg-slate-900 text-white">
       {/* Main Footer */}
       <div className="container-custom py-16">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-7 gap-8">
           {/* Brand Column */}
-          <div className="col-span-2">
+          <div className="col-span-2 md:col-span-2">
             <Link href="/" className="flex items-center gap-2 mb-4">
               <div className="w-10 h-10 bg-gradient-to-br from-sky-500 to-sky-700 rounded-xl flex items-center justify-center shadow-lg shadow-sky-500/30">
                 <Radio className="w-5 h-5 text-white" />
@@ -85,6 +95,20 @@ export function Footer() {
             <ul className="space-y-3">
               {footerLinks.product.links.map((link, index) => (
                 <li key={`product-${index}`}>
+                  <Link href={link.href} className="text-slate-400 hover:text-white transition-colors">
+                    {link.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Listen */}
+          <div>
+            <h3 className="font-semibold mb-4">{footerLinks.listen.title}</h3>
+            <ul className="space-y-3">
+              {footerLinks.listen.links.map((link, index) => (
+                <li key={`listen-${index}`}>
                   <Link href={link.href} className="text-slate-400 hover:text-white transition-colors">
                     {link.name}
                   </Link>

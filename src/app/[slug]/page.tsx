@@ -13,6 +13,7 @@ import {
 import { Navbar } from '@/components/layout/navbar';
 import { StreamCard } from '@/components/streaming/stream-card';
 import { AudioPlayer } from '@/components/streaming/audio-player';
+import { LiveChat } from '@/components/streaming/live-chat';
 import { livestreamApi, type CompanyLivePageResponse } from '@/lib/api/livestream';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import type { VolLivestreamOut } from '@/types/livestream';
@@ -294,6 +295,7 @@ function FullPlayer({
   onStop,
   onRetry,
   onVolumeChange,
+  streamSlug,
 }: {
   stream: VolLivestreamOut;
   company: VolCompanyResponse | null;
@@ -305,6 +307,7 @@ function FullPlayer({
   onStop: () => void;
   onRetry: () => void;
   onVolumeChange?: (volume: number) => void;
+  streamSlug?: string;
 }) {
   const [muted, setMuted] = useState(false);
   const [liked, setLiked] = useState(false);
@@ -349,7 +352,10 @@ function FullPlayer({
         />
       </div>
 
-      <div className="relative w-full max-w-2xl">
+      <div className="relative w-full max-w-4xl">
+        <div className="flex gap-6">
+          {/* Player column */}
+          <div className="flex-1">
         {/* Top bar */}
         <div className="flex items-center justify-between mb-8">
           <motion.div
@@ -572,10 +578,20 @@ function FullPlayer({
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
           className="text-center text-slate-600 text-xs mt-4"
-        >
-          Press <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 font-mono text-[10px] text-slate-400">ESC</kbd> or minimize to continue browsing
-        </motion.p>
+    >
+      Press <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 font-mono text-[10px] text-slate-400">ESC</kbd> or minimize to continue browsing
+    </motion.p>
       </div>
+      {/* End of player column */}
+          
+          {/* Chat column */}
+          {streamSlug && (
+            <div className="w-80 flex-shrink-0">
+              <LiveChat slug={streamSlug} />
+            </div>
+          )}
+        </div>
+        </div>
     </motion.div>
   );
 }
@@ -1030,6 +1046,7 @@ export default function CompanyPage() {
             onStop={handleStopPlayback}
             onRetry={retryConnection}
             onVolumeChange={updateVolume}
+            streamSlug={currentStream.slug}
           />
         )}
 
