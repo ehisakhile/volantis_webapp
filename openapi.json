@@ -90,67 +90,24 @@
                 }
             }
         },
-        "/auth/admin/login": {
-            "post": {
-                "tags": [
-                    "volantis-auth"
-                ],
-                "summary": "Admin Login",
-                "description": "Admin login - only for platform superadmin.\nDifferent from regular login - requires superadmin role.",
-                "operationId": "admin_login_auth_admin_login_post",
-                "requestBody": {
-                    "content": {
-                        "application/x-www-form-urlencoded": {
-                            "schema": {
-                                "$ref": "#/components/schemas/Body_admin_login_auth_admin_login_post"
-                            }
-                        }
-                    },
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/VolTokenResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/auth/verify-email": {
             "post": {
                 "tags": [
                     "volantis-auth"
                 ],
                 "summary": "Verify Email",
-                "description": "Verify email with token from verification link.\nToken format: \"user_id-email\"",
+                "description": "Verify email with OTP.\nUses form data: user_id and otp",
                 "operationId": "verify_email_auth_verify_email_post",
-                "parameters": [
-                    {
-                        "name": "token",
-                        "in": "query",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "title": "Token"
+                "requestBody": {
+                    "content": {
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_verify_email_auth_verify_email_post"
+                            }
                         }
-                    }
-                ],
+                    },
+                    "required": true
+                },
                 "responses": {
                     "200": {
                         "description": "Successful Response",
@@ -179,7 +136,7 @@
                     "volantis-auth"
                 ],
                 "summary": "Resend Verification",
-                "description": "Resend verification email.",
+                "description": "Resend verification OTP email.",
                 "operationId": "resend_verification_auth_resend_verification_post",
                 "parameters": [
                     {
@@ -241,146 +198,6 @@
                                     "additionalProperties": true,
                                     "type": "object",
                                     "title": "Response Signup User Auth Signup User Post"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/subscribe/{company_slug}": {
-            "post": {
-                "tags": [
-                    "volantis-auth"
-                ],
-                "summary": "Subscribe To Company",
-                "description": "Subscribe/follow a company to receive notifications about their streams.",
-                "operationId": "subscribe_to_company_auth_subscribe__company_slug__post",
-                "parameters": [
-                    {
-                        "name": "company_slug",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "title": "Company Slug"
-                        }
-                    },
-                    {
-                        "name": "kwargs",
-                        "in": "query",
-                        "required": true,
-                        "schema": {
-                            "title": "Kwargs"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {}
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "tags": [
-                    "volantis-auth"
-                ],
-                "summary": "Unsubscribe From Company",
-                "description": "Unsubscribe/unfollow a company.",
-                "operationId": "unsubscribe_from_company_auth_subscribe__company_slug__delete",
-                "parameters": [
-                    {
-                        "name": "company_slug",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "title": "Company Slug"
-                        }
-                    },
-                    {
-                        "name": "kwargs",
-                        "in": "query",
-                        "required": true,
-                        "schema": {
-                            "title": "Kwargs"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {}
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/subscriptions": {
-            "get": {
-                "tags": [
-                    "volantis-auth"
-                ],
-                "summary": "Get My Subscriptions",
-                "description": "Get list of companies the current user is subscribed to.",
-                "operationId": "get_my_subscriptions_auth_subscriptions_get",
-                "parameters": [
-                    {
-                        "name": "kwargs",
-                        "in": "query",
-                        "required": true,
-                        "schema": {
-                            "title": "Kwargs"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {},
-                                    "title": "Response Get My Subscriptions Auth Subscriptions Get"
                                 }
                             }
                         }
@@ -782,51 +599,6 @@
                 }
             }
         },
-        "/companies/me/logo": {
-            "post": {
-                "tags": [
-                    "volantis-companies"
-                ],
-                "summary": "Upload Logo",
-                "description": "Upload company logo image.\nSaves to: /company_loggs/{company_slug}/{date}/filename",
-                "operationId": "upload_logo_companies_me_logo_post",
-                "requestBody": {
-                    "content": {
-                        "multipart/form-data": {
-                            "schema": {
-                                "$ref": "#/components/schemas/Body_upload_logo_companies_me_logo_post"
-                            }
-                        }
-                    },
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {}
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ]
-            }
-        },
         "/companies/me/views": {
             "get": {
                 "tags": [
@@ -878,6 +650,125 @@
                         }
                     }
                 }
+            }
+        },
+        "/companies/subscriptions/{company_slug}": {
+            "post": {
+                "tags": [
+                    "volantis-companies"
+                ],
+                "summary": "Subscribe To Company",
+                "description": "Subscribe/follow a company to receive notifications about their streams.",
+                "operationId": "subscribe_to_company_companies_subscriptions__company_slug__post",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "company_slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Slug"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "volantis-companies"
+                ],
+                "summary": "Unsubscribe From Company",
+                "description": "Unsubscribe/unfollow a company.",
+                "operationId": "unsubscribe_from_company_companies_subscriptions__company_slug__delete",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "company_slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Slug"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/companies/subscriptions": {
+            "get": {
+                "tags": [
+                    "volantis-companies"
+                ],
+                "summary": "Get My Subscriptions",
+                "description": "Get list of companies the current user is subscribed to.",
+                "operationId": "get_my_subscriptions_companies_subscriptions_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {},
+                                    "type": "array",
+                                    "title": "Response Get My Subscriptions Companies Subscriptions Get"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/livestreams/start/audio": {
@@ -1533,102 +1424,6 @@
                 }
             }
         },
-        "/recordings/presign": {
-            "post": {
-                "tags": [
-                    "volantis-recordings"
-                ],
-                "summary": "Get Presigned Upload Url",
-                "description": "Get a presigned S3 URL for uploading a recording.\nThe client uploads directly to S3 using this URL, then calls /complete.",
-                "operationId": "get_presigned_upload_url_recordings_presign_post",
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "filename",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "string",
-                            "default": "recording.mp4",
-                            "title": "Filename"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/VolPresignedURLResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/recordings/complete": {
-            "post": {
-                "tags": [
-                    "volantis-recordings"
-                ],
-                "summary": "Complete Upload",
-                "description": "Mark an uploaded recording as complete.\nThe s3_key comes from the /presign response.",
-                "operationId": "complete_upload_recordings_complete_post",
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/VolRecordingCompleteRequest"
-                            }
-                        }
-                    },
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/VolRecordingOut"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ]
-            }
-        },
         "/recordings": {
             "get": {
                 "tags": [
@@ -2099,6 +1894,48 @@
                         "content": {
                             "application/json": {
                                 "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/login": {
+            "post": {
+                "tags": [
+                    "volantis-admin"
+                ],
+                "summary": "Admin Login",
+                "description": "Admin login - only for platform superadmin.",
+                "operationId": "admin_login_admin_login_post",
+                "requestBody": {
+                    "content": {
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_admin_login_admin_login_post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VolTokenResponse"
+                                }
                             }
                         }
                     },
@@ -3516,7 +3353,7 @@
                 ],
                 "title": "Body_add_user_to_company_companies__company_id__users_post"
             },
-            "Body_admin_login_auth_admin_login_post": {
+            "Body_admin_login_admin_login_post": {
                 "properties": {
                     "email": {
                         "type": "string",
@@ -3532,7 +3369,7 @@
                     "email",
                     "password"
                 ],
-                "title": "Body_admin_login_auth_admin_login_post"
+                "title": "Body_admin_login_admin_login_post"
             },
             "Body_edit_my_company_companies_me_put": {
                 "properties": {
@@ -3714,20 +3551,6 @@
                 ],
                 "title": "Body_start_video_livestream_livestreams_start_video_post"
             },
-            "Body_upload_logo_companies_me_logo_post": {
-                "properties": {
-                    "file": {
-                        "type": "string",
-                        "contentMediaType": "application/octet-stream",
-                        "title": "File"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "file"
-                ],
-                "title": "Body_upload_logo_companies_me_logo_post"
-            },
             "Body_upload_recording_livestreams__slug__upload_recording_post": {
                 "properties": {
                     "recording": {
@@ -3752,6 +3575,24 @@
                     "recording"
                 ],
                 "title": "Body_upload_recording_livestreams__slug__upload_recording_post"
+            },
+            "Body_verify_email_auth_verify_email_post": {
+                "properties": {
+                    "user_id": {
+                        "type": "integer",
+                        "title": "User Id"
+                    },
+                    "otp": {
+                        "type": "string",
+                        "title": "Otp"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "user_id",
+                    "otp"
+                ],
+                "title": "Body_verify_email_auth_verify_email_post"
             },
             "CompanyStatsOut": {
                 "properties": {
@@ -4399,75 +4240,6 @@
                 "title": "VolLivestreamPlaybackOut",
                 "description": "Playback info response"
             },
-            "VolPresignedURLResponse": {
-                "properties": {
-                    "upload_url": {
-                        "type": "string",
-                        "title": "Upload Url"
-                    },
-                    "s3_key": {
-                        "type": "string",
-                        "title": "S3 Key"
-                    },
-                    "expires_in": {
-                        "type": "integer",
-                        "title": "Expires In"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "upload_url",
-                    "s3_key",
-                    "expires_in"
-                ],
-                "title": "VolPresignedURLResponse",
-                "description": "Response with presigned S3 URL for upload"
-            },
-            "VolRecordingCompleteRequest": {
-                "properties": {
-                    "s3_key": {
-                        "type": "string",
-                        "title": "S3 Key"
-                    },
-                    "title": {
-                        "type": "string",
-                        "maxLength": 255,
-                        "minLength": 1,
-                        "title": "Title"
-                    },
-                    "description": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "maxLength": 512
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Description"
-                    },
-                    "duration_seconds": {
-                        "anyOf": [
-                            {
-                                "type": "integer",
-                                "exclusiveMinimum": 0.0
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Duration Seconds"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "s3_key",
-                    "title"
-                ],
-                "title": "VolRecordingCompleteRequest",
-                "description": "Request to mark upload as complete"
-            },
             "VolRecordingOut": {
                 "properties": {
                     "id": {
@@ -4803,7 +4575,14 @@
                         "title": "Id"
                     },
                     "company_id": {
-                        "type": "integer",
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
                         "title": "Company Id"
                     },
                     "company_name": {
@@ -4853,7 +4632,6 @@
                 "type": "object",
                 "required": [
                     "id",
-                    "company_id",
                     "email",
                     "username",
                     "role",

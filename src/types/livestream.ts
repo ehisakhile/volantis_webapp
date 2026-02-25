@@ -84,3 +84,44 @@ export interface RecordingState {
   duration: number;
   mimeType: string;
 }
+
+// ==================== Recording Types ====================
+
+export type RecordingStreamType = 'audio_only' | 'video';
+
+export interface WatchStatusOut {
+  status: 'in_progress' | 'completed' | 'not_started';
+  last_position: number | null;
+  completed_at: string | null;
+}
+
+export interface VolRecordingOut {
+  id: number;
+  company_id: number;
+  livestream_id: number | null;
+  title: string;
+  description: string | null;
+  s3_url: string;
+  duration_seconds: number | null;
+  file_size_bytes: number;
+  is_processed: boolean;
+  thumbnail_url: string | null;
+  created_at: string;
+}
+
+export interface VolRecordingWithReplayOut extends VolRecordingOut {
+  stream_type: RecordingStreamType | null;
+  replay_count: number;
+  watch_status: WatchStatusOut | null;
+  s3_url: string;
+}
+
+// ==================== Recording Watch History Types ====================
+
+export interface RecordingWatchHistory {
+  recording_id: number;
+  status: 'in_progress' | 'completed' | 'not_started';
+  last_position: number | null;
+  completed_at: string | null;
+  recording: VolRecordingWithReplayOut;
+}

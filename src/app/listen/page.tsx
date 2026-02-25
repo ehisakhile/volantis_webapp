@@ -6,12 +6,16 @@ import Link from 'next/link';
 import { 
   Search, Radio, Play, Pause, Volume2, VolumeX, 
   Users, Eye, SkipBack, SkipForward, X,
-  Headphones, Waves, Disc3, RadioReceiver
+  Headphones, Waves, Disc3, RadioReceiver, Clock, CheckCircle2
 } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
 import { livestreamApi, type ActiveStreamItem, type ActiveStreamsResponse } from '@/lib/api/livestream';
+import { recordingsApi } from '@/lib/api/recordings';
+import { useAuth } from '@/lib/auth-context';
 import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
+import { RecordingPlayer } from '@/components/streaming/recording-player';
+import type { RecordingWatchHistory, VolRecordingOut, WatchStatusOut } from '@/types/livestream';
 
 // Gradient presets for company cards
 const GRADIENT_PRESETS = [
@@ -50,7 +54,29 @@ function formatTimeSince(dateString: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+// Format duration in seconds to mm:ss or hh:mm:ss
+function formatDuration(seconds: number | null): string {
+  if (!seconds) return '0:00';
+  
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Format position in recording to mm:ss
+function formatPosition(seconds: number | null): string {
+  if (!seconds) return '0:00';
+  return formatDuration(seconds);
+}
+
 export default function ListenPage() {
+  const { isAuthenticated } = useAuth();
+  
   const [streams, setStreams] = useState<ActiveStreamItem[]>([]);
   const [filteredStreams, setFilteredStreams] = useState<ActiveStreamItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,6 +87,14 @@ export default function ListenPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  
+  // Recording playback state
+  const [allRecordings, setAllRecordings] = useState<VolRecordingOut[]>([]);
+  const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
+  const [currentRecording, setCurrentRecording] = useState<VolRecordingOut | null>(null);
+  const [currentRecordingWatchStatus, setCurrentRecordingWatchStatus] = useState<WatchStatusOut | null>(null);
+  const recordingAudioRef = useRef<HTMLAudioElement | null>(null);
+  const positionUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Creator not streaming modal
   const [showCreatorNotStreaming, setShowCreatorNotStreaming] = useState(false);
@@ -141,6 +175,26 @@ export default function ListenPage() {
     }
   }, []);
   
+  // Fetch all platform recordings (available to authenticated users)
+  const fetchRecordings = useCallback(async () => {
+    if (!isAuthenticated) {
+      setAllRecordings([]);
+      return;
+    }
+    
+    setIsRecordingsLoading(true);
+    try {
+      // Get all recordings from the platform (requires auth)
+      const allRecs = await recordingsApi.getRecordings(50, 0);
+      setAllRecordings(allRecs);
+    } catch (err) {
+      console.error('Failed to fetch recordings:', err);
+      setAllRecordings([]);
+    } finally {
+      setIsRecordingsLoading(false);
+    }
+  }, [isAuthenticated]);
+  
   // Filter streams based on search
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -162,6 +216,15 @@ export default function ListenPage() {
   useEffect(() => {
     fetchStreams();
   }, [fetchStreams]);
+  
+  // Fetch recordings when auth status changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchRecordings();
+    } else {
+      setAllRecordings([]);
+    }
+  }, [isAuthenticated, fetchRecordings]);
   
   // Audio visualization loop
   useEffect(() => {
@@ -429,6 +492,149 @@ export default function ListenPage() {
     }
   }, [isMuted]);
   
+  // Start playing a recording
+  const playRecording = useCallback(async (recording: VolRecordingOut) => {
+    // Stop any live stream playback first
+    stopPlayback();
+    
+    try {
+      setIsConnecting(true);
+      setConnectionError(null);
+      
+      // Get the recording playback info (this records a replay and returns the S3 URL)
+      const playbackData = await recordingsApi.getRecordingForPlayback(recording.id);
+      
+      // Create audio element for playback
+      const audio = new Audio(playbackData.s3_url);
+      audio.volume = volume;
+      
+      // Store watch status for UI display
+      setCurrentRecordingWatchStatus(playbackData.watch_status);
+      
+      // Resume from last position if available
+      if (playbackData.watch_status?.last_position && playbackData.watch_status.last_position > 0) {
+        audio.currentTime = playbackData.watch_status.last_position;
+      }
+      
+      // Handle audio ended - mark as completed
+      audio.onended = async () => {
+        try {
+          await recordingsApi.markRecordingCompleted(recording.id);
+          // Refresh recordings to update watch status
+          fetchRecordings();
+        } catch (err) {
+          console.error('Failed to mark recording as completed:', err);
+        }
+        setIsPlaying(false);
+        setCurrentRecording(null);
+        setCurrentRecordingWatchStatus(null);
+      };
+      
+      // Handle errors
+      audio.onerror = () => {
+        setConnectionError('Failed to load recording. Please try again.');
+        setIsConnecting(false);
+        setIsPlaying(false);
+      };
+      
+      // Start playback
+      await audio.play();
+      recordingAudioRef.current = audio;
+      
+      // Start position update interval (every 10 seconds)
+      positionUpdateIntervalRef.current = setInterval(async () => {
+        if (recordingAudioRef.current && !recordingAudioRef.current.paused) {
+          try {
+            await recordingsApi.updateWatchPosition(
+              recording.id,
+              Math.floor(recordingAudioRef.current.currentTime)
+            );
+          } catch (err) {
+            console.error('Failed to update position:', err);
+          }
+        }
+      }, 10000);
+      
+      setCurrentRecording(recording);
+      setIsPlaying(true);
+      setIsConnecting(false);
+    } catch (err) {
+      console.error('Failed to play recording:', err);
+      setConnectionError('Failed to load recording. Please try again.');
+      setIsConnecting(false);
+    }
+  }, [volume, stopPlayback, fetchRecordings]);
+  
+  // Toggle recording play/pause
+  const toggleRecordingPlayPause = useCallback(() => {
+    if (!recordingAudioRef.current) return;
+    
+    if (isPlaying) {
+      recordingAudioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      recordingAudioRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
+    }
+  }, [isPlaying]);
+  
+  // Stop recording playback
+  const stopRecordingPlayback = useCallback(async () => {
+    // Stop the interval
+    if (positionUpdateIntervalRef.current) {
+      clearInterval(positionUpdateIntervalRef.current);
+      positionUpdateIntervalRef.current = null;
+    }
+    
+    // Update final position before stopping
+    if (recordingAudioRef.current && currentRecording) {
+      const position = Math.floor(recordingAudioRef.current.currentTime);
+      try {
+        await recordingsApi.updateWatchPosition(currentRecording.id, position);
+      } catch (err) {
+        console.error('Failed to update final position:', err);
+      }
+    }
+    
+    // Stop audio
+    if (recordingAudioRef.current) {
+      recordingAudioRef.current.pause();
+      recordingAudioRef.current.src = '';
+      recordingAudioRef.current = null;
+    }
+    
+    setIsPlaying(false);
+    setCurrentRecording(null);
+    setCurrentRecordingWatchStatus(null);
+  }, [currentRecording]);
+  
+  // Handle recording volume change
+  const handleRecordingVolumeChange = useCallback((newVolume: number) => {
+    setVolume(newVolume);
+    if (recordingAudioRef.current) {
+      recordingAudioRef.current.volume = newVolume;
+    }
+  }, []);
+  
+  // Handle recording mute toggle
+  const toggleRecordingMute = useCallback(() => {
+    if (recordingAudioRef.current) {
+      recordingAudioRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  }, [isMuted]);
+  
+  // Select a recording to play
+  const handleRecordingSelect = useCallback((recording: VolRecordingOut) => {
+    // If same recording, toggle play/pause
+    if (currentRecording?.id === recording.id) {
+      toggleRecordingPlayPause();
+    } else {
+      // Play new recording
+      stopRecordingPlayback();
+      playRecording(recording);
+    }
+  }, [currentRecording, toggleRecordingPlayPause, stopRecordingPlayback, playRecording]);
+   
   // Select a stream
   const handleStreamSelect = useCallback((stream: ActiveStreamItem) => {
     // If same stream, toggle play/pause
@@ -445,8 +651,9 @@ export default function ListenPage() {
   useEffect(() => {
     return () => {
       stopPlayback();
+      stopRecordingPlayback();
     };
-  }, [stopPlayback]);
+  }, [stopPlayback, stopRecordingPlayback]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -525,6 +732,105 @@ export default function ListenPage() {
           </motion.div>
         </div>
       </section>
+      
+      {/* Recordings Section - Only show for authenticated users */}
+      {isAuthenticated && allRecordings.length > 0 && (
+        <section className="px-4 pb-8">
+          <div className="container-custom">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <Clock className="w-5 h-5 text-amber-400" />
+                <h2 className="text-2xl font-bold text-white">Recordings</h2>
+                <span className="text-sm text-slate-400">({allRecordings.length})</span>
+              </div>
+              
+              {isRecordingsLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="animate-pulse bg-slate-800/50 rounded-3xl h-72" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  <AnimatePresence mode="popLayout">
+                    {allRecordings.map((recording: VolRecordingOut, index: number) => {
+                      const isCurrentlyPlaying = currentRecording?.id === recording.id;
+                      
+                      return (
+                        <motion.div
+                          key={recording.id}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ delay: index * 0.05 }}
+                        >
+                          <button
+                            onClick={() => handleRecordingSelect(recording)}
+                            className="w-full text-left group relative overflow-hidden rounded-3xl bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 hover:border-amber-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/20"
+                          >
+                            {/* Gradient Background */}
+                            <div className={`absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-500 to-rose-600 opacity-20 group-hover:opacity-30 transition-opacity`} />
+                            
+                            {/* Playing indicator */}
+                            {isCurrentlyPlaying && (
+                              <div className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/90 rounded-full text-white text-xs font-medium">
+                                <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                                PLAYING
+                              </div>
+                            )}
+                            
+                            {/* Content - positioned at bottom like stream cards */}
+                            <div className="relative p-6 pt-24">
+                              {/* Icon placeholder instead of logo */}
+                              <div className="relative w-16 h-16 mx-auto mb-4 -mt-14">
+                                <div className="absolute inset-0 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 rounded-2xl blur-xl opacity-50" />
+                                <div className="relative w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center border-2 border-slate-700/50 group-hover:border-amber-500/50 transition-colors overflow-hidden">
+                                  <Clock className="w-7 h-7 text-amber-400" />
+                                </div>
+                              </div>
+                              
+                              {/* Recording Title */}
+                              <h3 className="text-lg font-semibold text-white text-center mb-1 line-clamp-1 group-hover:text-amber-400 transition-colors">
+                                {recording.title}
+                              </h3>
+                              
+                              {/* Description */}
+                              {recording.description && (
+                                <p className="text-sm text-slate-400 text-center mb-3 line-clamp-1">
+                                  {recording.description}
+                                </p>
+                              )}
+                              
+                              {/* Duration */}
+                              <div className="flex items-center justify-center gap-4 text-xs text-slate-500">
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {formatDuration(recording.duration_seconds)}
+                                </span>
+                              </div>
+                              
+                              {/* Play Button Overlay */}
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="w-16 h-16 bg-amber-500 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/30 transform scale-0 group-hover:scale-100 transition-transform duration-300">
+                                  <Play className="w-7 h-7 text-white ml-1" />
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        </section>
+      )}
       
       {/* Streams Grid */}
       <section className="px-4 pb-32">
@@ -634,7 +940,7 @@ export default function ListenPage() {
         </div>
       </section>
       
-      {/* Radio Player - Fixed Bottom */}
+      {/* Live Stream Player - Fixed Bottom */}
       <AnimatePresence>
         {currentStream && (
           <motion.div
@@ -674,6 +980,7 @@ export default function ListenPage() {
                       </div>
                     )}
                   </div>
+                  
                   <div className="min-w-0">
                     <h4 className="text-white font-semibold truncate">{currentStream.company_name}</h4>
                     <p className="text-sm text-slate-400 truncate">{currentStream.title}</p>
@@ -720,7 +1027,7 @@ export default function ListenPage() {
                   />
                 </div>
                 
-                {/* Connection Status / Viewer Count */}
+                {/* Viewer Count */}
                 <div className="flex items-center gap-2 text-sm text-slate-400 flex-shrink-0">
                   <div className="flex items-center gap-1.5">
                     <Eye className="w-4 h-4" />
@@ -753,8 +1060,19 @@ export default function ListenPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Recording Player - Fixed Bottom */}
+      <AnimatePresence>
+        {currentRecording && (
+          <RecordingPlayer
+            recording={currentRecording}
+            onClose={stopRecordingPlayback}
+            onCompleted={fetchRecordings}
+          />
+        )}
+      </AnimatePresence>
       
-      <div className={currentStream ? 'pb-32' : ''}>
+      <div className={(currentStream || currentRecording) ? 'pb-32' : ''}>
         <Footer />
       </div>
     </div>
