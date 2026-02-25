@@ -123,14 +123,25 @@ export function Navbar() {
                         <p className="text-sm font-medium text-slate-900 truncate">{user.username}</p>
                         <p className="text-xs text-slate-500 truncate">{user.email}</p>
                       </div>
-                      <Link
-                        href="/dashboard"
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-sky-600"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        <Settings className="w-4 h-4" />
-                        Dashboard
-                      </Link>
+                      {user.role === 'admin' || user.company_id ? (
+                        <Link
+                          href="/dashboard"
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-sky-600"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <Settings className="w-4 h-4" />
+                          Creator Dashboard
+                        </Link>
+                      ) : (
+                        <Link
+                          href="/user/dashboard"
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-sky-600"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <Settings className="w-4 h-4" />
+                          My Dashboard
+                        </Link>
+                      )}
                       <button
                         onClick={async () => {
                           setUserMenuOpen(false);
@@ -151,9 +162,23 @@ export function Navbar() {
                 <Link href="/login" className="text-slate-600 hover:text-sky-600 font-medium transition-colors">
                   Login
                 </Link>
-                <Link href="/signup">
+                <div className="relative group">
                   <Button size="sm">Start Free</Button>
-                </Link>
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                    <Link
+                      href="/signup"
+                      className="block px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-sky-600"
+                    >
+                      Start Streaming
+                    </Link>
+                    <Link
+                      href="/signup/user"
+                      className="block px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-sky-600"
+                    >
+                      Join as Viewer
+                    </Link>
+                  </div>
+                </div>
               </>
             )}
           </div>

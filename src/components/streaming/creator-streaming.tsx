@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Mic, 
-  Radio, 
-  Square, 
-  Settings, 
+import {
+  Mic,
+  Radio,
+  Square,
+  Settings,
   Headphones,
   Signal,
   SignalLow,
@@ -33,6 +33,8 @@ import {
   getAudioInputDevices,
 } from '@/lib/webrtc-utils';
 import type { VolLivestreamOut } from '@/types/livestream';
+import { useStreamRecorder } from '@/hooks/useStreamRecorder';
+import { RecordingPrompt, RecordingStatus } from './recording-prompt';
 
 // Audio visualizer component using canvas (like test_webrtc.html)
 interface AudioVisualizerProps {
@@ -100,9 +102,22 @@ export function CreatorStreaming({
   const systemStreamRef = useRef<MediaStream | null>(null);
   const stopVizRef = useRef<(() => void) | null>(null);
   const statsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  
+   
   // Visualizer canvas ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Stream recorder hook
+  const recorder = useStreamRecorder({
+    onRecordingReady: (blob, filename) => {
+      console.log('Recording ready:', filename, blob.size, 'bytes');
+    },
+    onUploadComplete: (recordingUrl) => {
+      console.log('Recording uploaded:', recordingUrl);
+    },
+    onUploadError: (error) => {
+      console.error('Upload error:', error);
+    },
+  });
   
   // Load microphone devices on mount and when showing picker
   useEffect(() => {
@@ -140,6 +155,12 @@ export function CreatorStreaming({
 
     if (mixAudio && (!useMic || !useSystemAudio)) {
       setError('Mix requires both Microphone and System Audio');
+      return;
+    }
+
+    // Show recording prompt if user hasn't decided yet
+    if (recorder.shouldPromptRecording) {
+      recorder.promptRecording();
       return;
     }
 
@@ -271,11 +292,17 @@ export function CreatorStreaming({
         setStreamDuration(prev => prev + 1);
       }, 1000);
 
+      // Start recording if user opted in
+      if (recorder.state.wantsToRecord && pubStreamRef.current) {
+        recorder.startRecording(pubStreamRef.current, streamData.slug, streamTitle);
+      }
+
       setIsStreaming(true);
       onStreamStarted?.(streamData);
 
     } catch (err) {
       console.error('Publish error:', err);
+      console.log('', err instanceof Error ? err.stack : '');
       const errorMsg = err instanceof Error ? err.message : 'Failed to start stream';
       setError(errorMsg);
       setConnectionState('failed');
@@ -283,7 +310,7 @@ export function CreatorStreaming({
     } finally {
       setIsStarting(false);
     }
-  }, [streamTitle, streamDescription, useMic, useSystemAudio, mixAudio, onStreamStarted]);
+  }, [streamTitle, streamDescription, useMic, useSystemAudio, mixAudio, onStreamStarted, recorder]);
 
   // Stats tracking (like test_webrtc.html)
   const startPubStats = useCallback(() => {
@@ -341,6 +368,11 @@ export function CreatorStreaming({
 
   // Handle stop streaming
   const handleStopStream = useCallback(async () => {
+    // Stop recording if it's running (this will auto-download)
+    if (recorder.state.isRecording) {
+      recorder.stopRecording();
+    }
+
     teardownPublish();
     
     // Stop duration counter
@@ -365,7 +397,7 @@ export function CreatorStreaming({
     setConnectionState('idle');
     
     onStreamStopped?.();
-  }, [currentStream, teardownPublish, onStreamStopped]);
+  }, [currentStream, teardownPublish, onStreamStopped, recorder]);
 
   // Format duration
   const formatDuration = (seconds: number) => {
@@ -427,6 +459,30 @@ export function CreatorStreaming({
             )}
           </div>
         </div>
+
+        {/* Recording Prompt Modal */}
+        <RecordingPrompt
+          isOpen={recorder.shouldPromptRecording && !isStreaming}
+          onAccept={recorder.acceptRecording}
+          onDecline={recorder.declineRecording}
+        />
+
+        {/* Recording Status - show after stream ends or during recording */}
+        {(recorder.state.isRecording || recorder.state.recordedBlob) && (
+          <div className="mb-6">
+            <RecordingStatus
+              isRecording={recorder.state.isRecording}
+              recordingDuration={recorder.state.recordingDuration}
+              recordedBlob={recorder.state.recordedBlob}
+              recordedFilename={recorder.state.recordedFilename}
+              isUploading={recorder.state.isUploading}
+              uploadProgress={recorder.state.uploadProgress}
+              onDownload={recorder.downloadRecording}
+              onUpload={recorder.uploadRecording}
+              error={recorder.state.error}
+            />
+          </div>
+        )}
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Panel - Controls */}

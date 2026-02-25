@@ -6,59 +6,34 @@ import Link from 'next/link';
 import { Container } from '@/components/ui/container';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
-import { ArrowRight, Mail, Lock, User, Building2, CheckCircle, Eye, EyeOff, AlertCircle, Globe, FileImage } from 'lucide-react';
+import { ArrowRight, Mail, Lock, User, CheckCircle, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const benefits = [
-  "No credit card required",
-  "Free plan available forever",
-  "Setup in 5 minutes",
-  "Cancel anytime",
+  "Follow your favorite churches and organizations",
+  "Get notified when they go live",
+  "Join live chat during streams",
+  "Free account, no credit card required",
 ];
 
-export default function SignupPage() {
+export default function UserSignupPage() {
   const router = useRouter();
-  const { signup, error: authError, clearError, isLoading } = useAuth();
+  const { signupUser, error: authError, clearError, isLoading } = useAuth();
   
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
+    username: '',
     email: '',
-    organization: '',
-    organizationSlug: '',
-    organizationDescription: '',
     password: '',
     confirmPassword: '',
   });
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [agreedToUpdates, setAgreedToUpdates] = useState(false);
   const [localError, setLocalError] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successEmail, setSuccessEmail] = useState('');
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     setFormData(prev => ({ ...prev, [id]: value }));
-  };
-
-  const handleLogoChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setLogoFile(file);
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeLogo = () => {
-    setLogoFile(null);
-    setLogoPreview(null);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -67,7 +42,7 @@ export default function SignupPage() {
     clearError();
 
     // Validation
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.organization || !formData.password) {
+    if (!formData.username || !formData.email || !formData.password) {
       setLocalError('Please fill in all required fields');
       return;
     }
@@ -88,14 +63,10 @@ export default function SignupPage() {
     }
 
     try {
-      const response = await signup({
-        company_name: formData.organization,
-        company_slug: formData.organizationSlug || null,
-        company_description: formData.organizationDescription || null,
+      const response = await signupUser({
         email: formData.email,
-        user_username: `${formData.firstName.toLowerCase()}_${formData.lastName.toLowerCase()}`,
         password: formData.password,
-        logo: logoFile,
+        username: formData.username,
       });
 
       // Check if email verification is required
@@ -103,8 +74,8 @@ export default function SignupPage() {
         setSuccessEmail(response.email || formData.email);
         setShowSuccessModal(true);
       } else if (response.access_token) {
-        // Auto-login successful, redirect to dashboard
-        router.push('/dashboard');
+        // Auto-login successful, redirect to user dashboard
+        router.push('/user/dashboard');
       } else {
         // Show success modal and redirect to login
         setSuccessEmail(response.email || formData.email);
@@ -143,10 +114,10 @@ export default function SignupPage() {
             <div className="hidden lg:block">
               <div className="sticky top-24">
                 <h1 className="text-3xl font-bold text-navy-900 mb-6">
-                  Start streaming today
+                  Follow your favorite creators
                 </h1>
                 <p className="text-lg text-navy-600 mb-8">
-                  Join 500+ churches and organizations already reaching their audience with Volantislive.
+                  Create a free account to follow churches, organizations, and creators. Get notified when they go live and join the conversation in chat.
                 </p>
 
                 <div className="space-y-4">
@@ -158,9 +129,15 @@ export default function SignupPage() {
                   ))}
                 </div>
 
-                <div className="mt-12 p-6 bg-sky-50 rounded-xl">
-                  <p className="text-navy-700 font-medium mb-2">"We went from 0 to 500+ online listeners in 2 months. Volantislive changed everything for us."</p>
-                  <p className="text-sm text-navy-500">— Pastor Emmanuel, Grace Assembly Lagos</p>
+                <div className="mt-8 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                  <p className="text-navy-700 font-medium mb-2">Want to stream?</p>
+                  <p className="text-sm text-navy-600 mb-3">Creators and organizations can start their own channels.</p>
+                  <Link 
+                    href="/signup" 
+                    className="text-sm font-medium text-amber-600 hover:text-amber-700 underline"
+                  >
+                    Sign up as a creator →
+                  </Link>
                 </div>
               </div>
             </div>
@@ -169,8 +146,8 @@ export default function SignupPage() {
             <div>
               <div className="bg-white rounded-2xl p-8 shadow-sm border border-navy-100">
                 <div className="lg:hidden mb-8">
-                  <h1 className="text-2xl font-bold text-navy-900 mb-2">Start streaming today</h1>
-                  <p className="text-navy-600">Create your free account</p>
+                  <h1 className="text-2xl font-bold text-navy-900 mb-2">Create your free account</h1>
+                  <p className="text-navy-600">Follow your favorite creators and get notified when they go live</p>
                 </div>
 
                 {displayError && (
@@ -181,39 +158,24 @@ export default function SignupPage() {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-5">
-                  {/* Name Fields */}
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="firstName" className="block text-sm font-medium text-navy-700 mb-2">
-                        First Name *
-                      </label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
-                        <input
-                          type="text"
-                          id="firstName"
-                          value={formData.firstName}
-                          onChange={handleChange}
-                          className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
-                          placeholder="John"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label htmlFor="lastName" className="block text-sm font-medium text-navy-700 mb-2">
-                        Last Name *
-                      </label>
+                  {/* Username */}
+                  <div>
+                    <label htmlFor="username" className="block text-sm font-medium text-navy-700 mb-2">
+                      Username *
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
                       <input
                         type="text"
-                        id="lastName"
-                        value={formData.lastName}
+                        id="username"
+                        value={formData.username}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
-                        placeholder="Doe"
+                        className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
+                        placeholder="Choose a username"
                         required
                       />
                     </div>
+                    <p className="text-xs text-navy-500 mt-1">This is how others will identify you</p>
                   </div>
 
                   {/* Email */}
@@ -233,96 +195,6 @@ export default function SignupPage() {
                         required
                         autoComplete="email"
                       />
-                    </div>
-                  </div>
-
-                  {/* Organization Name */}
-                  <div>
-                    <label htmlFor="organization" className="block text-sm font-medium text-navy-700 mb-2">
-                      Church/Organization Name *
-                    </label>
-                    <div className="relative">
-                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
-                      <input
-                        type="text"
-                        id="organization"
-                        value={formData.organization}
-                        onChange={handleChange}
-                        className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
-                        placeholder="Grace Assembly Lagos"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Organization Slug */}
-                  <div>
-                    <label htmlFor="organizationSlug" className="block text-sm font-medium text-navy-700 mb-2">
-                      Organization URL Slug
-                    </label>
-                    <div className="relative">
-                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
-                      <input
-                        type="text"
-                        id="organizationSlug"
-                        value={formData.organizationSlug}
-                        onChange={handleChange}
-                        className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
-                        placeholder="grace-assembly-lagos (optional)"
-                      />
-                    </div>
-                    <p className="text-xs text-navy-500 mt-1">Your page will be at volatilive.com/{formData.organizationSlug || 'your-org'}</p>
-                  </div>
-
-                  {/* Organization Description */}
-                  <div>
-                    <label htmlFor="organizationDescription" className="block text-sm font-medium text-navy-700 mb-2">
-                      Organization Description
-                    </label>
-                    <textarea
-                      id="organizationDescription"
-                      value={formData.organizationDescription}
-                      onChange={handleChange}
-                      rows={3}
-                      className="w-full px-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all resize-none"
-                      placeholder="Tell us about your organization (optional)"
-                    />
-                  </div>
-
-                  {/* Logo Upload */}
-                  <div>
-                    <label className="block text-sm font-medium text-navy-700 mb-2">
-                      Organization Logo
-                    </label>
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center justify-center w-20 h-20 border-2 border-dashed border-navy-300 rounded-lg cursor-pointer hover:border-sky-400 hover:bg-sky-50 transition-all">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleLogoChange}
-                          className="hidden"
-                        />
-                        {logoPreview ? (
-                          <img src={logoPreview} alt="Logo preview" className="w-full h-full object-cover rounded-lg" />
-                        ) : (
-                          <FileImage className="w-8 h-8 text-navy-400" />
-                        )}
-                      </label>
-                      <div className="flex-1">
-                        {logoFile && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-navy-600">{logoFile.name}</span>
-                            <button
-                              type="button"
-                              onClick={removeLogo}
-                              className="text-sm text-red-500 hover:text-red-700"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        )}
-                        <p className="text-xs text-navy-500">Upload your organization logo (optional)</p>
-                      </div>
                     </div>
                   </div>
 
@@ -385,18 +257,6 @@ export default function SignupPage() {
                         I agree to the <Link href="/terms" className="text-sky-600 hover:underline">Terms of Service</Link> and <Link href="/privacy" className="text-sky-600 hover:underline">Privacy Policy</Link> *
                       </span>
                     </label>
-
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={agreedToUpdates}
-                        onChange={(e) => setAgreedToUpdates(e.target.checked)}
-                        className="mt-1 rounded border-navy-300 text-sky-500 focus:ring-sky-500" 
-                      />
-                      <span className="text-sm text-navy-600">
-                        I agree to receive updates and communications from Volantislive
-                      </span>
-                    </label>
                   </div>
 
                   <Button 
@@ -410,17 +270,11 @@ export default function SignupPage() {
                   </Button>
                 </form>
 
-                <div className="mt-6 space-y-3 text-center">
+                <div className="mt-6 text-center">
                   <p className="text-navy-600">
                     Already have an account?{" "}
                     <Link href="/login" className="text-sky-600 font-medium hover:underline">
                       Login
-                    </Link>
-                  </p>
-                  <p className="text-navy-500">
-                    Just want to watch?{" "}
-                    <Link href="/signup/user" className="text-sky-600 font-medium hover:underline">
-                      Sign up as a viewer
                     </Link>
                   </p>
                 </div>
@@ -447,7 +301,7 @@ export default function SignupPage() {
                 We've sent a verification email to <strong>{successEmail}</strong>
               </p>
               <p className="text-sm text-navy-600 mb-6">
-                Please check your email and click the verification link to activate your account, then login to start streaming.
+                Please check your email and click the verification link to activate your account.
               </p>
               <Button 
                 onClick={handleContinueToLogin}

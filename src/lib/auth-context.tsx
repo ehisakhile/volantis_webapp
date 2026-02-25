@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authApi } from '@/lib/api/auth';
-import type { VolUserResponse, LoginRequest, SignupRequest, VolSignupResponse, VolTokenResponse } from '@/types/auth';
+import type { VolUserResponse, LoginRequest, SignupRequest, UserSignupRequest, VolSignupResponse, VolTokenResponse } from '@/types/auth';
 
 interface AuthContextType {
   user: VolUserResponse | null;
@@ -11,6 +11,7 @@ interface AuthContextType {
   error: string | null;
   login: (data: LoginRequest) => Promise<void>;
   signup: (data: SignupRequest) => Promise<VolSignupResponse>;
+  signupUser: (data: UserSignupRequest) => Promise<VolSignupResponse>;
   logout: () => Promise<void>;
   fetchUser: () => Promise<void>;
   clearError: () => void;
@@ -101,6 +102,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [fetchUser]);
 
+  const signupUser = useCallback(async (data: UserSignupRequest): Promise<VolSignupResponse> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await authApi.signupUser(data);
+      
+      // If signup returns tokens, fetch user
+      if (response.access_token) {
+        await fetchUser();
+      }
+      
+      return response;
+    } catch (err: unknown) {
+      const errorMessage = err && typeof err === 'object' && 'detail' in err
+        ? String(err.detail)
+        : 'Signup failed. Please try again.';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchUser]);
+
   const logout = useCallback(async () => {
     setIsLoading(true);
     
@@ -123,6 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     error,
     login,
     signup,
+    signupUser,
     logout,
     fetchUser,
     clearError,

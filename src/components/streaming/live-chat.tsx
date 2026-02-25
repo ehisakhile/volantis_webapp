@@ -162,14 +162,8 @@ export function LiveChat({ slug, isCreator = false }: LiveChatProps) {
               >
                 {/* Avatar */}
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-violet-500 flex items-center justify-center text-white text-xs font-bold">
-                  {message.user_avatar_url ? (
-                    <img 
-                      src={message.user_avatar_url} 
-                      alt={message.user_username}
-                      className="w-full h-full rounded-full object-cover"
-                    />
-                  ) : (
-                    message.user_username[0]?.toUpperCase() || '?'
+                  { (
+                    message.username?.toUpperCase().slice(0, 1)  || '?'
                   )}
                 </div>
                 
@@ -177,7 +171,7 @@ export function LiveChat({ slug, isCreator = false }: LiveChatProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sky-400 font-semibold text-sm">
-                      {message.user_username}
+                      {message.username}
                     </span>
                     <span className="text-slate-500 text-xs">
                       {formatTime(message.created_at)}

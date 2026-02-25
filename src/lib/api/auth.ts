@@ -1,11 +1,12 @@
 // Auth API Service
 import { apiClient } from './client';
-import type { 
-  LoginRequest, 
-  SignupRequest, 
-  VolTokenResponse, 
-  VolSignupResponse, 
-  VolUserResponse 
+import type {
+  LoginRequest,
+  SignupRequest,
+  UserSignupRequest,
+  VolTokenResponse,
+  VolSignupResponse,
+  VolUserResponse
 } from '@/types/auth';
 
 export const authApi = {
@@ -97,6 +98,65 @@ export const authApi = {
       }
     }
 
+    return response;
+  },
+
+  /**
+   * Register a new individual user account (not tied to a company)
+   * This is for viewers who want to follow channels and receive notifications.
+   */
+  async signupUser(data: UserSignupRequest): Promise<VolSignupResponse> {
+    const formData = new URLSearchParams();
+    formData.append('email', data.email);
+    formData.append('password', data.password);
+    formData.append('username', data.username);
+
+    const response = await apiClient.request<VolSignupResponse>('/auth/signup/user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData,
+    });
+
+    // If signup returns tokens directly, store them
+    if (response.access_token && response.refresh_token) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('access_token', response.access_token);
+        localStorage.setItem('refresh_token', response.refresh_token);
+        localStorage.setItem('token_expires_in', String(response.expires_in || 3600));
+        localStorage.setItem('token_timestamp', String(Date.now()));
+      }
+    }
+
+    return response;
+  },
+
+  /**
+   * Subscribe/follow a company to receive notifications about their streams.
+   */
+  async subscribeToCompany(companySlug: string): Promise<void> {
+    await apiClient.request(`/auth/subscribe/${encodeURIComponent(companySlug)}`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Unsubscribe/unfollow a company.
+   */
+  async unsubscribeFromCompany(companySlug: string): Promise<void> {
+    await apiClient.request(`/auth/subscribe/${encodeURIComponent(companySlug)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Get list of companies the current user is subscribed to.
+   */
+  async getMySubscriptions(): Promise<VolUserResponse[]> {
+    const response = await apiClient.request<VolUserResponse[]>('/auth/subscriptions', {
+      method: 'GET',
+    });
     return response;
   },
 

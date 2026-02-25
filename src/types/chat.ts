@@ -2,12 +2,11 @@
 
 export interface VolChatMessageOut {
   id: number;
-  livestream_id: number;
-  user_id: number;
-  user_username: string;
-  user_avatar_url?: string;
+  livestream_slug: string;
+  username: string;
   content: string;
   is_deleted: boolean;
+  is_edited: boolean
   created_at: string;
   updated_at?: string;
 }

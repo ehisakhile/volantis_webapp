@@ -214,6 +214,190 @@
                 }
             }
         },
+        "/auth/signup/user": {
+            "post": {
+                "tags": [
+                    "volantis-auth"
+                ],
+                "summary": "Signup User",
+                "description": "Register a new individual user account (not tied to a company).\nThis is for viewers who want to follow channels and receive notifications.",
+                "operationId": "signup_user_auth_signup_user_post",
+                "requestBody": {
+                    "content": {
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_signup_user_auth_signup_user_post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Signup User Auth Signup User Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/subscribe/{company_slug}": {
+            "post": {
+                "tags": [
+                    "volantis-auth"
+                ],
+                "summary": "Subscribe To Company",
+                "description": "Subscribe/follow a company to receive notifications about their streams.",
+                "operationId": "subscribe_to_company_auth_subscribe__company_slug__post",
+                "parameters": [
+                    {
+                        "name": "company_slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Slug"
+                        }
+                    },
+                    {
+                        "name": "kwargs",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "title": "Kwargs"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "volantis-auth"
+                ],
+                "summary": "Unsubscribe From Company",
+                "description": "Unsubscribe/unfollow a company.",
+                "operationId": "unsubscribe_from_company_auth_subscribe__company_slug__delete",
+                "parameters": [
+                    {
+                        "name": "company_slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Slug"
+                        }
+                    },
+                    {
+                        "name": "kwargs",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "title": "Kwargs"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/subscriptions": {
+            "get": {
+                "tags": [
+                    "volantis-auth"
+                ],
+                "summary": "Get My Subscriptions",
+                "description": "Get list of companies the current user is subscribed to.",
+                "operationId": "get_my_subscriptions_auth_subscriptions_get",
+                "parameters": [
+                    {
+                        "name": "kwargs",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "title": "Kwargs"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {},
+                                    "title": "Response Get My Subscriptions Auth Subscriptions Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/auth/logout": {
             "post": {
                 "tags": [
@@ -643,6 +827,59 @@
                 ]
             }
         },
+        "/companies/me/views": {
+            "get": {
+                "tags": [
+                    "volantis-companies"
+                ],
+                "summary": "Get Company View Metrics",
+                "description": "Get view analytics for the current user's company.\n\nQuery params:\n- days: Optional filter for last N days (e.g., 7, 30). If not provided, returns all-time.\n\nReturns:\n- total_views: Total view count\n- unique_viewers: Unique visitor count\n- views_by_date: List of (date, count) tuples\n- views_by_livestream: List of (slug, count) tuples",
+                "operationId": "get_company_view_metrics_companies_me_views_get",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "days",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "integer"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Days"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/livestreams/start/audio": {
             "post": {
                 "tags": [
@@ -959,7 +1196,7 @@
                     "volantis-livestreams"
                 ],
                 "summary": "Get Livestream",
-                "description": "Get a specific livestream by slug.",
+                "description": "Get a specific livestream by slug.\nAlso records view when user accesses the livestream page.",
                 "operationId": "get_livestream_livestreams__slug__get",
                 "security": [
                     {
@@ -1256,7 +1493,7 @@
                     "volantis-chat"
                 ],
                 "summary": "Delete Livestream Message",
-                "description": "Delete a chat message (soft delete).\nOnly the message author or an admin can delete.",
+                "description": "Delete a chat message (permanent/hard delete).\nOnly the message author or an admin can delete.",
                 "operationId": "delete_livestream_message_livestream_chat_messages__message_id__delete",
                 "security": [
                     {
@@ -1279,9 +1516,7 @@
                         "description": "Successful Response",
                         "content": {
                             "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/VolChatMessageOut"
-                                }
+                                "schema": {}
                             }
                         }
                     },
@@ -1524,6 +1759,337 @@
                         "schema": {
                             "type": "integer",
                             "title": "Recording Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/recordings/public/{recording_id}": {
+            "get": {
+                "tags": [
+                    "volantis-recordings"
+                ],
+                "summary": "Get Recording For Playback",
+                "description": "Get recording for public playback.\nRecords a replay when user accesses the recording.",
+                "operationId": "get_recording_for_playback_recordings_public__recording_id__get",
+                "parameters": [
+                    {
+                        "name": "recording_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Recording Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VolRecordingWithReplayOut"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/recordings/{recording_id}/complete": {
+            "post": {
+                "tags": [
+                    "volantis-recordings"
+                ],
+                "summary": "Mark Recording Completed",
+                "description": "Mark a recording as completed by the user.",
+                "operationId": "mark_recording_completed_recordings__recording_id__complete_post",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "recording_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Recording Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/recordings/{recording_id}/position": {
+            "post": {
+                "tags": [
+                    "volantis-recordings"
+                ],
+                "summary": "Update Position",
+                "description": "Update the user's watch position for a recording.",
+                "operationId": "update_position_recordings__recording_id__position_post",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "recording_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Recording Id"
+                        }
+                    },
+                    {
+                        "name": "position_seconds",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Position Seconds"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/recordings/my/watch-history": {
+            "get": {
+                "tags": [
+                    "volantis-recordings"
+                ],
+                "summary": "Get My Watch History",
+                "description": "Get user's watch history for all recordings.",
+                "operationId": "get_my_watch_history_recordings_my_watch_history_get",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Status"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "title": "Limit"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 0,
+                            "title": "Offset"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/recordings/my/watching": {
+            "get": {
+                "tags": [
+                    "volantis-recordings"
+                ],
+                "summary": "Get Currently Watching",
+                "description": "Get recordings user is currently watching (not completed).",
+                "operationId": "get_currently_watching_recordings_my_watching_get",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "title": "Limit"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 0,
+                            "title": "Offset"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/recordings/my/watched": {
+            "get": {
+                "tags": [
+                    "volantis-recordings"
+                ],
+                "summary": "Get Watched Recordings",
+                "description": "Get recordings user has completed watching.",
+                "operationId": "get_watched_recordings_recordings_my_watched_get",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "title": "Limit"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 0,
+                            "title": "Offset"
                         }
                     }
                 ],
@@ -2719,6 +3285,106 @@
                     }
                 }
             }
+        },
+        "/stream/{slug}": {
+            "get": {
+                "tags": [
+                    "volantis-public-livestreams"
+                ],
+                "summary": "Get Livestream With View Tracking",
+                "description": "Get a livestream by slug with view tracking.\nRecords a view for each non-bot request (per-day deduplication).\nReturns unique view count from the livestream_views table.\n\nThis endpoint tracks views when users access the livestream page directly.",
+                "operationId": "get_livestream_with_view_tracking_stream__slug__get",
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Slug"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "title": "Response Get Livestream With View Tracking Stream  Slug  Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ws/{slug}/count": {
+            "get": {
+                "summary": "Ws Count",
+                "description": "Get current viewer count for a room.",
+                "operationId": "ws_count_ws__slug__count_get",
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Slug"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ws/rooms": {
+            "get": {
+                "summary": "Ws Rooms",
+                "description": "Get all active rooms and their counts.",
+                "operationId": "ws_rooms_ws_rooms_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -2977,6 +3643,29 @@
                 ],
                 "title": "Body_signup_auth_signup_post"
             },
+            "Body_signup_user_auth_signup_user_post": {
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "title": "Email"
+                    },
+                    "username": {
+                        "type": "string",
+                        "title": "Username"
+                    },
+                    "password": {
+                        "type": "string",
+                        "title": "Password"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "email",
+                    "username",
+                    "password"
+                ],
+                "title": "Body_signup_user_auth_signup_user_post"
+            },
             "Body_start_audio_livestream_livestreams_start_audio_post": {
                 "properties": {
                     "title": {
@@ -3183,6 +3872,15 @@
                 },
                 "type": "object",
                 "title": "HTTPValidationError"
+            },
+            "RecordingStreamType": {
+                "type": "string",
+                "enum": [
+                    "audio_only",
+                    "video"
+                ],
+                "title": "RecordingStreamType",
+                "description": "Type of recording - audio only or video"
             },
             "StreamType": {
                 "type": "string",
@@ -3859,6 +4557,120 @@
                 "title": "VolRecordingOut",
                 "description": "Recording response"
             },
+            "VolRecordingWithReplayOut": {
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "title": "Id"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "title": "Company Id"
+                    },
+                    "livestream_id": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Livestream Id"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    },
+                    "s3_url": {
+                        "type": "string",
+                        "title": "S3 Url"
+                    },
+                    "duration_seconds": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Duration Seconds"
+                    },
+                    "file_size_bytes": {
+                        "type": "integer",
+                        "title": "File Size Bytes"
+                    },
+                    "is_processed": {
+                        "type": "boolean",
+                        "title": "Is Processed"
+                    },
+                    "thumbnail_url": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Thumbnail Url"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Created At"
+                    },
+                    "stream_type": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/RecordingStreamType"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "replay_count": {
+                        "type": "integer",
+                        "title": "Replay Count",
+                        "default": 0
+                    },
+                    "watch_status": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/WatchStatusOut"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "company_id",
+                    "title",
+                    "s3_url",
+                    "file_size_bytes",
+                    "is_processed",
+                    "created_at"
+                ],
+                "title": "VolRecordingWithReplayOut",
+                "description": "Recording response with replay count and watch status"
+            },
             "VolSignupResponse": {
                 "properties": {
                     "message": {
@@ -4050,6 +4862,43 @@
                 ],
                 "title": "VolUserResponse",
                 "description": "User info response"
+            },
+            "WatchStatusOut": {
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "title": "Status"
+                    },
+                    "last_position": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Last Position"
+                    },
+                    "completed_at": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Completed At"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "status"
+                ],
+                "title": "WatchStatusOut",
+                "description": "User's watch status for a recording"
             }
         },
         "securitySchemes": {

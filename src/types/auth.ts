@@ -15,6 +15,13 @@ export interface SignupRequest {
   logo?: File | null;
 }
 
+// Individual user signup (not tied to a company) - for viewers who want to follow channels
+export interface UserSignupRequest {
+  email: string;
+  password: string;
+  username: string;
+}
+
 export interface VolTokenResponse {
   access_token: string;
   refresh_token: string;
