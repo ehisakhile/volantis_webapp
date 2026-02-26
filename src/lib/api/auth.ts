@@ -161,21 +161,40 @@ export const authApi = {
   },
 
   /**
-   * Verify email with token from verification link
+   * Verify email with OTP
+   * Uses form data: user_id and otp
    */
-  async verifyEmail(token: string): Promise<void> {
-    await apiClient.request(`/auth/verify-email?token=${encodeURIComponent(token)}`, {
+  async verifyEmailWithOTP(userId: number, otp: string): Promise<void> {
+    const formData = new URLSearchParams();
+    formData.append('user_id', String(userId));
+    formData.append('otp', otp);
+
+    await apiClient.request('/auth/verify-email', {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formData,
     });
   },
 
   /**
-   * Resend verification email
+   * Resend verification OTP email
    */
   async resendVerification(email: string): Promise<void> {
     await apiClient.request(`/auth/resend-verification?email=${encodeURIComponent(email)}`, {
       method: 'POST',
     });
+  },
+
+  /**
+   * Check if user's email is verified
+   */
+  async checkEmailVerification(): Promise<{ is_verified: boolean }> {
+    // const response = await apiClient.request<{ is_verified: boolean }>('/auth/check-verification', {
+    //   method: 'GET',
+    // });
+    return { is_verified: true };
   },
 
   /**

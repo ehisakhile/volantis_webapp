@@ -8,8 +8,9 @@ import type { VolLivestreamOut } from '@/types/livestream';
 
 export default function CreatorStreamPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, checkEmailVerification, isEmailVerified } = useAuth();
   const [currentStream, setCurrentStream] = useState<VolLivestreamOut | null>(null);
+  const [isVerified, setIsVerified] = useState<boolean | null>(null);
   
   // Handle stream started - now receives the full VolLivestreamOut from the component
   const handleStreamStarted = useCallback((stream: VolLivestreamOut) => {
@@ -21,6 +22,19 @@ export default function CreatorStreamPage() {
   const handleStreamStopped = useCallback(() => {
     setCurrentStream(null);
   }, []);
+  
+  // Check email verification on mount
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      checkEmailVerification().then((verified) => {
+        setIsVerified(verified);
+        if (!verified) {
+          // Redirect to verify email if not verified
+          router.push('/verify-email');
+        }
+      });
+    }
+  }, [authLoading, isAuthenticated, checkEmailVerification, router]);
   
   // Redirect if not authenticated
   useEffect(() => {
@@ -38,6 +52,20 @@ export default function CreatorStreamPage() {
   }
   
   if (!isAuthenticated) {
+    return null;
+  }
+  
+  // Show loading while checking verification
+  if (isVerified === null) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="animate-pulse text-sky-500">Verifying email...</div>
+      </div>
+    );
+  }
+  
+  // Don't render streaming component if not verified
+  if (!isVerified) {
     return null;
   }
   

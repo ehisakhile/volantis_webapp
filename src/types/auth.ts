@@ -32,6 +32,7 @@ export interface VolTokenResponse {
 export interface VolSignupResponse {
   message?: string | null;
   email?: string | null;
+  user_id?: number | null;
   company_slug?: string | null;
   requires_verification?: boolean | null;
   access_token?: string | null;

@@ -58,16 +58,16 @@ export default function ResendVerificationPage() {
                   <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                     <CheckCircle className="w-8 h-8 text-green-600" />
                   </div>
-                  <h1 className="text-2xl font-bold text-navy-900 mb-2">Verification email sent!</h1>
+                  <h1 className="text-2xl font-bold text-navy-900 mb-2">Verification code sent!</h1>
                   <p className="text-navy-600 mb-2">
-                    We've sent a verification email to <strong>{email}</strong>
+                    We've sent a verification code to <strong>{email}</strong>
                   </p>
                   <p className="text-sm text-navy-500 mb-6">
-                    Please check your inbox and click the verification link to activate your account.
+                    Please check your email and enter the OTP code to activate your account.
                   </p>
-                  <Link href="/login" className="block">
+                  <Link href="/verify-email" className="block">
                     <Button size="lg" className="w-full">
-                      Back to Login
+                      Go to Verify Email
                     </Button>
                   </Link>
                 </div>
@@ -77,9 +77,9 @@ export default function ResendVerificationPage() {
                     <div className="w-16 h-16 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Mail className="w-8 h-8 text-sky-600" />
                     </div>
-                    <h1 className="text-2xl font-bold text-navy-900 mb-2">Resend verification email</h1>
+                    <h1 className="text-2xl font-bold text-navy-900 mb-2">Resend verification code</h1>
                     <p className="text-navy-600">
-                      Enter your email address and we'll resend the verification link.
+                      Enter your email address and we'll resend the OTP code.
                     </p>
                   </div>
 
@@ -110,25 +110,18 @@ export default function ResendVerificationPage() {
                       </div>
                     </div>
 
-                    <Button 
-                      type="submit" 
-                      size="lg" 
+                    <Button
+                      type="submit"
+                      size="lg"
                       className="w-full"
                       loading={status === 'loading'}
                     >
-                      Resend Verification Email
+                      Resend OTP Code
                       <ArrowRight className="ml-2 w-5 h-5" />
                     </Button>
                   </form>
 
-                  <div className="mt-6 text-center">
-                    <p className="text-navy-600">
-                      Remember your password?{" "}
-                      <Link href="/login" className="text-sky-600 font-medium hover:underline">
-                        Login
-                      </Link>
-                    </p>
-                  </div>
+                 
                 </>
               )}
             </div>

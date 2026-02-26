@@ -71,8 +71,15 @@ export default function UserSignupPage() {
 
       // Check if email verification is required
       if (response.requires_verification) {
-        setSuccessEmail(response.email || formData.email);
-        setShowSuccessModal(true);
+        // Store user_id and email for OTP verification, then redirect
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('verification_email', response.email || formData.email);
+          if (response.user_id) {
+            localStorage.setItem('verification_user_id', String(response.user_id));
+          }
+        }
+        // Redirect to OTP verification page
+        router.push('/verify-email');
       } else if (response.access_token) {
         // Auto-login successful, redirect to user dashboard
         router.push('/user/dashboard');

@@ -7,6 +7,7 @@ import type { VolUserResponse, LoginRequest, SignupRequest, UserSignupRequest, V
 interface AuthContextType {
   user: VolUserResponse | null;
   isAuthenticated: boolean;
+  isEmailVerified: boolean;
   isLoading: boolean;
   error: string | null;
   login: (data: LoginRequest) => Promise<void>;
@@ -14,6 +15,7 @@ interface AuthContextType {
   signupUser: (data: UserSignupRequest) => Promise<VolSignupResponse>;
   logout: () => Promise<void>;
   fetchUser: () => Promise<void>;
+  checkEmailVerification: () => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -21,6 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<VolUserResponse | null>(null);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,9 +34,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const userData = await authApi.getMe();
           setUser(userData);
+          
+          // Check email verification status
+          try {
+            const verificationStatus = await authApi.checkEmailVerification();
+            setIsEmailVerified(verificationStatus.is_verified);
+          } catch {
+            // If check fails, assume not verified
+            setIsEmailVerified(false);
+          }
         } catch {
           // Token might be invalid, clear auth
           authApi.clearAuth();
+          setIsEmailVerified(false);
         }
       }
       setIsLoading(false);
@@ -67,9 +80,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Fetch user data after successful login
       const userData = await authApi.getMe();
       setUser(userData);
+      
+      // Check email verification status
+      try {
+        const verificationStatus = await authApi.checkEmailVerification();
+        setIsEmailVerified(verificationStatus.is_verified);
+        
+        // If email is not verified, store the info for later
+        if (!verificationStatus.is_verified && typeof window !== 'undefined') {
+          localStorage.setItem('verification_email', userData.email);
+          localStorage.setItem('verification_user_id', String(userData.id));
+        } else if (verificationStatus.is_verified && typeof window !== 'undefined') {
+          // Clear any stale verification data
+          localStorage.removeItem('verification_email');
+          localStorage.removeItem('verification_user_id');
+        }
+      } catch {
+        // If check fails, assume not verified
+        setIsEmailVerified(false);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('verification_email', userData.email);
+          localStorage.setItem('verification_user_id', String(userData.id));
+        }
+      }
     } catch (err: unknown) {
-      const errorMessage = err && typeof err === 'object' && 'detail' in err 
-        ? String(err.detail) 
+      const errorMessage = err && typeof err === 'object' && 'detail' in err
+        ? String(err.detail)
         : 'Login failed. Please check your credentials.';
       setError(errorMessage);
       throw err;
@@ -141,9 +177,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
   }, []);
 
+  const checkEmailVerification = useCallback(async (): Promise<boolean> => {
+    if (!authApi.isAuthenticated()) {
+      setIsEmailVerified(false);
+      return false;
+    }
+
+    try {
+      const result = await authApi.checkEmailVerification();
+      setIsEmailVerified(result.is_verified);
+      return result.is_verified;
+    } catch {
+      setIsEmailVerified(false);
+      return false;
+    }
+  }, []);
+
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
+    isEmailVerified,
     isLoading,
     error,
     login,
@@ -151,6 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signupUser,
     logout,
     fetchUser,
+    checkEmailVerification,
     clearError,
   };
 
