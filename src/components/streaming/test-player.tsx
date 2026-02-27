@@ -334,6 +334,7 @@ export function RecordingPlayer({
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
+    audio.crossOrigin = "anonymous"; // Enable CORS for S3 URLs
     audio.volume = volume;
     audio.preload = "metadata";
 

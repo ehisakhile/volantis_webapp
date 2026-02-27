@@ -191,10 +191,10 @@ export const authApi = {
    * Check if user's email is verified
    */
   async checkEmailVerification(): Promise<{ is_verified: boolean }> {
-    // const response = await apiClient.request<{ is_verified: boolean }>('/auth/check-verification', {
-    //   method: 'GET',
-    // });
-    return { is_verified: true };
+    const response = await apiClient.request<{ is_verified: boolean }>('/auth/verification-status', {
+      method: 'GET',
+    });
+    return { is_verified: response.is_verified };
   },
 
   /**

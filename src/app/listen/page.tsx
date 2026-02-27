@@ -504,8 +504,10 @@ export default function ListenPage() {
       // Get the recording playback info (this records a replay and returns the S3 URL)
       const playbackData = await recordingsApi.getRecordingForPlayback(recording.id);
       
-      // Create audio element for playback
-      const audio = new Audio(playbackData.s3_url);
+      // Create audio element for playback with CORS support
+      const audio = new Audio();
+      audio.crossOrigin = 'anonymous'; // Must be set before src for CORS to work
+      audio.src = playbackData.s3_url;
       audio.volume = volume;
       
       // Store watch status for UI display
