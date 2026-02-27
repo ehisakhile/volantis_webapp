@@ -1,5 +1,6 @@
 // Livestream Types based on OpenAPI specification
-
+// config/api.ts
+export const API_BASE_URL = "https://api-dev.volantislive.com"; 
 export interface VolLivestreamOut {
   id: number;
   company_id: number;
@@ -102,6 +103,7 @@ export interface VolRecordingOut {
   title: string;
   description: string | null;
   s3_url: string;
+  streaming_url: string ;
   duration_seconds: number | null;
   file_size_bytes: number;
   is_processed: boolean;
