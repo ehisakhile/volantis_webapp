@@ -158,6 +158,43 @@ export const recordingsApi = {
       { method: 'DELETE' }
     );
   },
+
+  /**
+   * Upload a recording file for on-demand playback.
+   * This allows creators to upload pre-recorded audio that audiences
+   * can play without requiring a live stream.
+   * Requires authentication.
+   *
+   * @param file - The audio/video file to upload
+   * @param title - Title of the recording
+   * @param description - Optional description
+   * @param durationSeconds - Duration of the recording in seconds
+   * @param thumbnail - Optional thumbnail image
+   */
+  async uploadRecording(
+    file: File,
+    title: string,
+    description: string,
+    durationSeconds: number,
+    thumbnail?: File
+  ): Promise<VolRecordingOut> {
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('duration_seconds', durationSeconds.toString());
+    formData.append('file', file);
+    
+    if (thumbnail) {
+      formData.append('thumbnail', thumbnail);
+    }
+
+    const response = await apiClient.requestFormData<VolRecordingOut>(
+      '/recordings/upload',
+      formData,
+      { method: 'POST' }
+    );
+    return response;
+  },
 };
 
 export default recordingsApi;

@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import {
   Radio, Users, BarChart3, Settings, LogOut,
   Play, Eye, Clock, TrendingUp, Link as LinkIcon,
-  Video, MessageSquare, DollarSign, Bell
+  Video, MessageSquare, DollarSign, Bell, Upload
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -52,6 +52,7 @@ export default function DashboardPage() {
 
   const menuItems = [
     { icon: Play, label: 'Go Live', href: '/creator/stream', color: 'bg-red-500', description: 'Start streaming now' },
+    { icon: Upload, label: 'Upload Recording', href: '/dashboard/upload-recording', color: 'bg-orange-500', description: 'Upload pre-recorded audio' },
     { icon: Video, label: 'My Streams', href: '/dashboard/settings', color: 'bg-sky-500', description: 'View past broadcasts' },
     { icon: Users, label: 'Viewers', href: '/dashboard/settings', color: 'bg-green-500', description: 'Audience insights' },
     { icon: MessageSquare, label: 'Chat', href: '/dashboard/settings', color: 'bg-purple-500', description: 'Manage messages' },
