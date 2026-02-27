@@ -8,6 +8,26 @@ import type {
 
 export const recordingsApi = {
   /**
+   * Get recordings for a company by slug (public endpoint).
+   * Does not require authentication.
+   *
+   * @param companySlug - The company slug (e.g., 'test')
+   * @param limit - Number of recordings to fetch (default: 50)
+   * @param offset - Offset for pagination (default: 0)
+   */
+  async getRecordingsByCompany(
+    companySlug: string,
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<VolRecordingOut[]> {
+    const response = await apiClient.request<VolRecordingOut[]>(
+      `/recordings/public/company/${companySlug}?limit=${limit}&offset=${offset}`,
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
    * Get all recordings for the current user's company.
    * Requires authentication.
    */

@@ -8,16 +8,18 @@ import {
   Radio, Users, Play, X, ChevronRight, Headphones, Eye, History,
   Pause, Volume2, VolumeX, Minimize2, Maximize2, Wifi, WifiOff,
   Activity, Zap, ChevronDown, ChevronUp, Clock, BarChart2, Signal,
-  ArrowLeft, Share2, Heart, Bell
+  ArrowLeft, Share2, Heart, Bell, Disc3
 } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar';
 import { StreamCard } from '@/components/streaming/stream-card';
 import { AudioPlayer } from '@/components/streaming/audio-player';
 import { LiveChat } from '@/components/streaming/live-chat';
 import { livestreamApi, type CompanyLivePageResponse } from '@/lib/api/livestream';
+import { recordingsApi } from '@/lib/api/recordings';
 import { useWebRTC } from '@/hooks/useWebRTC';
-import type { VolLivestreamOut } from '@/types/livestream';
+import type { VolLivestreamOut, VolRecordingOut } from '@/types/livestream';
 import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
+import { RecordingPlayer } from '@/components/streaming/recording-player';
 import type { VolCompanyResponse } from '@/types/company';
 
 /* ─────────────────────── Waveform Visualizer ─────────────────────── */
@@ -613,6 +615,12 @@ export default function CompanyPage() {
   const [streamError, setStreamError] = useState<string | null>(null);
   const [showAllPast, setShowAllPast] = useState(false);
   
+  // Recordings state
+  const [recordings, setRecordings] = useState<VolRecordingOut[]>([]);
+  const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
+  const [showAllRecordings, setShowAllRecordings] = useState(false);
+  const [currentRecording, setCurrentRecording] = useState<VolRecordingOut | null>(null);
+   
   // Creator not streaming modal
   const [showCreatorNotStreaming, setShowCreatorNotStreaming] = useState(false);
   const [creatorNotStreamingInfo, setCreatorNotStreamingInfo] = useState<{
@@ -746,7 +754,26 @@ export default function CompanyPage() {
     }
   }, [slug]);
 
+  // Fetch recordings for this company
+  const fetchRecordings = useCallback(async () => {
+    if (!slug) return;
+    setIsRecordingsLoading(true);
+    try {
+      const recs = await recordingsApi.getRecordingsByCompany(slug, 50, 0);
+      setRecordings(recs);
+    } catch (err) {
+      console.error('Failed to fetch recordings:', err);
+      setRecordings([]);
+    } finally {
+      setIsRecordingsLoading(false);
+    }
+  }, [slug]);
+
   useEffect(() => { fetchData(); }, [fetchData]);
+  
+  useEffect(() => {
+    if (slug) fetchRecordings();
+  }, [slug, fetchRecordings]);
 
   // ESC to minimize
   useEffect(() => {
@@ -801,7 +828,22 @@ export default function CompanyPage() {
     setCurrentStream(null);
   };
 
+  // Handle recording selection
+  const handleRecordingSelect = useCallback((recording: VolRecordingOut) => {
+    // Stop live stream if playing
+    if (isPlaying || currentStream) {
+      handleStopPlayback();
+    }
+    // Set the current recording to play
+    setCurrentRecording(recording);
+  }, [isPlaying, currentStream]);
+
+  const handleRecordingClose = useCallback(() => {
+    setCurrentRecording(null);
+  }, []);
+
   const visiblePast = showAllPast ? previousStreams : previousStreams.slice(0, 6);
+  const visibleRecordings = showAllRecordings ? recordings : recordings.slice(0, 6);
 
   if (isLoading) {
     return (
@@ -1061,9 +1103,115 @@ export default function CompanyPage() {
                 </motion.div>
               )}
             </motion.section>
+
+            {/* ── Previous Recordings ── */}
+            {recordings.length > 0 && (
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35 }}
+                className="mt-16"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <h2 className="text-lg font-bold text-white uppercase tracking-widest">Previous Recordings</h2>
+                  <div className="flex-1 h-px bg-gradient-to-r from-amber-500/30 to-transparent" />
+                  <span className="mono text-xs text-amber-400/70 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                    {recordings.length} recordings
+                  </span>
+                </div>
+
+                {isRecordingsLoading ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="rounded-2xl border border-white/5 overflow-hidden animate-pulse" style={{ height: 220, background: 'rgba(15,23,42,0.6)' }} />
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {visibleRecordings.map((recording, i) => {
+                        const isActive = currentRecording?.id === recording.id;
+                        return (
+                          <motion.div
+                            key={recording.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.05 }}
+                          >
+                            <button
+                              onClick={() => handleRecordingSelect(recording)}
+                              className="w-full text-left group relative overflow-hidden rounded-2xl bg-slate-800/50 border border-slate-700/50 hover:border-amber-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/20"
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-500 to-rose-600 opacity-20 group-hover:opacity-30 transition-opacity" />
+                              {isActive && (
+                                <div className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/90 rounded-full text-white text-xs font-medium z-10">
+                                  <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                                  PLAYING
+                                </div>
+                              )}
+                              <div className="relative p-5 pt-20">
+                                <div className="absolute top-4 right-4">
+                                  <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center">
+                                    <Clock className="w-4 h-4 text-amber-400" />
+                                  </div>
+                                </div>
+                                <h3 className="text-lg font-semibold text-white mb-1 line-clamp-1 group-hover:text-amber-400 transition-colors">
+                                  {recording.title}
+                                </h3>
+                                {recording.description && (
+                                  <p className="text-sm text-slate-400 mb-3 line-clamp-1">{recording.description}</p>
+                                )}
+                                <div className="flex items-center justify-between text-xs text-slate-500">
+                                  <span>{new Date(recording.created_at).toLocaleDateString()}</span>
+                                  {recording.duration_seconds && (
+                                    <span>{Math.floor(recording.duration_seconds / 60)}:{(recording.duration_seconds % 60).toString().padStart(2, '0')}</span>
+                                  )}
+                                </div>
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="w-14 h-14 bg-amber-500 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/30 transform scale-0 group-hover:scale-100 transition-transform duration-300">
+                                    <Play className="w-6 h-6 text-white ml-1" />
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+
+                    {recordings.length > 6 && (
+                      <div className="flex justify-center mt-8">
+                        <motion.button
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => setShowAllRecordings(s => !s)}
+                          className="flex items-center gap-2 px-6 py-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 text-sm font-semibold transition-all"
+                        >
+                          {showAllRecordings ? (
+                            <><ChevronUp className="w-4 h-4" /> Show Less</>
+                          ) : (
+                            <><ChevronDown className="w-4 h-4" /> Show {recordings.length - 6} More</>
+                          )}
+                        </motion.button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </motion.section>
+            )}
           </div>
         </main>
       </div>
+
+      {/* ── Recording Player ── */}
+      {currentRecording && (
+        <RecordingPlayer
+          key={currentRecording.id}
+          recording={currentRecording}
+          onClose={handleRecordingClose}
+        />
+      )}
 
       {/* ── Player Overlay ── */}
       <AnimatePresence mode="wait">
