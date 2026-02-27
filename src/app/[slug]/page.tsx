@@ -129,7 +129,16 @@ function StreamTile({
       <div className={`h-1 w-full bg-gradient-to-r ${grad}`} />
 
       {/* Thumbnail area */}
-      <div className={`relative h-36 bg-gradient-to-br ${grad} opacity-20`}>
+      <div className={`relative h-36 ${stream.thumbnail_url ? 'bg-cover bg-center' : `bg-gradient-to-br ${grad}`}`}
+        style={stream.thumbnail_url ? { backgroundImage: `url(${stream.thumbnail_url})`, opacity: 0.8 } : {}}
+      >
+        {/* Gradient overlay when using thumbnail */}
+        {stream.thumbnail_url && (
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent" />
+        )}
+        {!stream.thumbnail_url && (
+          <div className={`absolute inset-0 bg-gradient-to-br ${grad} opacity-20`} />
+        )}
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="relative">
             <PulseRings isActive={variant === 'live' && hovered} />
@@ -138,7 +147,9 @@ function StreamTile({
               animate={variant === 'live' ? { boxShadow: ['0 0 0px rgba(56,189,248,0.3)', '0 0 30px rgba(56,189,248,0.5)', '0 0 0px rgba(56,189,248,0.3)'] } : {}}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              {variant === 'live' ? <Radio className="w-6 h-6 text-white" /> : <History className="w-6 h-6 text-white" />}
+              {stream.company_logo_url ? (
+                <img src={stream.company_logo_url} alt={stream.company_name || 'Company'} className="w-full h-full object-cover rounded-full" />
+              ) : variant === 'live' ? <Radio className="w-6 h-6 text-white" /> : <History className="w-6 h-6 text-white" />}
             </motion.div>
           </div>
         </div>
@@ -1143,7 +1154,15 @@ export default function CompanyPage() {
                               onClick={() => handleRecordingSelect(recording)}
                               className="w-full text-left group relative overflow-hidden rounded-2xl bg-slate-800/50 border border-slate-700/50 hover:border-amber-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/20"
                             >
-                              <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-500 to-rose-600 opacity-20 group-hover:opacity-30 transition-opacity" />
+                              {/* Recording thumbnail - priority: thumbnail_url > gradient */}
+                              {recording.thumbnail_url ? (
+                                <div
+                                  className="absolute inset-0 bg-cover bg-center opacity-80 group-hover:opacity-90 transition-opacity"
+                                  style={{ backgroundImage: `url(${recording.thumbnail_url})` }}
+                                />
+                              ) : (
+                                <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-500 to-rose-600 opacity-20 group-hover:opacity-30 transition-opacity" />
+                              )}
                               {isActive && (
                                 <div className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/90 rounded-full text-white text-xs font-medium z-10">
                                   <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
@@ -1152,8 +1171,14 @@ export default function CompanyPage() {
                               )}
                               <div className="relative p-5 pt-20">
                                 <div className="absolute top-4 right-4">
-                                  <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center">
-                                    <Clock className="w-4 h-4 text-amber-400" />
+                                  <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center overflow-hidden">
+                                    {recording.thumbnail_url ? (
+                                      <img src={recording.thumbnail_url} alt={recording.title} className="w-full h-full object-cover" />
+                                    ) : recording.company_logo_url ? (
+                                      <img src={recording.company_logo_url} alt={recording.company_name || 'Company'} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <Clock className="w-4 h-4 text-amber-400" />
+                                    )}
                                   </div>
                                 </div>
                                 <h3 className="text-lg font-semibold text-white mb-1 line-clamp-1 group-hover:text-amber-400 transition-colors">

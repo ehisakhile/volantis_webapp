@@ -12,6 +12,23 @@ export const livestreamApi = {
    * Start an audio-only livestream
    */
   async startAudioStream(data: StartAudioStreamRequest): Promise<VolLivestreamOut> {
+    // Use FormData for file upload support (when thumbnail is provided)
+    if (data.thumbnail) {
+      const formData = new FormData();
+      formData.append('title', data.title);
+      if (data.description) {
+        formData.append('description', data.description);
+      }
+      formData.append('thumbnail', data.thumbnail);
+
+      const response = await apiClient.requestFormData<VolLivestreamOut>(
+        '/livestreams/start/audio',
+        formData
+      );
+      return response;
+    }
+
+    // Fallback to URL-encoded form for backward compatibility
     const formData = new URLSearchParams();
     formData.append('title', data.title);
     if (data.description) {

@@ -14,10 +14,42 @@ interface StreamCardProps {
 }
 
 export function StreamCard({ stream, onClick, variant = 'live' }: StreamCardProps) {
-  // Generate thumbnail background
+  // Determine thumbnail: priority is thumbnail_url > company_logo_url > generated
   const thumbnail = useMemo(() => {
-    return getCachedThumbnail(stream.slug);
-  }, [stream.slug]);
+    // Priority 1: Use stream's thumbnail_url if available
+    if (stream.thumbnail_url) {
+      return {
+        dataUrl: stream.thumbnail_url,
+        initials: '',
+        gradientColors: [],
+        isCustomImage: true,
+      };
+    }
+    
+    // Priority 2: Use company logo if available
+    if (stream.company_logo_url) {
+      return {
+        dataUrl: stream.company_logo_url,
+        initials: '',
+        gradientColors: [],
+        isCustomImage: true,
+      };
+    }
+    
+    // Priority 3: Fall back to generated gradient thumbnail
+    return {
+      ...getCachedThumbnail(stream.slug),
+      isCustomImage: false,
+    };
+  }, [stream.slug, stream.thumbnail_url, stream.company_logo_url]);
+
+  // Get display initials for fallback avatar
+  const displayInitials = useMemo(() => {
+    if (stream.company_name) {
+      return getInitials(stream.company_name);
+    }
+    return getInitials(stream.title);
+  }, [stream.company_name, stream.title]);
 
   // Format viewer count
   const formatViewerCount = (count: number) => {

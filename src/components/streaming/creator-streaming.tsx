@@ -19,7 +19,10 @@ import {
   Volume2,
   Wifi,
   WifiOff,
-  Play
+  Play,
+  Image,
+  X,
+  Upload
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -74,6 +77,8 @@ export function CreatorStreaming({
   const [isStarting, setIsStarting] = useState(false);
   const [streamTitle, setStreamTitle] = useState('');
   const [streamDescription, setStreamDescription] = useState('');
+  const [thumbnail, setThumbnail] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [currentStream, setCurrentStream] = useState<VolLivestreamOut | null>(null);
   
   // Audio source selection (like test_webrtc.html)
@@ -275,6 +280,7 @@ export function CreatorStreaming({
       const streamData = await livestreamApi.startAudioStream({
         title: streamTitle,
         description: streamDescription || undefined,
+        thumbnail: thumbnail || undefined,
       });
       
       setCurrentStream(streamData);
@@ -414,7 +420,7 @@ export function CreatorStreaming({
     } finally {
       setIsStarting(false);
     }
-  }, [streamTitle, streamDescription, useMic, useSystemAudio, mixAudio, selectedMicDevice, onStreamStarted, recorder]);
+  }, [streamTitle, streamDescription, thumbnail, useMic, useSystemAudio, mixAudio, selectedMicDevice, onStreamStarted, recorder]);
 
   // Stats tracking (like test_webrtc.html)
   const startPubStats = useCallback(() => {
@@ -605,6 +611,8 @@ export function CreatorStreaming({
     setExistingActiveStream(null);
     setStreamTitle('');
     setStreamDescription('');
+    setThumbnail(null);
+    setThumbnailPreview(null);
   }, []);
 
   // Handle stop streaming
@@ -899,6 +907,55 @@ export function CreatorStreaming({
                         rows={2}
                         className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 resize-none"
                       />
+                    </div>
+
+                    {/* Thumbnail upload */}
+                    <div className="mb-4">
+                      <label className="block text-sm text-slate-400 mb-2">Cover Image (optional)</label>
+                      {thumbnailPreview ? (
+                        <div className="relative inline-block">
+                          <img
+                            src={thumbnailPreview}
+                            alt="Thumbnail preview"
+                            className="w-32 h-32 object-cover rounded-lg border border-slate-700"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setThumbnail(null);
+                              setThumbnailPreview(null);
+                            }}
+                            disabled={isStreaming || isStarting}
+                            className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 rounded-full p-1 text-white disabled:opacity-50"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label
+                          className={cn(
+                            "flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-slate-600 rounded-lg cursor-pointer hover:border-sky-500 transition-colors",
+                            (isStreaming || isStarting) && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
+                          <Upload className="w-8 h-8 text-slate-400 mb-2" />
+                          <span className="text-xs text-slate-400">Upload</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                setThumbnail(file);
+                                setThumbnailPreview(URL.createObjectURL(file));
+                              }
+                            }}
+                            disabled={isStreaming || isStarting}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                      <p className="text-xs text-slate-500 mt-2">Recommended: 1900x1900px</p>
                     </div>
                   </>
                 )

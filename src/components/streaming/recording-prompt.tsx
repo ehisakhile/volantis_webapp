@@ -223,7 +223,7 @@ export function RecordingStatus({
         <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
           <div className="flex items-center gap-2 text-sm text-green-400">
             <CheckCircle className="w-4 h-4" />
-            Recording saved and ready to upload
+            Recording Uploaded successfully, Your Audience can now listen the replay on your Audio Stream.
           </div>
         </div>
       )}

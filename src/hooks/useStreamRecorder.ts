@@ -91,21 +91,24 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
   const destNodeRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
   // Get supported MIME type for audio-only recording
+  // Prefer MP4/M4A (AAC codec) over webm for better compatibility
   const getSupportedMimeType = useCallback((): string => {
     const mimeTypes = [
-      'audio/webm;codecs=opus',
+      'audio/mp4',        // MP4 with AAC - preferred for better compatibility
+      'audio/x-m4a',      // M4A variant
+      'audio/webm;codecs=opus',  // Fallback to webm with Opus
       'audio/webm',
-      'audio/mp4',
-      'audio/mpeg',
       'audio/wav',
     ];
 
     for (const type of mimeTypes) {
       if (MediaRecorder.isTypeSupported(type)) {
+        console.log('Supported MIME type found:', type);
         return type;
       }
     }
 
+    // Default fallback - try webm
     return 'audio/webm';
   }, []);
 
@@ -183,10 +186,20 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
         // Create blob from recorded chunks
         const blob = new Blob(chunksRef.current, { type: mimeType });
         
+        // Determine file extension based on MIME type
+        let extension = 'webm';
+        if (mimeType.includes('mp4') || mimeType.includes('m4a')) {
+          extension = 'm4a';
+        } else if (mimeType.includes('wav')) {
+          extension = 'wav';
+        } else if (mimeType.includes('mpeg') || mimeType.includes('mp3')) {
+          extension = 'mp3';
+        }
+        
         // Generate filename with timestamp
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const safeTitle = streamTitle.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
-        const filename = `recording_${safeTitle}_${timestamp}.webm`;
+        const filename = `recording_${safeTitle}_${timestamp}.${extension}`;
 
         setState(prev => ({
           ...prev,
@@ -312,9 +325,10 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     }));
 
     try {
-      // Create a File from the Blob
+      // Create a File from the Blob - use the actual blob type or default to m4a/mp4
+      const blobType = state.recordedBlob.type || 'audio/mp4';
       const file = new File([state.recordedBlob], state.recordedFilename, {
-        type: state.recordedBlob.type || 'audio/webm',
+        type: blobType,
       });
 
       // Upload using the livestream API

@@ -4,6 +4,9 @@ export const API_BASE_URL = "https://api-dev.volantislive.com";
 export interface VolLivestreamOut {
   id: number;
   company_id: number;
+  company_slug?: string | null;
+  company_name?: string | null;
+  company_logo_url?: string | null;
   title: string;
   slug: string;
   description?: string | null;
@@ -17,6 +20,7 @@ export interface VolLivestreamOut {
   cf_webrtc_publish_url?: string | null;
   cf_webrtc_playback_url?: string | null;
   recording_url?: string | null;
+  thumbnail_url?: string | null;
   viewer_count: number;
   peak_viewers: number;
   created_by_username: string;
@@ -42,6 +46,7 @@ export type StreamType = 'audio' | 'video';
 export interface StartAudioStreamRequest {
   title: string;
   description?: string;
+  thumbnail?: File;
 }
 
 export interface StartVideoStreamRequest {
@@ -99,6 +104,9 @@ export interface WatchStatusOut {
 export interface VolRecordingOut {
   id: number;
   company_id: number;
+  company_slug?: string | null;
+  company_name?: string | null;
+  company_logo_url?: string | null;
   livestream_id: number | null;
   title: string;
   description: string | null;

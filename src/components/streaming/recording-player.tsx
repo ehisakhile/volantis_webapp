@@ -228,8 +228,25 @@ export function RecordingPlayer({
       <div className="container-custom py-4">
         {/* Header */}
         <div className="flex items-center gap-4 mb-4">
-          <div className="w-14 h-14 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Clock className="w-6 h-6 text-white" />
+          {/* Thumbnail with fallback chain: thumbnail_url > company_logo_url > gradient icon */}
+          <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+            {recording.thumbnail_url ? (
+              <img
+                src={recording.thumbnail_url}
+                alt={recording.title}
+                className="w-full h-full object-cover"
+              />
+            ) : recording.company_logo_url ? (
+              <img
+                src={recording.company_logo_url}
+                alt={recording.company_name || 'Company'}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 flex items-center justify-center">
+                <Clock className="w-6 h-6 text-white" />
+              </div>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="text-white font-semibold truncate">{recording.title}</h4>

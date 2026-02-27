@@ -429,7 +429,15 @@ export default function ListenPage() {
                             onClick={() => handleRecordingSelect(recording)}
                             className="w-full text-left group relative overflow-hidden rounded-3xl bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 hover:border-amber-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/20"
                           >
-                            <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-500 to-rose-600 opacity-20 group-hover:opacity-30 transition-opacity" />
+                            {/* Recording thumbnail - priority: thumbnail_url > gradient */}
+                            {recording.thumbnail_url ? (
+                              <div
+                                className="absolute inset-0 bg-cover bg-center opacity-80 group-hover:opacity-90 transition-opacity"
+                                style={{ backgroundImage: `url(${recording.thumbnail_url})` }}
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-500 to-rose-600 opacity-20 group-hover:opacity-30 transition-opacity" />
+                            )}
                             {isActive && (
                               <div className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/90 rounded-full text-white text-xs font-medium z-10">
                                 <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
@@ -439,8 +447,14 @@ export default function ListenPage() {
                             <div className="relative p-6 pt-24">
                               <div className="relative w-16 h-16 mx-auto mb-4 -mt-14">
                                 <div className="absolute inset-0 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 rounded-2xl blur-xl opacity-50" />
-                                <div className="relative w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center border-2 border-slate-700/50 group-hover:border-amber-500/50 transition-colors">
-                                  <Clock className="w-7 h-7 text-amber-400" />
+                                <div className="relative w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center border-2 border-slate-700/50 group-hover:border-amber-500/50 transition-colors overflow-hidden">
+                                  {recording.thumbnail_url ? (
+                                    <img src={recording.thumbnail_url} alt={recording.title} className="w-full h-full object-cover" />
+                                  ) : recording.company_logo_url ? (
+                                    <img src={recording.company_logo_url} alt={recording.company_name || 'Company'} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <Clock className="w-7 h-7 text-amber-400" />
+                                  )}
                                 </div>
                               </div>
                               <h3 className="text-lg font-semibold text-white text-center mb-1 line-clamp-1 group-hover:text-amber-400 transition-colors">
@@ -499,7 +513,15 @@ export default function ListenPage() {
                   >
                     <Link href={`/${stream.company_slug}`} className="block group">
                       <div className="relative overflow-hidden rounded-3xl bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 hover:border-sky-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-sky-500/20">
-                        <div className={`absolute inset-0 bg-gradient-to-br ${getGradientForCompany(stream.company_name)} opacity-20 group-hover:opacity-30 transition-opacity`} />
+                        {/* Thumbnail background - priority: thumbnail_url > gradient */}
+                        {stream.thumbnail_url ? (
+                          <div
+                            className="absolute inset-0 bg-cover bg-center opacity-80 group-hover:opacity-90 transition-opacity"
+                            style={{ backgroundImage: `url(${stream.thumbnail_url})` }}
+                          />
+                        ) : (
+                          <div className={`absolute inset-0 bg-gradient-to-br ${getGradientForCompany(stream.company_name)} opacity-20 group-hover:opacity-30 transition-opacity`} />
+                        )}
                         {stream.is_live && (
                           <div className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 bg-red-500/90 rounded-full text-white text-xs font-medium">
                             <span className="w-2 h-2 bg-white rounded-full animate-pulse" />LIVE
