@@ -4,18 +4,18 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ChevronDown, Radio, User, LogOut, Settings, Headphones } from "lucide-react";
+import { Menu, X, ChevronDown, User, LogOut, Settings, Headphones, Radio, Zap, BarChart2, Globe, Archive, Code } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 
 const features = [
-  { name: "Live Streaming", href: "/features", description: "Broadcast in real-time" },
-  { name: "Low Data Mode", href: "/features", description: "Works on any connection" },
-  { name: "Channel Pages", href: "/features", description: "Your streaming hub" },
-  { name: "Replay Archive", href: "/features", description: "Never miss a broadcast" },
-  { name: "Analytics", href: "/features", description: "Track your audience" },
-  { name: "Embed Player", href: "/features", description: "Add to your site" },
+  { name: "Live Streaming", href: "/features", description: "Broadcast in real-time", icon: Radio },
+  { name: "Low Data Mode", href: "/features", description: "Works on any connection", icon: Zap },
+  { name: "Channel Pages", href: "/features", description: "Your streaming hub", icon: Globe },
+  { name: "Replay Archive", href: "/features", description: "Never miss a broadcast", icon: Archive },
+  { name: "Analytics", href: "/features", description: "Track your audience", icon: BarChart2 },
+  { name: "Embed Player", href: "/features", description: "Add to your site", icon: Code },
 ];
 
 const solutions = [
@@ -26,6 +26,22 @@ const solutions = [
   { name: "Creators", href: "/contact", description: "Content creators" },
 ];
 
+// Hook to close dropdown when clicking outside
+function useClickOutside(ref: React.RefObject<HTMLElement>, handler: () => void) {
+  React.useEffect(() => {
+    const listener = (e: MouseEvent | TouchEvent) => {
+      if (!ref.current || ref.current.contains(e.target as Node)) return;
+      handler();
+    };
+    document.addEventListener("mousedown", listener);
+    document.addEventListener("touchstart", listener);
+    return () => {
+      document.removeEventListener("mousedown", listener);
+      document.removeEventListener("touchstart", listener);
+    };
+  }, [ref, handler]);
+}
+
 export function Navbar() {
   const [isOpen, setIsOpen] = React.useState(false);
   const [featuresOpen, setFeaturesOpen] = React.useState(false);
@@ -35,240 +51,293 @@ export function Navbar() {
   const router = useRouter();
   const { user, isAuthenticated, logout, isLoading } = useAuth();
 
+  const featuresRef = React.useRef<HTMLDivElement>(null!);
+  const solutionsRef = React.useRef<HTMLDivElement>(null!);
+  const userMenuRef = React.useRef<HTMLDivElement>(null!);
+  const mobileMenuRef = React.useRef<HTMLDivElement>(null!);
+
+  useClickOutside(featuresRef, () => setFeaturesOpen(false));
+  useClickOutside(solutionsRef, () => setSolutionsOpen(false));
+  useClickOutside(userMenuRef, () => setUserMenuOpen(false));
+
+  // Lock body scroll when mobile menu is open
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [isOpen]);
+
+  // Close everything on route change
   React.useEffect(() => {
     setIsOpen(false);
     setFeaturesOpen(false);
     setSolutionsOpen(false);
+    setUserMenuOpen(false);
   }, [pathname]);
 
-  const navLinks = [
-    { name: "Features", href: "/features", hasDropdown: true },
-    { name: "Solutions", href: "/solutions/churches", hasDropdown: true },
-    { name: "Listen", href: "/listen", isHighlighted: true },
-    // { name: "Pricing", href: "/pricing" },
-    { name: "How It Works", href: "/how-it-works" },
-  ];
-
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200">
-      <nav className="container-custom">
-        <div className="flex items-center justify-between h-16 md:h-20">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <img
-              src="/logo.png"
-              alt="Volantislive"
-              className="h-10 w-auto"
-            />
-                          <span className="text-lg font-bold text-slate-900">Volantis<span className="text-sky-500">live</span></span>
-          </Link>
+    <>
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200">
+        <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16 md:h-20">
 
-          {/* Desktop Navigation */}
-          <div className="hidden lg:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <div key={link.name} className="relative">
-                {link.hasDropdown ? (
-                  <button
-                    onClick={() => {
-                      if (link.name === "Features") setFeaturesOpen(!featuresOpen);
-                      if (link.name === "Solutions") setSolutionsOpen(!solutionsOpen);
-                    }}
-                    className="flex items-center gap-1 text-slate-600 hover:text-sky-600 font-medium transition-colors"
-                  >
-                    {link.name}
-                    <ChevronDown className={cn("w-4 h-4 transition-transform", (link.name === "Features" && featuresOpen) || (link.name === "Solutions" && solutionsOpen) ? "rotate-180" : "")} />
-                  </button>
-                ) : (
-                  <Link
-                    href={link.href}
-                    className={cn(
-                      "font-medium transition-colors",
-                      link.isHighlighted && "px-4 py-2 bg-sky-500 text-white rounded-full hover:bg-sky-600 hover:text-white shadow-md shadow-sky-500/20",
-                      !link.isHighlighted && (pathname === link.href
-                        ? "text-sky-600"
-                        : "text-slate-600 hover:text-sky-600")
-                    )}
-                  >
-                    {link.isHighlighted && <Headphones className="w-4 h-4 inline-block mr-1.5" />}
-                    {link.name}
-                  </Link>
-                )}
-              </div>
-            ))}
-          </div>
+            {/* Logo */}
+            <Link href="/" className="flex items-center gap-2 flex-shrink-0">
+              <img src="/logo.png" alt="Volantislive" className="h-8 w-auto" />
+              <span className="text-lg font-bold text-slate-900">
+                Volantis<span className="text-sky-500">live</span>
+              </span>
+            </Link>
 
-          {/* Desktop CTA */}
-          <div className="hidden lg:flex items-center gap-4">
-            {isAuthenticated && user ? (
-              <div className="relative">
+            {/* Desktop Navigation */}
+            <div className="hidden lg:flex items-center gap-6 xl:gap-8">
+
+              {/* Features Dropdown */}
+              <div ref={featuresRef} className="relative">
                 <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-2 text-slate-600 hover:text-sky-600 font-medium transition-colors"
+                  onClick={() => { setFeaturesOpen(!featuresOpen); setSolutionsOpen(false); }}
+                  className="flex items-center gap-1 text-slate-600 hover:text-sky-600 font-medium transition-colors py-2"
+                  aria-expanded={featuresOpen}
                 >
-                  <div className="w-8 h-8 bg-sky-100 rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4 text-sky-600" />
-                  </div>
-                  <span className="max-w-[120px] truncate">{user.username || user.email}</span>
-                  <ChevronDown className={cn("w-4 h-4 transition-transform", userMenuOpen ? "rotate-180" : "")} />
+                  Features
+                  <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", featuresOpen && "rotate-180")} />
                 </button>
+
                 <AnimatePresence>
-                  {userMenuOpen && (
+                  {featuresOpen && (
                     <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-2"
+                      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.97 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[480px] bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 grid grid-cols-2 gap-1"
                     >
-                      <div className="px-4 py-2 border-b border-slate-100">
-                        <p className="text-sm font-medium text-slate-900 truncate">{user.username}</p>
-                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
-                      </div>
-                      {user.role === 'admin' || user.company_id ? (
-                        <Link
-                          href="/dashboard"
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-sky-600"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          <Settings className="w-4 h-4" />
-                          Creator Dashboard
-                        </Link>
-                      ) : (
-                        <Link
-                          href="/user/dashboard"
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-sky-600"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          <Settings className="w-4 h-4" />
-                          My Dashboard
-                        </Link>
-                      )}
-                      <button
-                        onClick={async () => {
-                          setUserMenuOpen(false);
-                          await logout();
-                          router.push('/');
-                        }}
-                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-red-600"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        Logout
-                      </button>
+                      {/* Small arrow */}
+                      <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-l border-t border-slate-100 rotate-45" />
+                      {features.map((feature) => {
+                        const Icon = feature.icon;
+                        return (
+                          <Link
+                            key={feature.name}
+                            href={feature.href}
+                            className="group flex items-start gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors"
+                          >
+                            <div className="w-8 h-8 bg-sky-100 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-sky-200 transition-colors">
+                              <Icon className="w-4 h-4 text-sky-600" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-900 group-hover:text-sky-600 transition-colors text-sm">{feature.name}</p>
+                              <p className="text-xs text-slate-500 mt-0.5">{feature.description}</p>
+                            </div>
+                          </Link>
+                        );
+                      })}
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
-            ) : (
-              <>
-                <Link href="/login" className="text-slate-600 hover:text-sky-600 font-medium transition-colors">
-                  Login
-                </Link>
-                <div className="relative group">
-                  <Button size="sm">Start Free</Button>
-                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-                    <Link
-                      href="/signup"
-                      className="block px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-sky-600"
-                    >
-                      Start Streaming
-                    </Link>
-                    <Link
-                      href="/signup/user"
-                      className="block px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-sky-600"
-                    >
-                      Join as Viewer
-                    </Link>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="lg:hidden p-2 text-slate-600"
-            aria-label="Toggle menu"
-          >
-            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
+              {/* Solutions Dropdown */}
+              <div ref={solutionsRef} className="relative">
+                <button
+                  onClick={() => { setSolutionsOpen(!solutionsOpen); setFeaturesOpen(false); }}
+                  className="flex items-center gap-1 text-slate-600 hover:text-sky-600 font-medium transition-colors py-2"
+                  aria-expanded={solutionsOpen}
+                >
+                  Solutions
+                  <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", solutionsOpen && "rotate-180")} />
+                </button>
 
-        {/* Features Dropdown */}
-        <AnimatePresence>
-          {featuresOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="hidden lg:block absolute top-full left-0 right-0 bg-white shadow-xl border-t border-slate-100 py-8"
-            >
-              <div className="container-custom">
-                <div className="grid grid-cols-3 gap-6">
-                  {features.map((feature) => (
-                    <Link
-                      key={feature.href}
-                      href={feature.href}
-                      className="group p-4 rounded-lg hover:bg-sky-50 transition-colors"
+                <AnimatePresence>
+                  {solutionsOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.97 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2"
                     >
-                      <h3 className="font-semibold text-slate-900 group-hover:text-sky-600 transition-colors">
-                        {feature.name}
-                      </h3>
-                      <p className="text-sm text-slate-500 mt-1">{feature.description}</p>
-                    </Link>
-                  ))}
-                </div>
+                      <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-l border-t border-slate-100 rotate-45" />
+                      {solutions.map((solution) => (
+                        <Link
+                          key={solution.name}
+                          href={solution.href}
+                          className="group flex flex-col px-4 py-3 rounded-xl hover:bg-sky-50 transition-colors"
+                        >
+                          <span className="font-semibold text-slate-900 group-hover:text-sky-600 transition-colors text-sm">{solution.name}</span>
+                          <span className="text-xs text-slate-500 mt-0.5">{solution.description}</span>
+                        </Link>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* Solutions Dropdown */}
-        <AnimatePresence>
-          {solutionsOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="hidden lg:block absolute top-full left-0 right-0 bg-white shadow-xl border-t border-slate-100 py-8"
-            >
-              <div className="container-custom">
-                <div className="grid grid-cols-3 gap-6">
-                  {solutions.map((solution) => (
-                    <Link
-                      key={solution.href}
-                      href={solution.href}
-                      className="group p-4 rounded-lg hover:bg-sky-50 transition-colors"
-                    >
-                      <h3 className="font-semibold text-slate-900 group-hover:text-sky-600 transition-colors">
-                        {solution.name}
-                      </h3>
-                      <p className="text-sm text-slate-500 mt-1">{solution.description}</p>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <Link
+                href="/listen"
+                className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 text-white rounded-full font-medium hover:bg-sky-600 transition-colors shadow-md shadow-sky-500/20 text-sm"
+              >
+                <Headphones className="w-4 h-4" />
+                Listen
+              </Link>
 
-        {/* Mobile Menu */}
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="lg:hidden border-t border-slate-100 py-4"
-            >
-              <div className="flex flex-col gap-4">
-                {/* Mobile Features */}
-                <div className="border-b border-slate-100 pb-4">
+              <Link
+                href="/how-it-works"
+                className={cn(
+                  "font-medium transition-colors text-sm",
+                  pathname === "/how-it-works" ? "text-sky-600" : "text-slate-600 hover:text-sky-600"
+                )}
+              >
+                How It Works
+              </Link>
+            </div>
+
+            {/* Desktop CTA */}
+            <div className="hidden lg:flex items-center gap-3">
+              {isAuthenticated && user ? (
+                <div ref={userMenuRef} className="relative">
                   <button
-                    onClick={() => setFeaturesOpen(!featuresOpen)}
-                    className="flex items-center justify-between w-full text-left text-slate-600 font-medium"
+                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    className="flex items-center gap-2 text-slate-600 hover:text-sky-600 font-medium transition-colors"
+                  >
+                    <div className="w-8 h-8 bg-sky-100 rounded-full flex items-center justify-center">
+                      <User className="w-4 h-4 text-sky-600" />
+                    </div>
+                    <span className="max-w-[120px] truncate text-sm">{user.username || user.email}</span>
+                    <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", userMenuOpen && "rotate-180")} />
+                  </button>
+
+                  <AnimatePresence>
+                    {userMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.97 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden"
+                      >
+                        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                          <p className="text-sm font-semibold text-slate-900 truncate">{user.username}</p>
+                          <p className="text-xs text-slate-500 truncate mt-0.5">{user.email}</p>
+                        </div>
+                        <div className="p-1">
+                          <Link
+                            href={user.role === 'admin' || user.company_id ? "/dashboard" : "/user/dashboard"}
+                            className="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-600 hover:bg-sky-50 hover:text-sky-600 rounded-lg transition-colors"
+                            onClick={() => setUserMenuOpen(false)}
+                          >
+                            <Settings className="w-4 h-4" />
+                            {user.role === 'admin' || user.company_id ? "Creator Dashboard" : "My Dashboard"}
+                          </Link>
+                          <button
+                            onClick={async () => {
+                              setUserMenuOpen(false);
+                              await logout();
+                              router.push('/');
+                            }}
+                            className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-slate-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            Logout
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <>
+                  <Link href="/login" className="text-slate-600 hover:text-sky-600 font-medium transition-colors text-sm">
+                    Login
+                  </Link>
+                  <div className="relative group">
+                    <Button size="sm" className="rounded-full">Start Free</Button>
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 p-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-10">
+                      <Link href="/signup" className="block px-4 py-2.5 text-sm text-slate-600 hover:bg-sky-50 hover:text-sky-600 rounded-xl transition-colors">
+                        Start Streaming
+                      </Link>
+                      <Link href="/signup/user" className="block px-4 py-2.5 text-sm text-slate-600 hover:bg-sky-50 hover:text-sky-600 rounded-xl transition-colors">
+                        Join as Viewer
+                      </Link>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="lg:hidden p-2 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              aria-label="Toggle menu"
+            >
+              <AnimatePresence mode="wait">
+                {isOpen ? (
+                  <motion.span key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <X className="w-6 h-6" />
+                  </motion.span>
+                ) : (
+                  <motion.span key="open" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <Menu className="w-6 h-6" />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          </div>
+        </nav>
+      </header>
+
+      {/* Mobile Menu — rendered outside header to avoid overflow issues */}
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
+              onClick={() => setIsOpen(false)}
+            />
+
+            {/* Drawer */}
+            <motion.div
+              ref={mobileMenuRef}
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-sm bg-white shadow-2xl lg:hidden flex flex-col"
+            >
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between px-5 h-16 border-b border-slate-100 flex-shrink-0">
+                <Link href="/" className="flex items-center gap-2" onClick={() => setIsOpen(false)}>
+                  <img src="/logo.png" alt="Volantislive" className="h-8 w-auto" />
+                  <span className="text-lg font-bold text-slate-900">Volantis<span className="text-sky-500">live</span></span>
+                </Link>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="p-2 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Drawer Body — scrollable */}
+              <div className="flex-1 overflow-y-auto py-4 px-5">
+
+                {/* Features accordion */}
+                <div className="mb-1">
+                  <button
+                    onClick={() => { setFeaturesOpen(!featuresOpen); setSolutionsOpen(false); }}
+                    className="flex items-center justify-between w-full py-3 text-slate-700 font-semibold text-left"
                   >
                     Features
-                    <ChevronDown className={cn("w-4 h-4 transition-transform", featuresOpen ? "rotate-180" : "")} />
+                    <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", featuresOpen && "rotate-180")} />
                   </button>
                   <AnimatePresence>
                     {featuresOpen && (
@@ -276,30 +345,45 @@ export function Navbar() {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="mt-2 pl-4"
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
                       >
-                        {features.map((feature) => (
-                          <Link
-                            key={feature.href}
-                            href={feature.href}
-                            className="block py-2 text-slate-500 hover:text-sky-600"
-                          >
-                            {feature.name}
-                          </Link>
-                        ))}
+                        <div className="grid grid-cols-1 gap-1 pb-3 pl-2">
+                          {features.map((feature) => {
+                            const Icon = feature.icon;
+                            return (
+                              <Link
+                                key={feature.name}
+                                href={feature.href}
+                                className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-sky-50 transition-colors"
+                                onClick={() => setIsOpen(false)}
+                              >
+                                <div className="w-8 h-8 bg-sky-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <Icon className="w-4 h-4 text-sky-600" />
+                                </div>
+                                <div>
+                                  <p className="font-medium text-slate-800 text-sm">{feature.name}</p>
+                                  <p className="text-xs text-slate-500">{feature.description}</p>
+                                </div>
+                              </Link>
+                            );
+                          })}
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
 
-                {/* Mobile Solutions */}
-                <div className="border-b border-slate-100 pb-4">
+                <div className="h-px bg-slate-100 my-1" />
+
+                {/* Solutions accordion */}
+                <div className="mb-1">
                   <button
-                    onClick={() => setSolutionsOpen(!solutionsOpen)}
-                    className="flex items-center justify-between w-full text-left text-slate-600 font-medium"
+                    onClick={() => { setSolutionsOpen(!solutionsOpen); setFeaturesOpen(false); }}
+                    className="flex items-center justify-between w-full py-3 text-slate-700 font-semibold text-left"
                   >
                     Solutions
-                    <ChevronDown className={cn("w-4 h-4 transition-transform", solutionsOpen ? "rotate-180" : "")} />
+                    <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", solutionsOpen && "rotate-180")} />
                   </button>
                   <AnimatePresence>
                     {solutionsOpen && (
@@ -307,48 +391,116 @@ export function Navbar() {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="mt-2 pl-4"
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
                       >
-                        {solutions.map((solution) => (
-                          <Link
-                            key={solution.href}
-                            href={solution.href}
-                            className="block py-2 text-slate-500 hover:text-sky-600"
-                          >
-                            {solution.name}
-                          </Link>
-                        ))}
+                        <div className="flex flex-col gap-1 pb-3 pl-2">
+                          {solutions.map((solution) => (
+                            <Link
+                              key={solution.name}
+                              href={solution.href}
+                              className="flex flex-col px-3 py-2.5 rounded-xl hover:bg-sky-50 transition-colors"
+                              onClick={() => setIsOpen(false)}
+                            >
+                              <span className="font-medium text-slate-800 text-sm">{solution.name}</span>
+                              <span className="text-xs text-slate-500">{solution.description}</span>
+                            </Link>
+                          ))}
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
 
-                {/* Mobile Links */}
-                {navLinks.filter(l => !l.hasDropdown).map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={cn(
-                      "font-medium py-2",
-                      pathname === link.href ? "text-sky-600" : "text-slate-600"
-                    )}
-                  >
-                    {link.name}
-                  </Link>
-                ))}
+                <div className="h-px bg-slate-100 my-1" />
 
-                {/* Mobile CTAs */}
-                <div className="flex flex-col gap-3 pt-4 border-t border-slate-100">
-                  <Link href="/login" className="text-center text-slate-600 font-medium py-3">
+                {/* Plain links */}
+                <Link
+                  href="/listen"
+                  className="flex items-center gap-2 py-3 text-slate-700 font-semibold"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <Headphones className="w-4 h-4 text-sky-500" />
+                  Listen
+                </Link>
+
+                <div className="h-px bg-slate-100 my-1" />
+
+                <Link
+                  href="/how-it-works"
+                  className="block py-3 text-slate-700 font-semibold"
+                  onClick={() => setIsOpen(false)}
+                >
+                  How It Works
+                </Link>
+
+                <div className="h-px bg-slate-100 my-1" />
+
+                {/* Auth links */}
+                {isAuthenticated && user ? (
+                  <div className="pt-2">
+                    <div className="flex items-center gap-3 px-3 py-3 bg-slate-50 rounded-xl mb-2">
+                      <div className="w-9 h-9 bg-sky-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <User className="w-4 h-4 text-sky-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900 text-sm truncate">{user.username}</p>
+                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                      </div>
+                    </div>
+                    <Link
+                      href={user.role === 'admin' || user.company_id ? "/dashboard" : "/user/dashboard"}
+                      className="flex items-center gap-2 px-3 py-3 text-slate-700 hover:text-sky-600 font-medium text-sm rounded-xl hover:bg-sky-50 transition-colors"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      <Settings className="w-4 h-4" />
+                      {user.role === 'admin' || user.company_id ? "Creator Dashboard" : "My Dashboard"}
+                    </Link>
+                    <button
+                      onClick={async () => {
+                        setIsOpen(false);
+                        await logout();
+                        router.push('/');
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-3 text-red-600 font-medium text-sm rounded-xl hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Logout
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Drawer Footer — CTAs */}
+              {!isAuthenticated && (
+                <div className="px-5 py-5 border-t border-slate-100 flex flex-col gap-3 flex-shrink-0">
+                  <Link
+                    href="/login"
+                    className="text-center py-3 text-slate-700 font-semibold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors"
+                    onClick={() => setIsOpen(false)}
+                  >
                     Login
                   </Link>
-                  <Button className="w-full">Start Free</Button>
+                  <Link
+                    href="/signup"
+                    className="text-center py-3 bg-sky-500 text-white font-semibold rounded-xl hover:bg-sky-600 transition-colors shadow-md shadow-sky-500/20"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Start Streaming — Free
+                  </Link>
+                  <Link
+                    href="/signup/user"
+                    className="text-center py-2.5 text-sky-600 font-medium text-sm hover:underline"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Join as Viewer
+                  </Link>
                 </div>
-              </div>
+              )}
             </motion.div>
-          )}
-        </AnimatePresence>
-      </nav>
-    </header>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

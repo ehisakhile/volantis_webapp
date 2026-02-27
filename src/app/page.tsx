@@ -6,7 +6,8 @@ import Image from "next/image";
 import {
   ArrowRight, Play, Radio, Users, Zap, Shield, Clock,
   CheckCircle, Star, Menu, X, Volume2, Signal, ChevronRight,
-  Wifi, Globe, Mic, BarChart3, Headphones, RadioIcon
+  Wifi, Globe, Mic, BarChart3, Headphones, RadioIcon, Podcast,
+  Music, Mic2, Church, RadioTower, Mic as MicIcon
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
@@ -14,12 +15,12 @@ import { Footer } from "@/components/layout/footer";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface StatItem { value: string; label: string; }
 interface FeatureItem { icon: React.ElementType; title: string; description: string; href: string; image: string; }
-interface TestimonialItem { name: string; role: string; church: string; quote: string; rating: number; avatar: string; }
+interface TestimonialItem { name: string; role: string; organization: string; quote: string; rating: number; avatar: string; }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const stats: StatItem[] = [
-  { value: "500+", label: "Churches Streaming" },
-  { value: "50K+", label: "Listeners Monthly" },
+  { value: "1,200+", label: "Active Streams" },
+  { value: "150K+", label: "Monthly Listeners" },
   { value: "99.5%", label: "Uptime SLA" },
   { value: "32kbps", label: "Minimum Bandwidth" },
 ];
@@ -28,7 +29,7 @@ const features: FeatureItem[] = [
   {
     icon: Zap,
     title: "Low Data Mode",
-    description: "Your listeners use less than 1MB per minute. Works on 2G networks across Nigeria.",
+    description: "Your listeners use less than 1MB per minute. Works on 2G networks across Africa.",
     href: "/features/low-data-mode",
     image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80",
   },
@@ -42,14 +43,14 @@ const features: FeatureItem[] = [
   {
     icon: Users,
     title: "Channel Pages",
-    description: "Your own branded streaming page. Share one link with your entire congregation.",
+    description: "Your own branded streaming page. Share one link with your entire audience.",
     href: "/features/channel-pages",
     image: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=600&q=80",
   },
   {
     icon: Clock,
     title: "Auto Replay",
-    description: "Every broadcast saved automatically. Members who missed can listen anytime.",
+    description: "Every broadcast saved automatically. Listeners who missed can tune in anytime.",
     href: "/features/replay-archive",
     image: "https://images.unsplash.com/photo-1520880867055-1e30d1cb001c?w=600&q=80",
   },
@@ -59,32 +60,32 @@ const testimonials: TestimonialItem[] = [
   {
     name: "Pastor Emmanuel Okonkwo",
     role: "Senior Pastor",
-    church: "Grace Assembly, Lagos",
+    organization: "Grace Assembly, Lagos",
     quote: "Our online congregation grew by 300% in 3 months. Members from across Nigeria — even in rural areas — can now join every Sunday.",
     rating: 5,
     avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80",
   },
   {
-    name: "Rev. Sarah Johnson",
-    role: "Media Director",
-    church: "Faith Community Church, Abuja",
-    quote: "The low data mode is a game-changer. Our members in rural areas listen without worrying about data costs. This is what Africa needed.",
+    name: "Ade Banks",
+    role: "Podcast Host",
+    organization: "The African Voice",
+    quote: "The low data mode is a game-changer. My listeners in rural areas never miss an episode. This is exactly what African creators needed.",
     rating: 5,
     avatar: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&q=80",
   },
   {
-    name: "Brother David Adeyemi",
-    role: "Tech Lead",
-    church: "Victory Bible Church, Ibadan",
-    quote: "Setup took 10 minutes. We went live on Sunday and had 500+ listeners within the first hour. The simplest streaming tool we've ever used.",
+    name: "Blessing Okafor",
+    role: "Radio Presenter",
+    organization: "Community Radio, Ibadan",
+    quote: "Setup took 10 minutes. We went live and had 500+ listeners within the first hour. The simplest streaming tool we've ever used.",
     rating: 5,
     avatar: "https://images.unsplash.com/photo-1463453091185-61582044d556?w=200&q=80",
   },
 ];
 
-const churches = [
-  "RCCG", "Living Faith Church", "Dunamis International",
-  "The Lord's Sanctuary", "Faith Tabernacle", "House on the Rock",
+const audioCreators = [
+  "Podcasters", "Community Radio", "Musicians", "Churches",
+  "Talk Shows", "Educators", "Event Organizers", "Storytellers",
 ];
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -154,17 +155,17 @@ function LiveBroadcastCard() {
           <span className="text-slate-400 text-xs">{new Date().toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
 
-        {/* Church image */}
+        {/* Stream image */}
         <div className="relative h-40 overflow-hidden">
           <img
-            src="https://images.unsplash.com/photo-1438232992991-995b671e4435?w=600&q=80"
-            alt="Church service"
+            src="https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=600&q=80"
+            alt="Live audio stream"
             className="w-full h-full object-cover opacity-60"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
           <div className="absolute bottom-4 left-5 right-5">
-            <p className="text-white font-bold text-base">Sunday Morning Service</p>
-            <p className="text-slate-300 text-sm">Grace Assembly, Lagos</p>
+            <p className="text-white font-bold text-base">The Morning Vibe</p>
+            <p className="text-slate-300 text-sm">with Ade Banks</p>
           </div>
         </div>
 
@@ -262,8 +263,6 @@ export default function HomePage() {
 
   return (
     <>
-     
-
       {/* ─── Shared Navbar ─────────────────────────────────────────────────────── */}
       <Navbar />
 
@@ -298,7 +297,7 @@ export default function HomePage() {
                   fontSize: '0.82rem', fontWeight: 600, marginBottom: 24,
                 }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#0ea5e9', boxShadow: '0 0 0 3px rgba(14,165,233,0.25)' }} />
-                  Trusted by 500+ churches across Nigeria
+                  Trusted by audio creators across Africa
                 </div>
 
                 <h1 style={{
@@ -306,18 +305,17 @@ export default function HomePage() {
                   fontSize: 'clamp(2.4rem, 5vw, 3.8rem)', lineHeight: 1.1,
                   color: '#0f172a', marginBottom: 24,
                 }}>
-                  Stream Your Church Service —{' '}
+                  Audio Streaming That Works —{' '}
                   <span style={{
                     background: 'linear-gradient(135deg, #0ea5e9, #0369a1)',
                     WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                   }}>
-                    Even on a Poor Connection
+                    Even on Poor Connections
                   </span>
                 </h1>
 
                 <p style={{ fontSize: '1.15rem', color: '#475569', lineHeight: 1.7, marginBottom: 36, maxWidth: 480 }}>
-                  Volantislive uses ultra-low bandwidth audio streaming so your congregation
-                  never misses a message — no matter their network, no matter their data plan.
+                  Volantislive uses ultra-low bandwidth audio streaming so your audience never misses a moment — no matter their network, no matter their data plan.
                 </p>
 
                 {/* CTAs */}
@@ -378,9 +376,9 @@ export default function HomePage() {
               </div>
 
               {/* Right: Live Card */}
-              {/* <div style={{ animation: 'slide-up 0.9s ease forwards', paddingTop: 20 }}>
+              <div style={{ animation: 'slide-up 0.9s ease forwards', paddingTop: 20 }}>
                 <LiveBroadcastCard />
-              </div> */}
+              </div>
             </div>
           </div>
 
@@ -427,8 +425,8 @@ export default function HomePage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, marginBottom: 56 }}>
               {[
-                { emoji: '📡', title: 'Your stream cuts out on Sunday morning', desc: 'Right at the sermon climax — your congregation gets disconnected.', img: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=400&q=70' },
-                { emoji: '💸', title: 'Your members are on expensive mobile data', desc: 'Every megabyte counts. They cut off their stream to save data.', img: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&q=70' },
+                { emoji: '📡', title: 'Your stream cuts out at the best part', desc: 'Right when your audience is most engaged — they get disconnected.', img: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=400&q=70' },
+                { emoji: '💸', title: 'Your listeners are on expensive mobile data', desc: 'Every megabyte counts. They stop streaming to save data.', img: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&q=70' },
                 { emoji: '🔧', title: 'Other tools need downloads or fast internet', desc: 'Complex setup. Technical knowledge required. Weeks of delay.', img: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=400&q=70' },
               ].map((p, i) => (
                 <div key={i} className="problem-card" style={{ borderRadius: 16, overflow: 'hidden', background: 'white', cursor: 'default' }}>
@@ -501,7 +499,7 @@ export default function HomePage() {
                 </h3>
                 <p style={{ color: '#94a3b8', lineHeight: 1.7, marginBottom: 28, fontSize: '1rem' }}>
                   Stream at 32kbps — less than 15MB per hour. Half the data of a WhatsApp voice call.
-                  Works on 2G signals across rural Nigeria.
+                  Works on 2G signals across rural Africa.
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 32 }}>
                   {['Works on 2G', '&lt;15MB/hour', 'Auto-reconnect', 'FM-quality audio'].map(tag => (
@@ -521,7 +519,7 @@ export default function HomePage() {
               <div style={{ position: 'relative', minHeight: 320 }}>
                 <img
                   src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=700&q=80"
-                  alt="Church congregation streaming"
+                  alt="Audio creator streaming"
                   style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }}
                 />
                 <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, rgba(15,23,42,0.7) 0%, transparent 60%)' }} />
@@ -598,16 +596,16 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ─── CHURCH LOGOS MARQUEE ───────────────────────────────────────── */}
+        {/* ─── CREATOR LOGOS MARQUEE ───────────────────────────────────────── */}
         <div style={{ background: 'white', padding: '36px 0', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', overflow: 'hidden' }}>
           <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 24 }}>
-            Trusted by leading churches across Nigeria
+            Trusted by audio creators across Africa
           </p>
           <div style={{ overflow: 'hidden', position: 'relative' }}>
             <div style={{ display: 'flex', gap: 64, width: 'max-content' }} className="animate-marquee">
-              {[...churches, ...churches].map((church, i) => (
+              {[...audioCreators, ...audioCreators].map((creator, i) => (
                 <span key={i} style={{ fontSize: '1rem', fontWeight: 600, color: '#cbd5e1', whiteSpace: 'nowrap', fontFamily: 'Bricolage Grotesque' }}>
-                  {church}
+                  {creator}
                 </span>
               ))}
             </div>
@@ -620,16 +618,17 @@ export default function HomePage() {
             <div style={{ textAlign: 'center', marginBottom: 48 }}>
               <div className="section-tag"><Globe size={13} /> Solutions</div>
               <h2 style={{ fontFamily: 'Bricolage Grotesque', fontSize: 'clamp(1.8rem, 3.5vw, 2.5rem)', fontWeight: 800, color: '#0f172a' }}>
-                Built for every African broadcaster
+                Built for every audio creator
               </h2>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
               {[
-                { label: 'Churches', icon: '⛪', href: '/solutions/churches', img: 'https://images.unsplash.com/photo-1438232992991-995b671e4435?w=400&q=70', desc: 'Sunday services, prayer meetings, events' },
-                { label: 'Ministries', icon: '✝️', href: '/solutions/ministries', img: 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=400&q=70', desc: 'Outreach, evangelical broadcasts' },
+                { label: 'Podcasters', icon: '🎙️', href: '/solutions/podcasters', img: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=400&q=70', desc: 'Episodes, interviews, series' },
+                { label: 'Churches', icon: '⛪', href: '/solutions/churches', img: 'https://images.unsplash.com/photo-1438232992991-995b671e4435?w=400&q=70', desc: 'Sunday services, prayer meetings' },
                 { label: 'Community Radio', icon: '📻', href: '/solutions/community-radio', img: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=400&q=70', desc: 'Online radio stations' },
-                { label: 'Live Events', icon: '🎤', href: '/solutions/events', img: 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400&q=70', desc: 'Conferences, concerts, seminars' },
-                { label: 'Creators', icon: '🎙️', href: '/solutions/creators', img: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=400&q=70', desc: 'Podcasters, talk shows, live audio' },
+                { label: 'Musicians', icon: '🎵', href: '/solutions/musicians', img: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=70', desc: 'Live sessions, album launches' },
+                { label: 'Talk Shows', icon: '🎤', href: '/solutions/talk-shows', img: 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400&q=70', desc: 'Discussions, interviews' },
+                { label: 'Educators', icon: '📚', href: '/solutions/educators', img: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=400&q=70', desc: 'Classes, lectures, tutorials' },
               ].map((s, i) => (
                 <a key={i} href={s.href} style={{
                   textDecoration: 'none', borderRadius: 16, overflow: 'hidden',
@@ -662,9 +661,9 @@ export default function HomePage() {
             <div style={{ textAlign: 'center', marginBottom: 64 }}>
               <div className="section-tag"><Star size={13} fill="currentColor" /> Real Stories</div>
               <h2 style={{ fontFamily: 'Bricolage Grotesque', fontSize: 'clamp(2rem, 4vw, 2.8rem)', fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>
-                Loved by churches across Nigeria
+                Loved by creators across Africa
               </h2>
-              <p style={{ color: '#64748b', fontSize: '1rem' }}>Real results from real ministries.</p>
+              <p style={{ color: '#64748b', fontSize: '1rem' }}>Real results from real audio creators.</p>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
@@ -703,7 +702,7 @@ export default function HomePage() {
                     </div>
                     <div>
                       <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem', fontFamily: 'Bricolage Grotesque' }}>{t.name}</p>
-                      <p style={{ color: '#64748b', fontSize: '0.82rem' }}>{t.role}, {t.church}</p>
+                      <p style={{ color: '#64748b', fontSize: '0.82rem' }}>{t.role}, {t.organization}</p>
                     </div>
                   </div>
                 </div>
@@ -717,19 +716,19 @@ export default function HomePage() {
           <div style={{ maxWidth: 1200, margin: '0 auto' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
               <div>
-                <div className="section-tag"><Shield size={13} /> Built for Nigeria</div>
+                <div className="section-tag"><Shield size={13} /> Built for Africa</div>
                 <h2 style={{ fontFamily: 'Bricolage Grotesque', fontSize: 'clamp(1.8rem, 3.5vw, 2.5rem)', fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>
                   Infrastructure built for Africa's network reality
                 </h2>
                 <p style={{ color: '#64748b', lineHeight: 1.7, marginBottom: 32, fontSize: '1rem' }}>
                   While others assume you have fast internet, we assume you don't.
-                  Every technical decision we make starts from the realities of Nigerian connectivity.
+                  Every technical decision we make starts from the realities of African connectivity.
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {[
                     { icon: Signal, label: 'Auto-reconnect in under 3 seconds', color: '#0ea5e9' },
                     { icon: Wifi, label: '32kbps minimum — works on 2G', color: '#22c55e' },
-                    { icon: Globe, label: 'CDN nodes optimized for West Africa', color: '#8b5cf6' },
+                    { icon: Globe, label: 'CDN nodes optimized for Africa', color: '#8b5cf6' },
                     { icon: BarChart3, label: '99.5% uptime SLA with transparent status', color: '#f59e0b' },
                     { icon: Mic, label: 'Audio-first — half the data of video', color: '#ef4444' },
                   ].map((item, i) => (
@@ -747,7 +746,7 @@ export default function HomePage() {
                 <div style={{ borderRadius: 20, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
                   <img
                     src="https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=700&q=80"
-                    alt="African congregation"
+                    alt="African audience"
                     style={{ width: '100%', height: 400, objectFit: 'cover' }}
                   />
                 </div>
@@ -770,7 +769,7 @@ export default function HomePage() {
                 }}>
                   <span style={{ fontSize: '1.5rem' }}>🎧</span>
                   <div>
-                    <p style={{ color: 'white', fontWeight: 700, fontSize: '0.95rem', fontFamily: 'Bricolage Grotesque' }}>50,000+ listeners</p>
+                    <p style={{ color: 'white', fontWeight: 700, fontSize: '0.95rem', fontFamily: 'Bricolage Grotesque' }}>150,000+ listeners</p>
                     <p style={{ color: '#64748b', fontSize: '0.75rem' }}>every month</p>
                   </div>
                 </div>
@@ -820,7 +819,7 @@ export default function HomePage() {
               className={`reveal reveal-delay-2 ${ctaSection.visible ? 'visible' : ''}`}
               style={{ color: '#94a3b8', fontSize: '1.1rem', marginBottom: 40, lineHeight: 1.7 }}
             >
-              Join 500+ churches already streaming with Volantislive.
+              Join 1,200+ audio creators already streaming with Volantislive.
               Start your free plan today — no credit card required.
             </p>
             <div
