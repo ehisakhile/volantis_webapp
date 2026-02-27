@@ -105,6 +105,9 @@ export default function SignupPage() {
           localStorage.setItem('verification_email', response.email || formData.email);
           if (response.user_id) {
             localStorage.setItem('verification_user_id', String(response.user_id));
+          } else{
+            // If user_id is not in response, we might need to fetch it or handle it differently
+            router.push('/login');
           }
         }
         // Redirect to OTP verification page
