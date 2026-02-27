@@ -9,6 +9,7 @@ import {
   Wifi, Globe, Mic, BarChart3, Headphones, RadioIcon
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
+import { Footer } from "@/components/layout/footer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface StatItem { value: string; label: string; }
@@ -866,69 +867,7 @@ export default function HomePage() {
         </section>
 
         {/* ─── FOOTER ─────────────────────────────────────────────────────── */}
-        <footer style={{ background: '#0f172a', padding: '64px 24px 32px' }}>
-          <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 40, marginBottom: 56 }}>
-              {/* Brand */}
-              <div style={{ gridColumn: 'span 1' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #0ea5e9, #0369a1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Radio size={18} color="white" />
-                  </div>
-                  <span style={{ fontFamily: 'Bricolage Grotesque', fontWeight: 700, fontSize: '1.1rem', color: 'white' }}>
-                    Volantis<span style={{ color: '#0ea5e9' }}>live</span>
-                  </span>
-                </div>
-                <p style={{ color: '#64748b', fontSize: '0.85rem', lineHeight: 1.7, marginBottom: 16 }}>
-                  Streaming that works even when the internet doesn't.
-                </p>
-                <p style={{ color: '#334155', fontSize: '0.78rem' }}>Built in Nigeria, for Africa.</p>
-              </div>
-
-              {/* Product */}
-              <div>
-                <p style={{ color: '#94a3b8', fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Product</p>
-                {['Features', 'Pricing', 'Low Data Mode', 'Channel Pages', 'Analytics'].map(l => (
-                  <a key={l} href={`/${l.toLowerCase().replace(' ', '-')}`} style={{ display: 'block', color: '#64748b', fontSize: '0.9rem', textDecoration: 'none', marginBottom: 10, transition: 'color 0.2s' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#94a3b8'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#64748b'}
-                  >{l}</a>
-                ))}
-              </div>
-
-              {/* Solutions */}
-              <div>
-                <p style={{ color: '#94a3b8', fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Solutions</p>
-                {['For Churches', 'For Ministries', 'Community Radio', 'For Events', 'For Creators'].map(l => (
-                  <a key={l} href="#" style={{ display: 'block', color: '#64748b', fontSize: '0.9rem', textDecoration: 'none', marginBottom: 10, transition: 'color 0.2s' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#94a3b8'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#64748b'}
-                  >{l}</a>
-                ))}
-              </div>
-
-              {/* Company */}
-              <div>
-                <p style={{ color: '#94a3b8', fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Company</p>
-                {['About Us', 'Blog', 'Help Center', 'Contact', 'Status Page'].map(l => (
-                  <a key={l} href="#" style={{ display: 'block', color: '#64748b', fontSize: '0.9rem', textDecoration: 'none', marginBottom: 10, transition: 'color 0.2s' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#94a3b8'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#64748b'}
-                  >{l}</a>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ borderTop: '1px solid #1e293b', paddingTop: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-              <p style={{ color: '#334155', fontSize: '0.82rem' }}>© 2025 Volantislive. All rights reserved.</p>
-              <div style={{ display: 'flex', gap: 20 }}>
-                {['Privacy Policy', 'Terms of Service'].map(l => (
-                  <a key={l} href="#" style={{ color: '#334155', fontSize: '0.82rem', textDecoration: 'none' }}>{l}</a>
-                ))}
-              </div>
-            </div>
-          </div>
-        </footer>
+        <Footer />
       </main>
     </>
   );

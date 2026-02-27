@@ -63,16 +63,17 @@ export function Footer() {
           <div className="col-span-2 md:col-span-2">
             <Link href="/" className="flex items-center gap-2 mb-4">
               <img
-                src="/logo.png"
+                src="/logo2.png"
                 alt="Volantislive"
-                className="h-10 w-auto"
+                className="h-16 w-auto"
               />
+                            <span className="text-lg font-bold text-slate-50">Volantis<span className="text-sky-500">live</span></span>
             </Link>
             <p className="text-slate-400 mb-6 max-w-sm">
               Live audio streaming built for Africa. Reach your audience anywhere,
               even on slow connections.
             </p>
-            <div className="flex gap-4">
+            {/* <div className="flex gap-4">
               {socialLinks.map((social) => (
                 <a
                   key={social.name}
@@ -85,7 +86,7 @@ export function Footer() {
                   <social.icon className="w-5 h-5" />
                 </a>
               ))}
-            </div>
+            </div> */}
           </div>
 
           {/* Product */}
