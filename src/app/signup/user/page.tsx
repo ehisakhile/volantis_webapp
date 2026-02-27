@@ -84,7 +84,13 @@ export default function UserSignupPage() {
         // Auto-login successful, redirect to user dashboard
         router.push('/user/dashboard');
       } else {
-        // Show success modal and redirect to login
+        // Store user_id and email for verification, then show success modal
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('verification_email', response.email || formData.email);
+          if (response.user?.id) {
+            localStorage.setItem('verification_user_id', String(response.user.id));
+          }
+        }
         setSuccessEmail(response.email || formData.email);
         setShowSuccessModal(true);
       }
@@ -95,9 +101,9 @@ export default function UserSignupPage() {
 
   const displayError = localError || (authError ? String(authError) : '');
 
-  const handleContinueToLogin = () => {
+  const handleContinueToVerify = () => {
     setShowSuccessModal(false);
-    router.push('/login');
+    router.push('/verify-email');
   };
 
   return (
@@ -310,12 +316,12 @@ export default function UserSignupPage() {
               <p className="text-sm text-navy-600 mb-6">
                 Please check your email and click the verification link to activate your account.
               </p>
-              <Button 
-                onClick={handleContinueToLogin}
-                size="lg" 
+              <Button
+                onClick={handleContinueToVerify}
+                size="lg"
                 className="w-full"
               >
-                Continue to Login
+                Verify Email
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </div>

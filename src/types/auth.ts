@@ -39,6 +39,13 @@ export interface VolSignupResponse {
   refresh_token?: string | null;
   token_type?: string | null;
   expires_in?: number | null;
+  user?: {
+    id: number;
+    email: string;
+    username: string;
+    role: string;
+    is_verified: boolean;
+  } | null;
 }
 
 export interface VolUserResponse {
