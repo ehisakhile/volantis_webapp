@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Users, Clock } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getInitials } from '@/lib/utils';
 import { getCachedThumbnail } from '@/lib/thumbnail-generator';
 import type { VolLivestreamOut } from '@/types/livestream';
 
