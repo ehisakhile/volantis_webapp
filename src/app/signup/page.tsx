@@ -143,10 +143,11 @@ export default function SignupPage() {
       <header className="bg-white border-b border-navy-100 py-4">
         <Container>
           <Link href="/" className="flex items-center gap-2 w-fit">
-            <div className="w-8 h-8 bg-gradient-to-br from-sky-400 to-sky-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">V</span>
-            </div>
-            <span className="text-lg font-bold text-navy-900">Volantislive</span>
+            <img
+              src="/logo.png"
+              alt="Volantislive"
+              className="h-8 w-auto"
+            />
           </Link>
         </Container>
       </header>
@@ -286,7 +287,7 @@ export default function SignupPage() {
                         placeholder="grace-assembly-lagos (optional)"
                       />
                     </div>
-                    <p className="text-xs text-navy-500 mt-1">Your page will be at volatilive.com/{formData.organizationSlug || 'your-org'}</p>
+                    <p className="text-xs text-navy-500 mt-1">Your page will be at volantislive.com/{formData.organizationSlug || 'your-org'}</p>
                   </div>
 
                   {/* Organization Description */}

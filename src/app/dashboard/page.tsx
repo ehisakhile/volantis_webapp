@@ -81,10 +81,11 @@ export default function DashboardPage() {
         <Container>
           <div className="flex items-center justify-between h-16">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-sky-400 to-sky-600 rounded-lg flex items-center justify-center">
-                <Radio className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-lg font-bold text-slate-900">Volantis<span className="text-sky-500">live</span></span>
+              <img
+                src="/logo.png"
+                alt="Volantislive"
+                className="h-8 w-auto"
+              />
             </Link>
             <div className="flex items-center gap-3">
               <Link

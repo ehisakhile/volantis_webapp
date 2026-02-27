@@ -62,12 +62,11 @@ export function Footer() {
           {/* Brand Column */}
           <div className="col-span-2 md:col-span-2">
             <Link href="/" className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-sky-500 to-sky-700 rounded-xl flex items-center justify-center shadow-lg shadow-sky-500/30">
-                <Radio className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
-                Volantis<span className="text-sky-500">live</span>
-              </span>
+              <img
+                src="/logo.png"
+                alt="Volantislive"
+                className="h-10 w-auto"
+              />
             </Link>
             <p className="text-slate-400 mb-6 max-w-sm">
               Live audio streaming built for Africa. Reach your audience anywhere,

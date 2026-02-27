@@ -55,12 +55,12 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-sky-500 to-sky-700 rounded-xl flex items-center justify-center shadow-lg shadow-sky-500/30">
-              <Radio className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold" style={{ fontFamily: "'Bricolage Grotesque', sans-serif", color: '#0f172a' }}>
-              Volantis<span className="text-sky-500">live</span>
-            </span>
+            <img
+              src="/logo.png"
+              alt="Volantislive"
+              className="h-10 w-auto"
+            />
+                          <span className="text-lg font-bold text-slate-900">Volantis<span className="text-sky-500">live</span></span>
           </Link>
 
           {/* Desktop Navigation */}

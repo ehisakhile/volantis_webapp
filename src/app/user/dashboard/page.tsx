@@ -107,10 +107,11 @@ export default function UserDashboardPage() {
         <Container>
           <div className="flex items-center justify-between h-16">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-sky-400 to-sky-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">V</span>
-              </div>
-              <span className="text-lg font-bold text-navy-900">Volantislive</span>
+              <img
+                src="/logo.png"
+                alt="Volantislive"
+                className="h-8 w-auto"
+              />
             </Link>
             <div className="flex items-center gap-4">
               <Link href="/listen" className="text-navy-600 hover:text-navy-900 font-medium">
