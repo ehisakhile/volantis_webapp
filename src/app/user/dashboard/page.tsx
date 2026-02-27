@@ -7,14 +7,14 @@ import { Container } from '@/components/ui/container';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
 import { authApi } from '@/lib/api/auth';
-import { User, Mail, Bell, Heart, Radio, CheckCircle, AlertCircle, Loader2, Settings, LogOut } from 'lucide-react';
-import type { VolUserResponse } from '@/types/auth';
+import { User, Mail, Bell, Heart, Radio, CheckCircle, AlertCircle, Loader2, Settings, LogOut, Play, Users, Clock } from 'lucide-react';
+import type { Subscription } from '@/types/auth';
 
 export default function UserDashboardPage() {
   const router = useRouter();
   const { user, logout, fetchUser, isAuthenticated, isLoading: authLoading } = useAuth();
   
-  const [subscriptions, setSubscriptions] = useState<VolUserResponse[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [isLoadingSubs, setIsLoadingSubs] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -47,9 +47,7 @@ export default function UserDashboardPage() {
     setIsLoadingSubs(true);
     try {
       const subs = await authApi.getMySubscriptions();
-      // Filter out subscriptions where company_id is null (these are not company subscriptions)
-      const validSubs = subs.filter(s => s.company_id !== null) as VolUserResponse[];
-      setSubscriptions(validSubs);
+      setSubscriptions(subs);
     } catch (err) {
       console.error('Failed to load subscriptions:', err);
     } finally {
@@ -263,46 +261,92 @@ export default function UserDashboardPage() {
                     </Link>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-1 gap-4">
                     {subscriptions.map((sub) => (
-                      sub.company_slug && sub.company_name ? (
-                        <div
-                          key={sub.company_id}
-                          className="flex items-center justify-between p-4 bg-navy-50 rounded-xl"
-                        >
-                          <div className="flex items-center gap-3">
-                            <Link href={`/${sub.company_slug}`} className="hover:opacity-80">
-                              <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
-                                <Radio className="w-5 h-5 text-sky-600" />
+                      <div
+                        key={sub.company_id}
+                        className="bg-white rounded-xl p-4 shadow-sm border border-navy-100 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start gap-4">
+                          {/* Company Logo */}
+                          <Link href={`/${sub.company_slug}`} className="flex-shrink-0">
+                            {sub.company_logo_url ? (
+                              <img
+                                src={sub.company_logo_url}
+                                alt={sub.company_name}
+                                className="w-14 h-14 rounded-xl object-cover"
+                              />
+                            ) : (
+                              <div className="w-14 h-14 bg-gradient-to-br from-sky-400 to-sky-600 rounded-xl flex items-center justify-center">
+                                <Radio className="w-7 h-7 text-white" />
                               </div>
-                            </Link>
-                            <div>
+                            )}
+                          </Link>
+                          
+                          {/* Company Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
                               <Link
                                 href={`/${sub.company_slug}`}
-                                className="font-medium text-navy-900 hover:text-sky-600"
+                                className="font-semibold text-navy-900 hover:text-sky-600 truncate"
                               >
                                 {sub.company_name}
                               </Link>
-                              <p className="text-sm text-navy-500">@{sub.company_slug}</p>
+                              {sub.is_live && (
+                                <span className="flex items-center gap-1 px-2 py-0.5 bg-red-500 text-white text-xs font-medium rounded-full animate-pulse">
+                                  <span className="w-1.5 h-1.5 bg-white rounded-full" />
+                                  LIVE
+                                </span>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-4 text-sm text-navy-500">
+                              {sub.is_live && sub.current_viewers > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <Users className="w-4 h-4" />
+                                  {sub.current_viewers} watching
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                {new Date(sub.subscribed_at).toLocaleDateString()}
+                              </span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Link href={`/${sub.company_slug}`}>
-                              <Button variant="outline" size="sm">
-                                View
-                              </Button>
-                            </Link>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleUnsubscribe(sub.company_slug!)}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                            >
-                              Unsubscribe
-                            </Button>
-                          </div>
                         </div>
-                      ) : null
+                        
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-navy-100">
+                          <Link href={`/${sub.company_slug}`} className="flex-1">
+                            {sub.is_live ? (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                className="w-full"
+                              >
+                                <Play className="w-4 h-4 mr-1" />
+                                Watch Live
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                              >
+                                View Channel
+                              </Button>
+                            )}
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUnsubscribe(sub.company_slug)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Heart className="w-4 h-4 fill-current" />
+                          </Button>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}

@@ -6,7 +6,8 @@ import type {
   UserSignupRequest,
   VolTokenResponse,
   VolSignupResponse,
-  VolUserResponse
+  VolUserResponse,
+  Subscription
 } from '@/types/auth';
 
 export const authApi = {
@@ -153,8 +154,8 @@ export const authApi = {
   /**
    * Get list of companies the current user is subscribed to.
    */
-  async getMySubscriptions(): Promise<VolUserResponse[]> {
-    const response = await apiClient.request<VolUserResponse[]>('/auth/subscriptions', {
+  async getMySubscriptions(): Promise<Subscription[]> {
+    const response = await apiClient.request<Subscription[]>('/subscriptions', {
       method: 'GET',
     });
     return response;

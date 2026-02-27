@@ -73,3 +73,13 @@ export interface ApiError {
   message?: string;
   [key: string]: unknown;
 }
+
+export interface Subscription {
+  company_id: number;
+  company_name: string;
+  company_slug: string;
+  company_logo_url: string | null;
+  subscribed_at: string;
+  is_live: boolean;
+  current_viewers: number;
+}
