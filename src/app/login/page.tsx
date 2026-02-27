@@ -10,7 +10,7 @@ import { ArrowRight, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, error: authError, clearError, isLoading, checkEmailVerification, isEmailVerified } = useAuth();
+  const { login, user, error: authError, clearError, isLoading, checkEmailVerification, isEmailVerified } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,9 +37,12 @@ export default function LoginPage() {
       if (!isVerified) {
         // Redirect to email verification if not verified
         router.push('/verify-email');
-      } else {
-        // Redirect to dashboard after successful login
+      } else if (user?.company_id) {
+        // User is a creator/admin - redirect to creator dashboard
         router.push('/dashboard');
+      } else {
+        // User is a viewer - redirect to user dashboard
+        router.push('/user/dashboard');
       }
     } catch {
       // Error is handled by auth context

@@ -40,8 +40,14 @@ export default function UploadRecordingPage() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
+      return;
     }
-  }, [isAuthenticated, authLoading, router]);
+    
+    // Check if user is a viewer (no company_id) - redirect to user dashboard
+    if (isAuthenticated && user && !user.company_id) {
+      router.push('/user/dashboard');
+    }
+  }, [isAuthenticated, authLoading, router, user]);
 
   // Get audio duration when file is selected
   const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -19,8 +19,14 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
+      return;
     }
-  }, [isAuthenticated, isLoading, router]);
+    
+    // Check if user is a viewer (no company_id) - redirect to user dashboard
+    if (isAuthenticated && user && !user.company_id) {
+      router.push('/user/dashboard');
+    }
+  }, [isAuthenticated, isLoading, router, user]);
 
   useEffect(() => {
     // Get company slug from user context if available

@@ -36,12 +36,18 @@ export default function CreatorStreamPage() {
     }
   }, [authLoading, isAuthenticated, checkEmailVerification, router]);
   
-  // Redirect if not authenticated
+  // Redirect if not authenticated or if user is a viewer (no company_id)
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
+      return;
     }
-  }, [authLoading, isAuthenticated, router]);
+    
+    // Check if user is a viewer (no company_id) - redirect to user dashboard
+    if (isAuthenticated && user && !user.company_id) {
+      router.push('/user/dashboard');
+    }
+  }, [authLoading, isAuthenticated, router, user]);
   
   if (authLoading) {
     return (

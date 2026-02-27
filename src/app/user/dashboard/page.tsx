@@ -27,8 +27,14 @@ export default function UserDashboardPage() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
+      return;
     }
-  }, [authLoading, isAuthenticated, router]);
+    
+    // Check if user is a creator/admin (has company_id) - redirect to creator dashboard
+    if (isAuthenticated && user && user.company_id) {
+      router.push('/dashboard');
+    }
+  }, [authLoading, isAuthenticated, router, user]);
 
   useEffect(() => {
     if (user) {
