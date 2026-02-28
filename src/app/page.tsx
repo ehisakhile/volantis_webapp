@@ -624,7 +624,7 @@ export default function HomePage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
               {[
                 { label: 'Podcasters', icon: '🎙️', href: '/solutions/podcasters', img: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=400&q=70', desc: 'Episodes, interviews, series' },
-                { label: 'Churches', icon: '⛪', href: '/solutions/churches', img: 'https://images.unsplash.com/photo-1438232992991-995b671e4435?w=400&q=70', desc: 'Sunday services, prayer meetings' },
+                { label: 'Churches', icon: '⛪', href: '/solutions/churches', img: 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?q=80&w=1173', desc: 'Sunday services, Devotions' },
                 { label: 'Community Radio', icon: '📻', href: '/solutions/community-radio', img: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=400&q=70', desc: 'Online radio stations' },
                 { label: 'Musicians', icon: '🎵', href: '/solutions/musicians', img: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=70', desc: 'Live sessions, album launches' },
                 { label: 'Talk Shows', icon: '🎤', href: '/solutions/talk-shows', img: 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=400&q=70', desc: 'Discussions, interviews' },
