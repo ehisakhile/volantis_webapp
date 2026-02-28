@@ -59,11 +59,11 @@ export default function DashboardPage() {
   const menuItems = [
     { icon: Play, label: 'Go Live', href: '/creator/stream', color: 'bg-red-500', description: 'Start streaming now' },
     { icon: Upload, label: 'Upload Recording', href: '/dashboard/upload-recording', color: 'bg-orange-500', description: 'Upload pre-recorded audio' },
-    { icon: Video, label: 'My Streams', href: '/dashboard/settings', color: 'bg-sky-500', description: 'View past broadcasts' },
-    { icon: Users, label: 'Viewers', href: '/dashboard/settings', color: 'bg-green-500', description: 'Audience insights' },
-    { icon: MessageSquare, label: 'Chat', href: '/dashboard/settings', color: 'bg-purple-500', description: 'Manage messages' },
-    { icon: BarChart3, label: 'Analytics', href: '/dashboard/settings', color: 'bg-indigo-500', description: 'Performance metrics' },
-    { icon: DollarSign, label: 'Revenue', href: '/dashboard/settings', color: 'bg-emerald-500', description: 'Earnings & plans' },
+    { icon: Video, label: 'My Streams', href: `/${companySlug}`, color: 'bg-sky-500', description: 'View past broadcasts' },
+    // { icon: Users, label: 'Viewers', href: '/dashboard/settings', color: 'bg-green-500', description: 'Audience insights' },
+    // { icon: MessageSquare, label: 'Chat', href: '/dashboard/settings', color: 'bg-purple-500', description: 'Manage messages' },
+    // { icon: BarChart3, label: 'Analytics', href: '/dashboard/settings', color: 'bg-indigo-500', description: 'Performance metrics' },
+    // { icon: DollarSign, label: 'Revenue', href: '/dashboard/settings', color: 'bg-emerald-500', description: 'Earnings & plans' },
     { icon: Settings, label: 'Settings', href: '/dashboard/settings', color: 'bg-slate-500', description: 'Channel configuration' },
   ];
 

@@ -376,9 +376,9 @@ export default function HomePage() {
               </div>
 
               {/* Right: Live Card */}
-              <div style={{ animation: 'slide-up 0.9s ease forwards', paddingTop: 20 }}>
+              {/* <div style={{ animation: 'slide-up 0.9s ease forwards', paddingTop: 20 }}>
                 <LiveBroadcastCard />
-              </div>
+              </div> */}
             </div>
           </div>
 
@@ -396,7 +396,7 @@ export default function HomePage() {
         </section>
 
         {/* ─── STATS BAR ──────────────────────────────────────────────────── */}
-        <div
+        {/* <div
           ref={statsSection.ref}
           style={{
             background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
@@ -408,7 +408,7 @@ export default function HomePage() {
               <StatCard key={i} stat={stat} index={i} trigger={statsSection.visible} />
             ))}
           </div>
-        </div>
+        </div> */}
 
         {/* ─── PROBLEM FRAMING ────────────────────────────────────────────── */}
         <section style={{ padding: '96px 24px', background: 'white' }}>
