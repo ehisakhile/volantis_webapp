@@ -40,6 +40,8 @@ import {
   createAudioSourceManager,
   type AudioSourceState,
 } from '@/lib/audio-sources';
+import { MixerEngine, createMixerEngine, captureMicSource, captureSystemSource, type ChannelType } from '@/lib/mixer-engine';
+import { CreatorMixer } from './creator-mixer';
 import type { VolLivestreamOut } from '@/types/livestream';
 import { useStreamRecorder } from '@/hooks/useStreamRecorder';
 import { RecordingPrompt, RecordingStatus } from './recording-prompt';
@@ -126,6 +128,9 @@ export function CreatorStreaming({
   
   // Audio Source Manager - handles audio source selection and lifecycle
   const audioSourceManagerRef = useRef<AudioSourceManager | null>(null);
+  
+  // Mixer Engine - handles audio mixing and channel management
+  const mixerEngineRef = useRef<MixerEngine | null>(null);
   
   // Initialize audio source manager on mount
   useEffect(() => {
@@ -318,20 +323,34 @@ export function CreatorStreaming({
         return;
       }
       
-      // Set the selected mic device if any
-      if (selectedMicDevice) {
-        audioSourceManagerRef.current.setSelectedMicDevice(selectedMicDevice);
+      // Step 2b: Initialize Mixer Engine and route audio through it
+      const engine = createMixerEngine();
+      mixerEngineRef.current = engine;
+      
+      // Capture audio based on user selection and add to mixer
+      let micStream: MediaStream | null = null;
+      
+      if (useMic) {
+        // Capture microphone
+        micStream = await captureMicSource(selectedMicDevice || undefined);
+        engine.addChannel('mic', 'MIC', 'mic', micStream, selectedMicDevice || undefined);
       }
       
-      const audioResult = await audioSourceManagerRef.current.capture();
-      const pubStream = audioResult.stream;
+      if (useSystemAudio) {
+        // Capture system audio
+        const systemStream = await captureSystemSource();
+        engine.addChannel('system', 'ANY INPUT', 'system', systemStream);
+      }
+      
+      // Get the mixed output stream for WebRTC
+      const outputStream = engine.outputStream;
       
       // Store reference for cleanup
-      pubStreamRef.current = pubStream;
+      pubStreamRef.current = outputStream;
 
-      // Step 3: Start visualizer (like test_webrtc.html)
+      // Step 3: Start visualizer with the mixed output
       if (canvasRef.current) {
-        stopVizRef.current = startVisualizer(pubStream, canvasRef.current, '#00e5a0');
+        stopVizRef.current = startVisualizer(outputStream, canvasRef.current, '#00e5a0');
       }
 
       // Step 4: Create WebRTC connection (exactly like test_webrtc.html)
@@ -355,8 +374,8 @@ export function CreatorStreaming({
         console.log(`Publish ICE gathering → ${pc.iceGatheringState}`);
       };
 
-      // Add audio track
-      pubStream.getAudioTracks().forEach(t => pc.addTrack(t, pubStream));
+      // Add audio track from mixer output
+      outputStream.getAudioTracks().forEach(t => pc.addTrack(t, outputStream));
 
       // Create offer
       const offer = await pc.createOffer({
@@ -468,6 +487,12 @@ export function CreatorStreaming({
       audioSourceManagerRef.current.stopAll();
     }
     
+    // Destroy MixerEngine and release all audio resources
+    if (mixerEngineRef.current) {
+      mixerEngineRef.current.destroy();
+      mixerEngineRef.current = null;
+    }
+    
     // Stop visualizer
     if (stopVizRef.current) {
       stopVizRef.current();
@@ -504,32 +529,28 @@ export function CreatorStreaming({
 
       setCurrentStream(streamData);
 
-      // Capture audio using AudioSourceManager (modular approach)
-      if (!audioSourceManagerRef.current) {
-        audioSourceManagerRef.current = createAudioSourceManager();
+      // Initialize Mixer Engine and route audio through it
+      const engine = createMixerEngine();
+      mixerEngineRef.current = engine;
+      
+      // Capture audio based on user selection and add to mixer
+      if (useMic) {
+        const micStream = await captureMicSource(selectedMicDevice || undefined);
+        engine.addChannel('mic', 'MIC', 'mic', micStream, selectedMicDevice || undefined);
       }
       
-      const audioValidationError = audioSourceManagerRef.current.validate();
-      if (audioValidationError) {
-        setError(audioValidationError);
-        setIsStarting(false);
-        setConnectionState('idle');
-        return;
+      if (useSystemAudio) {
+        const systemStream = await captureSystemSource();
+        engine.addChannel('system', 'ANY INPUT', 'system', systemStream);
       }
       
-      // Set the selected mic device if any
-      if (selectedMicDevice) {
-        audioSourceManagerRef.current.setSelectedMicDevice(selectedMicDevice);
-      }
-      
-      const audioResult = await audioSourceManagerRef.current.capture();
-      const pubStream = audioResult.stream;
-      
-      pubStreamRef.current = pubStream;
+      // Get the mixed output stream for WebRTC
+      const outputStream = engine.outputStream;
+      pubStreamRef.current = outputStream;
 
-      // Start visualizer
+      // Start visualizer with the mixed output
       if (canvasRef.current) {
-        stopVizRef.current = startVisualizer(pubStream, canvasRef.current, '#00e5a0');
+        stopVizRef.current = startVisualizer(outputStream, canvasRef.current, '#00e5a0');
       }
 
       // Create WebRTC connection
@@ -553,8 +574,8 @@ export function CreatorStreaming({
         console.log(`Publish ICE gathering → ${pc.iceGatheringState}`);
       };
 
-      // Add audio track
-      pubStream.getAudioTracks().forEach(t => pc.addTrack(t, pubStream));
+      // Add audio track from mixer output
+      outputStream.getAudioTracks().forEach((t: MediaStreamTrack) => pc.addTrack(t, outputStream));
 
       // Create offer
       const offer = await pc.createOffer({
@@ -1160,6 +1181,34 @@ export function CreatorStreaming({
                 </div>
               </div>
             </div>
+            
+            {/* Audio Mixer - Show when streaming */}
+            {isStreaming && mixerEngineRef.current && (
+              <CreatorMixer
+                mixerEngine={mixerEngineRef.current}
+                isStreaming={isStreaming}
+                onAddChannel={async (type: ChannelType) => {
+                  if (!mixerEngineRef.current) return;
+                  
+                  try {
+                    if (type === 'mic') {
+                      const stream = await captureMicSource();
+                      mixerEngineRef.current.addChannel(`mic-${Date.now()}`, 'MIC', 'mic', stream);
+                    } else if (type === 'system') {
+                      const stream = await captureSystemSource();
+                      mixerEngineRef.current.addChannel(`system-${Date.now()}`, 'ANY INPUT', 'system', stream);
+                    }
+                  } catch (err) {
+                    console.error('Failed to add channel:', err);
+                  }
+                }}
+                onRemoveChannel={(id: string) => {
+                  if (mixerEngineRef.current) {
+                    mixerEngineRef.current.removeChannel(id);
+                  }
+                }}
+              />
+            )}
             
             {/* Stream Title Display */}
             {isStreaming && streamTitle && (

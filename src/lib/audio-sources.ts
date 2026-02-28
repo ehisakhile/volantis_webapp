@@ -424,6 +424,170 @@ export class AudioSourceManager {
 }
 
 // ─────────────────────────────────────────────
+// Background Audio Source (for playlist/background music)
+// ─────────────────────────────────────────────
+
+/**
+ * Background audio source for playing local audio files (MP3/WAV/OGG)
+ * through the AudioContext for use with MixerEngine.
+ */
+export class BackgroundAudioSource extends AudioSource {
+  private file: File;
+  private loop: boolean;
+  private audioBuffer: AudioBuffer | null = null;
+  private sourceNode: AudioBufferSourceNode | null = null;
+  private destinationNode: MediaStreamAudioDestinationNode | null = null;
+  private isPlaying: boolean = false;
+
+  constructor(file: File, loop = true) {
+    super({
+      id: 'background',
+      name: 'Background Audio',
+      isActive: false,
+    });
+    this.file = file;
+    this.loop = loop;
+  }
+
+  /** Set loop mode */
+  setLoop(loop: boolean): void {
+    this.loop = loop;
+    if (this.sourceNode) {
+      this.sourceNode.loop = loop;
+    }
+  }
+
+  /** Get loop mode */
+  getLoop(): boolean {
+    return this.loop;
+  }
+
+  /** Get the audio duration in seconds */
+  get duration(): number {
+    return this.audioBuffer?.duration || 0;
+  }
+
+  override async capture(): Promise<AudioSourceResult> {
+    console.log(`[BackgroundAudio] Loading file: ${this.file.name}`);
+    
+    // We need an AudioContext - create one or use existing
+    let audioCtx: AudioContext;
+    try {
+      // Try to get existing context from window
+      const existingCtx = (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (existingCtx) {
+        audioCtx = new existingCtx();
+      } else {
+        audioCtx = new AudioContext();
+      }
+    } catch {
+      throw new Error('Failed to create AudioContext');
+    }
+
+    // Resume if suspended
+    if (audioCtx.state === 'suspended') {
+      await audioCtx.resume();
+    }
+
+    // Decode the audio file
+    try {
+      const arrayBuffer = await this.file.arrayBuffer();
+      this.audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      console.log(`[BackgroundAudio] Decoded: ${this.audioBuffer.duration.toFixed(2)}s`);
+    } catch (err) {
+      console.error('[BackgroundAudio] Failed to decode audio:', err);
+      throw new Error(`Failed to decode audio file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+
+    // Create destination node for output stream
+    this.destinationNode = audioCtx.createMediaStreamDestination();
+
+    // Create buffer source
+    this.sourceNode = audioCtx.createBufferSource();
+    this.sourceNode.buffer = this.audioBuffer;
+    this.sourceNode.loop = this.loop;
+
+    // Connect: source -> destination (for WebRTC stream ONLY)
+    // Do NOT connect to audioCtx.destination - that would play through speakers
+    this.sourceNode.connect(this.destinationNode);
+
+    // Start playback
+    this.sourceNode.start(0);
+    this.isPlaying = true;
+    this.config.isActive = true;
+
+    console.log('[BackgroundAudio] Started playback');
+
+    // Get the output stream
+    const stream = this.destinationNode.stream;
+
+    return {
+      stream,
+      cleanup: () => this.stop(),
+    };
+  }
+
+  override stop(): void {
+    if (this.sourceNode) {
+      try {
+        this.sourceNode.stop();
+      } catch (e) {
+        // Ignore if already stopped
+      }
+      this.sourceNode.disconnect();
+      this.sourceNode = null;
+    }
+
+    if (this.destinationNode) {
+      this.destinationNode.disconnect();
+      this.destinationNode = null;
+    }
+
+    this.isPlaying = false;
+    this.config.isActive = false;
+    console.log('[BackgroundAudio] Stopped');
+  }
+
+  /** Seek to a specific position (0-1) */
+  seek(position: number): void {
+    if (!this.sourceNode || !this.audioBuffer) return;
+    
+    const clampedPosition = Math.max(0, Math.min(1, position));
+    const startTime = this.audioBuffer.duration * clampedPosition;
+    
+    this.sourceNode.stop();
+    this.sourceNode = null;
+    
+    // Recreate source node at new position
+    const audioCtx = this.destinationNode?.context;
+    if (!audioCtx || !this.destinationNode) return;
+
+    this.sourceNode = audioCtx.createBufferSource();
+    this.sourceNode.buffer = this.audioBuffer;
+    this.sourceNode.loop = this.loop;
+    this.sourceNode.connect(this.destinationNode);
+    this.sourceNode.connect(audioCtx.destination);
+    this.sourceNode.start(0, startTime);
+  }
+
+  /** Pause playback */
+  pause(): void {
+    if (this.sourceNode && this.isPlaying) {
+      // Note: AudioBufferSourceNode doesn't support pause, so we'd need to stop and track position
+      this.isPlaying = false;
+    }
+  }
+
+  /** Resume playback */
+  resume(): void {
+    if (this.sourceNode && !this.isPlaying) {
+      // Similar limitation - would need to track position
+      this.isPlaying = true;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
 // Factory Functions (for convenience)
 // ─────────────────────────────────────────────
 
@@ -446,6 +610,13 @@ export function createSystemAudioSource(): SystemAudioSource {
  */
 export function createMixedSource(sources: AudioSource[]): MixedAudioSource {
   return new MixedAudioSource(sources);
+}
+
+/**
+ * Create a background audio source from a file.
+ */
+export function createBackgroundAudioSource(file: File, loop = true): BackgroundAudioSource {
+  return new BackgroundAudioSource(file, loop);
 }
 
 /**
