@@ -231,36 +231,6 @@ export function CreatorStreaming({
     };
   }, [isStreaming, connectionState]);
 
-  // Handle network recovery - check for active stream
-  useEffect(() => {
-    if (networkRecovered && isStreaming) {
-      const handleNetworkRecovery = async () => {
-        console.log('Network recovered, checking for active stream...');
-        try {
-          const activeStreams = await livestreamApi.getActiveStreams(50, 0);
-          const myStream = activeStreams.find(s => s.id === currentStream?.id);
-          
-          if (myStream) {
-            // Our stream is still active - update existing stream
-            console.log('Our stream is still active');
-            setExistingActiveStream(myStream);
-            setNetworkRecovered(false);
-          } else {
-            // Stream may have ended while offline
-            console.log('Stream may have ended while offline');
-            setIsStreaming(false);
-            setCurrentStream(null);
-            setConnectionState('idle');
-          }
-        } catch (err) {
-          console.error('Failed to check active stream after network recovery:', err);
-        }
-      };
-
-      handleNetworkRecovery();
-    }
-  }, [networkRecovered, isStreaming, currentStream]);
-
   // Check for active streams on mount
   useEffect(() => {
     checkForActiveStream();
@@ -706,6 +676,78 @@ export function CreatorStreaming({
         return { icon: Signal, color: 'text-slate-400', label: 'Offline' };
     }
   };
+
+  // Handle network recovery - check for active stream and auto-reconnect
+  useEffect(() => {
+    if (networkRecovered && isStreaming) {
+      const handleNetworkRecovery = async () => {
+        console.log('Network recovered, checking for active stream...');
+        try {
+          const activeStreams = await livestreamApi.getActiveStreams(50, 0);
+          const myStream = activeStreams.find(s => s.id === currentStream?.id);
+          
+          if (myStream) {
+            // Our stream is still active - trigger reconnection
+            console.log('Our stream is still active, attempting reconnection...');
+            setExistingActiveStream(myStream);
+            setNetworkRecovered(false);
+            // Auto-reconnect after a brief delay
+            setTimeout(() => {
+              handleReconnectToStream();
+            }, 1000);
+          } else {
+            // Stream may have ended while offline
+            console.log('Stream may have ended while offline');
+            setIsStreaming(false);
+            setCurrentStream(null);
+            setConnectionState('idle');
+          }
+        } catch (err) {
+          console.error('Failed to check active stream after network recovery:', err);
+        }
+      };
+
+      handleNetworkRecovery();
+    }
+  }, [networkRecovered, isStreaming, currentStream]);
+
+  // Auto-reconnect when connection fails during streaming
+  useEffect(() => {
+    // Only attempt reconnection if:
+    // 1. We are currently streaming (isStreaming = true)
+    // 2. The connection state is 'failed'
+    // 3. We have a current stream
+    if (isStreaming && connectionState === 'failed' && currentStream) {
+      console.log('Connection failed during streaming, attempting auto-reconnection...');
+      
+      // Attempt reconnection after a short delay to allow network to stabilize
+      const reconnectTimeout = setTimeout(async () => {
+        try {
+          // Check if the stream is still active on the server
+          const activeStreams = await livestreamApi.getActiveStreams(50, 0);
+          const myStream = activeStreams.find(s => s.id === currentStream?.id);
+          
+          if (myStream) {
+            console.log('Stream still active on server, reconnecting...');
+            setExistingActiveStream(myStream);
+            handleReconnectToStream();
+          } else {
+            console.log('Stream no longer active on server, stopping');
+            setIsStreaming(false);
+            setCurrentStream(null);
+            setConnectionState('idle');
+            teardownPublish();
+          }
+        } catch (err) {
+          console.error('Failed to check stream status for reconnection:', err);
+          // Try to reconnect anyway - the server might still have the stream
+          handleReconnectToStream();
+        }
+      }, 2000); // Wait 2 seconds before attempting reconnection
+
+      return () => clearTimeout(reconnectTimeout);
+    }
+  }, [connectionState, isStreaming, currentStream]);
 
   // Cleanup on unmount
   useEffect(() => {

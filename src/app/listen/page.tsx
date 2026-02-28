@@ -77,6 +77,12 @@ export default function ListenPage() {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  
+  // Auto-reconnection state
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 5;
+  const reconnectIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Recording state — only track WHICH recording is selected.
   // RecordingPlayer owns all audio lifecycle for recordings.
@@ -254,9 +260,23 @@ export default function ListenPage() {
         }
       };
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'connected') { setIsConnecting(false); setIsPlaying(true); }
+        if (pc.connectionState === 'connected') {
+          setIsConnecting(false);
+          setIsPlaying(true);
+          setIsReconnecting(false);
+          reconnectAttemptsRef.current = 0;
+          // Stop any polling interval
+          if (reconnectIntervalRef.current) {
+            clearInterval(reconnectIntervalRef.current);
+            reconnectIntervalRef.current = null;
+          }
+        }
         else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-          setIsConnecting(false); setIsPlaying(false); setConnectionError('Connection failed. Please try again.');
+          setIsConnecting(false);
+          setIsPlaying(false);
+          setConnectionError('Connection failed. Attempting to reconnect...');
+          // Start polling to check if stream resumed
+          startPollingReconnection(stream);
         }
       };
       const offer = await pc.createOffer();
@@ -308,6 +328,71 @@ export default function ListenPage() {
     const audio = (window as any).__audioEl as HTMLAudioElement | undefined;
     if (audio) { audio.muted = !isMuted; setIsMuted(!isMuted); }
   }, [isMuted]);
+
+  // Polling reconnection function - checks every 10 seconds if stream has resumed
+  const startPollingReconnection = useCallback((stream: ActiveStreamItem) => {
+    // Don't start multiple polling intervals
+    if (reconnectIntervalRef.current) {
+      return;
+    }
+    
+    setIsReconnecting(true);
+    reconnectAttemptsRef.current = 0;
+    
+    console.log('Starting polling reconnection...');
+    
+    reconnectIntervalRef.current = setInterval(async () => {
+      // Stop after max attempts
+      if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+        console.log('Max reconnection attempts reached');
+        if (reconnectIntervalRef.current) {
+          clearInterval(reconnectIntervalRef.current);
+          reconnectIntervalRef.current = null;
+        }
+        setIsReconnecting(false);
+        setConnectionError('Unable to reconnect after multiple attempts. Please try again manually.');
+        return;
+      }
+      
+      reconnectAttemptsRef.current++;
+      console.log(`Reconnection attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts}`);
+      
+      try {
+        // Check if stream is still live
+        const response = await livestreamApi.getActiveLivestreams(50, 0);
+        const streamsArray = (response as ActiveStreamsResponse)?.streams || [];
+        const streamStillLive = streamsArray.find(s => s.id === stream.id && s.is_live);
+        
+        if (streamStillLive) {
+          console.log('Stream is live again, attempting to reconnect...');
+          
+          // Stop polling
+          if (reconnectIntervalRef.current) {
+            clearInterval(reconnectIntervalRef.current);
+            reconnectIntervalRef.current = null;
+          }
+          
+          // Attempt to reconnect
+          stopLivePlayback();
+          await connectToStream(streamStillLive);
+        } else {
+          console.log('Stream not yet live, will retry in 10 seconds...');
+          setConnectionError(`Stream unavailable. Retrying... (${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+        }
+      } catch (err) {
+        console.error('Polling reconnection error:', err);
+        setConnectionError(`Reconnection failed. Retrying... (${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+      }
+    }, 10000); // Poll every 10 seconds
+    
+    // Cleanup on unmount
+    return () => {
+      if (reconnectIntervalRef.current) {
+        clearInterval(reconnectIntervalRef.current);
+        reconnectIntervalRef.current = null;
+      }
+    };
+  }, [connectToStream, stopLivePlayback]);
   
   const handleStreamSelect = useCallback((stream: ActiveStreamItem) => {
     if (currentStream?.id === stream.id) { toggleLivePlayPause(); return; }
@@ -336,8 +421,24 @@ export default function ListenPage() {
   
   // Cleanup live stream on unmount
   useEffect(() => {
-    return () => { stopLivePlayback(); };
+    return () => {
+      stopLivePlayback();
+      // Cleanup polling interval
+      if (reconnectIntervalRef.current) {
+        clearInterval(reconnectIntervalRef.current);
+        reconnectIntervalRef.current = null;
+      }
+    };
   }, [stopLivePlayback]);
+
+  // Cleanup polling when stream is manually stopped
+  useEffect(() => {
+    if (!currentStream && reconnectIntervalRef.current) {
+      clearInterval(reconnectIntervalRef.current);
+      reconnectIntervalRef.current = null;
+      setIsReconnecting(false);
+    }
+  }, [currentStream]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
