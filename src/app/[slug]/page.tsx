@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import {
-  Radio, Users, Play, X, ChevronRight, Headphones, Eye, History,
+  Radio, Users, Play, X, ChevronRight, Headphones, Eye, History, EyeIcon,
   Pause, Volume2, VolumeX, Minimize2, Maximize2, Wifi, WifiOff,
   Activity, Zap, ChevronDown, ChevronUp, Clock, BarChart2, Signal,
   ArrowLeft, Share2, Heart, Bell, Disc3
@@ -15,7 +15,7 @@ import { StreamCard } from '@/components/streaming/stream-card';
 import { AudioPlayer } from '@/components/streaming/audio-player';
 import { LiveChat } from '@/components/streaming/live-chat';
 import { livestreamApi, type CompanyLivePageResponse } from '@/lib/api/livestream';
-import { recordingsApi } from '@/lib/api/recordings';
+import { recordingsApi, type RecordingStatsResponse } from '@/lib/api/recordings';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import type { VolLivestreamOut, VolRecordingOut } from '@/types/livestream';
 import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
@@ -771,7 +771,21 @@ export default function CompanyPage() {
     setIsRecordingsLoading(true);
     try {
       const recs = await recordingsApi.getRecordingsByCompany(slug, 50, 0);
-      setRecordings(recs);
+      
+      // Fetch replay count stats for each recording
+      const recordingsWithStats = await Promise.all(
+        recs.map(async (recording) => {
+          try {
+            const stats: RecordingStatsResponse = await recordingsApi.getRecordingStats(recording.id);
+            return { ...recording, replay_count: stats.replay_count };
+          } catch (err) {
+            console.error(`Failed to fetch stats for recording ${recording.id}:`, err);
+            return { ...recording, replay_count: 0 };
+          }
+        })
+      );
+      
+      setRecordings(recordingsWithStats);
     } catch (err) {
       console.error('Failed to fetch recordings:', err);
       setRecordings([]);
@@ -1189,9 +1203,17 @@ export default function CompanyPage() {
                                 )}
                                 <div className="flex items-center justify-between text-xs text-slate-500">
                                   <span>{new Date(recording.created_at).toLocaleDateString()}</span>
-                                  {recording.duration_seconds && (
-                                    <span>{Math.floor(recording.duration_seconds / 60)}:{(recording.duration_seconds % 60).toString().padStart(2, '0')}</span>
-                                  )}
+                                  <div className="flex items-center gap-3">
+                                    {recording.replay_count !== undefined && recording.replay_count > 0 && (
+                                      <span className="flex items-center gap-1 text-amber-400/70">
+                                        <Users className="w-3 h-3" />
+                                        {recording.replay_count.toLocaleString()}
+                                      </span>
+                                    )}
+                                    {recording.duration_seconds && (
+                                      <span>{Math.floor(recording.duration_seconds / 60)}:{(recording.duration_seconds % 60).toString().padStart(2, '0')}</span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <div className="w-14 h-14 bg-amber-500 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/30 transform scale-0 group-hover:scale-100 transition-transform duration-300">

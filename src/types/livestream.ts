@@ -117,6 +117,7 @@ export interface VolRecordingOut {
   is_processed: boolean;
   thumbnail_url: string | null;
   created_at: string;
+  replay_count?: number;
 }
 
 export interface VolRecordingWithReplayOut extends VolRecordingOut {
