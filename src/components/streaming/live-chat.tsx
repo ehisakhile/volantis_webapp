@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, MessageCircle, User, LogIn, X, Loader2, Trash2, Edit2 } from 'lucide-react';
+import { Send, MessageCircle, User, LogIn, X, Loader2, Trash2, Edit2, Smile } from 'lucide-react';
+import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { chatApi } from '@/lib/api/chat';
@@ -17,9 +18,11 @@ export function LiveChat({ slug, isCreator = false }: LiveChatProps) {
   const { user, isAuthenticated } = useAuth();
   const [messages, setMessages] = useState<VolChatMessageOut[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Fetch messages
@@ -86,11 +89,33 @@ export function LiveChat({ slug, isCreator = false }: LiveChatProps) {
     }
   };
   
-  // Format timestamp
+// Format timestamp
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+  
+  // Handle emoji selection
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    setNewMessage((prev) => prev + emojiData.emoji);
+  };
+  
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showEmojiPicker]);
   
   // Not authenticated view
   if (!isAuthenticated) {
@@ -200,17 +225,46 @@ export function LiveChat({ slug, isCreator = false }: LiveChatProps) {
         <div ref={messagesEndRef} />
       </div>
       
-      {/* Message input */}
+{/* Message input */}
       <form onSubmit={handleSendMessage} className="p-3 border-t border-white/5">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Send a message..."
-            className="flex-1 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-sky-500 transition-colors"
-            disabled={isSending}
-          />
+        <div className="relative flex gap-2">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Send a message..."
+              className="w-full px-4 py-2 pr-10 rounded-full bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-sky-500 transition-colors"
+              disabled={isSending}
+            />
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-sky-400 transition-colors"
+              disabled={isSending}
+            >
+              <Smile className="w-5 h-5" />
+            </button>
+          </div>
+          
+          {/* Emoji Picker */}
+          {showEmojiPicker && (
+            <div
+              ref={emojiPickerRef}
+              className="absolute bottom-full right-0 mb-2 z-50"
+            >
+              <EmojiPicker
+                onEmojiClick={handleEmojiClick}
+                theme={Theme.DARK}
+                width={300}
+                height={400}
+                previewConfig={{ showPreview: false }}
+                skinTonesDisabled
+                searchDisabled={false}
+              />
+            </div>
+          )}
+          
           <button
             type="submit"
             disabled={!newMessage.trim() || isSending}

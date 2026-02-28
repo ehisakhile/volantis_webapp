@@ -180,8 +180,11 @@ export function CreatorStreaming({
     },
   });
   
-  // State for upload success modal
+  // State for upload success modal (when recording was used)
   const [showUploadSuccessModal, setShowUploadSuccessModal] = useState(false);
+  
+  // State for stream ended success modal (when no recording was used)
+  const [showStreamEndedModal, setShowStreamEndedModal] = useState(false);
   
   // Load microphone devices on mount and when showing picker
   useEffect(() => {
@@ -641,6 +644,9 @@ export function CreatorStreaming({
 
   // Handle stop streaming
   const handleStopStream = useCallback(async () => {
+    // Check if recording was enabled before stopping
+    const didRecord = recorder.state.wantsToRecord === true;
+    
     // Stop recording if it's running (this will auto-download)
     if (recorder.state.isRecording) {
       recorder.stopRecording();
@@ -669,8 +675,15 @@ export function CreatorStreaming({
     setCodec('—');
     setConnectionState('idle');
     
-    // Check for any remaining active streams after stopping
-    checkForActiveStream();
+    // If no recording was used, show success modal and redirect to dashboard
+    // No need to check for active streams or show resume option
+    if (!didRecord) {
+      setShowStreamEndedModal(true);
+    } else {
+      // If recording was used, check for any remaining active streams
+      // The upload success modal will be shown after auto-upload completes
+      checkForActiveStream();
+    }
     
     onStreamStopped?.();
   }, [currentStream, teardownPublish, onStreamStopped, recorder, checkForActiveStream]);
@@ -921,6 +934,36 @@ export function CreatorStreaming({
                 <button
                   onClick={() => {
                     setShowUploadSuccessModal(false);
+                    router.push('/dashboard');
+                  }}
+                  className="px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl transition-colors"
+                >
+                  Go to Dashboard
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+        
+        {/* Stream Ended Success Modal (when no recording was used) */}
+        {showStreamEndedModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl text-center"
+            >
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Stream Ended Successfully</h2>
+              <p className="text-slate-300 mb-6">
+                Your live stream has ended. Thank you for broadcasting!
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => {
+                    setShowStreamEndedModal(false);
                     router.push('/dashboard');
                   }}
                   className="px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl transition-colors"
