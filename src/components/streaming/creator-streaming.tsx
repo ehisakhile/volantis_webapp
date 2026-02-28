@@ -24,11 +24,15 @@ import {
   Image,
   X,
   Upload,
-  CheckCircle
+  CheckCircle,
+  MessageCircle,
+  Send,
+  Reply
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { livestreamApi } from '@/lib/api/livestream';
+import { chatApi } from '@/lib/api/chat';
 import {
   ICE_CONFIG,
   startVisualizer,
@@ -45,6 +49,7 @@ import {
 import { MixerEngine, createMixerEngine, captureMicSource, captureSystemSource, type ChannelType } from '@/lib/mixer-engine';
 import { CreatorMixer } from './creator-mixer';
 import type { VolLivestreamOut } from '@/types/livestream';
+import type { VolChatMessageOut } from '@/types/chat';
 import { useStreamRecorder } from '@/hooks/useStreamRecorder';
 import { RecordingPrompt, RecordingStatus } from './recording-prompt';
 import { CreatorNotStreamingModal } from './creator-not-streaming-modal';
@@ -122,6 +127,14 @@ export function CreatorStreaming({
   const [codec, setCodec] = useState<string>('—');
   const [bitrate, setBitrate] = useState<string>('—');
   const [iceState, setIceState] = useState<string>('—');
+  
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<VolChatMessageOut[]>([]);
+  const [chatMessageInput, setChatMessageInput] = useState('');
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<VolChatMessageOut | null>(null);
+  const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
+  const chatPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // Refs for WebRTC and streams
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -687,6 +700,66 @@ export function CreatorStreaming({
         return { icon: Signal, color: 'text-slate-400', label: 'Offline' };
     }
   };
+
+  // Fetch chat messages
+  const fetchChatMessages = useCallback(async () => {
+    if (!currentStream?.slug) return;
+    try {
+      const messages = await chatApi.getMessages(currentStream.slug, 1, 50);
+      setChatMessages(messages);
+    } catch (err) {
+      console.error('Failed to fetch chat messages:', err);
+    }
+  }, [currentStream?.slug]);
+
+  // Send chat message
+  const handleSendChatMessage = useCallback(async () => {
+    if (!chatMessageInput.trim() || !currentStream?.slug) return;
+    
+    setIsSendingChat(true);
+    try {
+      await chatApi.sendMessage(currentStream.slug, chatMessageInput.trim());
+      setChatMessageInput('');
+      setReplyingTo(null);
+      await fetchChatMessages();
+    } catch (err) {
+      console.error('Failed to send chat message:', err);
+    } finally {
+      setIsSendingChat(false);
+    }
+  }, [chatMessageInput, currentStream?.slug, fetchChatMessages]);
+
+  // Reply to message
+  const handleReplyToMessage = useCallback((message: VolChatMessageOut) => {
+    setReplyingTo(message);
+  }, []);
+
+  // Start polling chat messages when streaming
+  useEffect(() => {
+    if (isStreaming && currentStream?.slug) {
+      fetchChatMessages();
+      chatPollIntervalRef.current = setInterval(fetchChatMessages, 5000);
+    } else {
+      if (chatPollIntervalRef.current) {
+        clearInterval(chatPollIntervalRef.current);
+        chatPollIntervalRef.current = null;
+      }
+      setChatMessages([]);
+    }
+    
+    return () => {
+      if (chatPollIntervalRef.current) {
+        clearInterval(chatPollIntervalRef.current);
+      }
+    };
+  }, [isStreaming, currentStream?.slug, fetchChatMessages]);
+
+  // Auto-scroll to bottom of chat when messages change
+  useEffect(() => {
+    if (chatMessagesEndRef.current) {
+      chatMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages]);
 
   // Handle network recovery - check for active stream and auto-reconnect
   useEffect(() => {
@@ -1304,6 +1377,87 @@ export function CreatorStreaming({
                 {streamDescription && (
                   <p className="text-slate-400 text-sm">{streamDescription}</p>
                 )}
+              </div>
+            )}
+            
+            {/* Chat Panel */}
+            {isStreaming && (
+              <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
+                <div className="flex items-center gap-2 mb-4">
+                  <MessageCircle className="w-5 h-5 text-sky-500" />
+                  <h3 className="text-lg font-semibold">Live Chat</h3>
+                  <span className="text-xs text-slate-500 ml-auto">{chatMessages.length} messages</span>
+                </div>
+                
+                {/* Messages List */}
+                <div className="bg-slate-950 rounded-lg p-3 mb-3 max-h-64 overflow-y-auto space-y-2">
+                  {chatMessages.length === 0 ? (
+                    <p className="text-slate-500 text-sm text-center py-4">No messages yet</p>
+                  ) : (
+                    chatMessages.map((msg) => (
+                      <div key={msg.id} className="text-sm">
+                        <div className="flex items-start gap-2">
+                          <span className="font-semibold text-sky-400">{msg.username}:</span>
+                          <span className="text-slate-200 flex-1">{msg.content}</span>
+                          <button
+                            onClick={() => handleReplyToMessage(msg)}
+                            className="text-slate-500 hover:text-sky-400 p-1"
+                            title="Reply"
+                          >
+                            <Reply className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <span className="text-xs text-slate-600 ml-2">
+                          {new Date(msg.created_at).toLocaleTimeString()}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                  <div ref={chatMessagesEndRef} />
+                </div>
+                
+                {/* Reply indicator */}
+                {replyingTo && (
+                  <div className="flex items-center gap-2 mb-2 text-sm text-slate-400 bg-slate-800 rounded px-2 py-1">
+                    <Reply className="w-3 h-3" />
+                    <span>Replying to {replyingTo.username}</span>
+                    <button
+                      onClick={() => setReplyingTo(null)}
+                      className="ml-auto text-slate-500 hover:text-white"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+                
+                {/* Message Input */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={chatMessageInput}
+                    onChange={(e) => setChatMessageInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendChatMessage();
+                      }
+                    }}
+                    placeholder={replyingTo ? `Reply to ${replyingTo.username}...` : "Send a message..."}
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                  <Button
+                    onClick={handleSendChatMessage}
+                    disabled={!chatMessageInput.trim() || isSendingChat}
+                    size="sm"
+                    className="bg-sky-500 hover:bg-sky-600"
+                  >
+                    {isSendingChat ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
           </div>

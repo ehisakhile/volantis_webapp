@@ -2,7 +2,7 @@
 // Handles real-time viewer count connections to the livestream
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-dev.volantislive.com';
-const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'wss');
+const WS_BASE_URL = API_BASE_URL.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
 
 export interface ViewerJoinedData {
   viewer_id: number;

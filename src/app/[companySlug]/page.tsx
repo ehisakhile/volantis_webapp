@@ -24,6 +24,7 @@ import { RecordingPlayer } from '@/components/streaming/recording-player';
 import type { VolCompanyResponse } from '@/types/company';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
+import { useViewerCount } from '@/lib/api/useViewerCount';
 
 /* ─────────────────────── Waveform Visualizer ─────────────────────── */
 function AudioVisualizer({ isActive, color = '#38bdf8' }: { isActive: boolean; color?: string }) {
@@ -107,12 +108,16 @@ function StreamTile({
 }: {
   stream: VolLivestreamOut;
   variant: 'live' | 'recording';
-  onClick: () => void;
+  onClick?: () => void;
   isActive?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const colors = ['from-sky-600 to-indigo-700', 'from-violet-600 to-fuchsia-700', 'from-emerald-600 to-cyan-700', 'from-orange-600 to-rose-700'];
   const grad = colors[stream.id % colors.length];
+
+  const handleClick = () => {
+    if (onClick) onClick();
+  };
 
   return (
     <motion.div
@@ -120,7 +125,7 @@ function StreamTile({
       whileTap={{ scale: 0.98 }}
       onHoverStart={() => setHovered(true)}
       onHoverEnd={() => setHovered(false)}
-      onClick={onClick}
+      onClick={handleClick}
       className={`relative cursor-pointer rounded-2xl overflow-hidden border transition-all duration-300 ${
         isActive
           ? 'border-sky-400/60 shadow-[0_0_30px_rgba(56,189,248,0.25)]'
@@ -322,6 +327,7 @@ function FullPlayer({
   onRetry,
   onVolumeChange,
   streamSlug,
+  viewerCount,
 }: {
   stream: VolLivestreamOut;
   company: VolCompanyResponse | null;
@@ -334,6 +340,7 @@ function FullPlayer({
   onRetry: () => void;
   onVolumeChange?: (volume: number) => void;
   streamSlug?: string;
+  viewerCount?: number;
 }) {
   const [muted, setMuted] = useState(false);
   const [liked, setLiked] = useState(false);
@@ -461,7 +468,7 @@ function FullPlayer({
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
                 <div className="flex items-center gap-1.5 text-slate-400 text-xs">
                   <Eye className="w-3.5 h-3.5 text-sky-400" />
-                  <span className="text-white font-semibold">{stream.viewer_count.toLocaleString()}</span>
+                  <span className="text-white font-semibold">{(viewerCount !== undefined ? viewerCount : stream.viewer_count).toLocaleString()}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-slate-400 text-xs">
                   <Signal className="w-3.5 h-3.5 text-emerald-400" />
@@ -581,7 +588,7 @@ function FullPlayer({
                   <div className="pt-4 border-t border-white/5 grid grid-cols-3 gap-3">
                     {[
                       { label: 'Connection', value: connectionState, icon: Wifi },
-                      { label: 'Viewers', value: stream.viewer_count.toLocaleString(), icon: Users },
+                      { label: 'Viewers', value: (viewerCount !== undefined ? viewerCount : stream.viewer_count).toLocaleString(), icon: Users },
                       { label: 'Peak', value: (stream.peak_viewers ?? 0).toLocaleString(), icon: Activity },
                     ].map(({ label, value, icon: Icon }) => (
                       <div key={label} className="rounded-xl p-3 text-center"
@@ -625,7 +632,7 @@ function FullPlayer({
 /* ─────────────────────────────── PAGE ─────────────────────────────── */
 export default function CompanyPage() {
   const params = useParams();
-  const slug = params?.slug as string;
+  const slug = params?.companySlug as string;
 
   const [company, setCompany] = useState<VolCompanyResponse | null>(null);
   const [currentStream, setCurrentStream] = useState<VolLivestreamOut | null>(null);
@@ -670,6 +677,14 @@ export default function CompanyPage() {
     retryConnection,
     audioStats,
   } = useWebRTC();
+
+  // Real-time viewer count (only enabled when there's a current stream)
+  const { viewerCount: realtimeViewerCount, isConnected: isViewerWsConnected } = useViewerCount({
+    slug: currentStream?.slug || '',
+    companyId: company?.id || 0,
+    enabled: !!currentStream?.slug && !!company?.id,
+    pollingInterval: 10000,
+  });
   
   // Audio element ref for playback
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -1216,12 +1231,17 @@ export default function CompanyPage() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 + i * 0.07 }}
                       >
-                        <StreamTile
-                          stream={stream}
-                          variant="live"
-                          onClick={() => handlePlayStream(stream)}
-                          isActive={isPlaying && currentStream?.id === stream.id}
-                        />
+                        <Link
+                          href={`/${company?.slug || slug}/${stream.slug}`}
+                          className="block"
+                        >
+                          <StreamTile
+                            stream={stream}
+                            variant="live"
+                            // No onClick - the Link handles navigation
+                            isActive={isPlaying && currentStream?.id === stream.id}
+                          />
+                        </Link>
                       </motion.div>
                     ))}
                   </div>
@@ -1456,6 +1476,7 @@ export default function CompanyPage() {
             onRetry={retryConnection}
             onVolumeChange={updateVolume}
             streamSlug={currentStream.slug}
+            viewerCount={realtimeViewerCount}
           />
         )}
 
