@@ -29,15 +29,17 @@ import { cn } from '@/lib/utils';
 import { livestreamApi } from '@/lib/api/livestream';
 import {
   ICE_CONFIG,
-  captureMicrophone,
-  captureSystemAudio,
-  mixAudioStreams,
   startVisualizer,
   waitForIce,
   preferOpus,
   detectAudioCodec,
   getAudioInputDevices,
 } from '@/lib/webrtc-utils';
+import {
+  AudioSourceManager,
+  createAudioSourceManager,
+  type AudioSourceState,
+} from '@/lib/audio-sources';
 import type { VolLivestreamOut } from '@/types/livestream';
 import { useStreamRecorder } from '@/hooks/useStreamRecorder';
 import { RecordingPrompt, RecordingStatus } from './recording-prompt';
@@ -119,10 +121,22 @@ export function CreatorStreaming({
   // Refs for WebRTC and streams
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const pubStreamRef = useRef<MediaStream | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const systemStreamRef = useRef<MediaStream | null>(null);
   const stopVizRef = useRef<(() => void) | null>(null);
   const statsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Audio Source Manager - handles audio source selection and lifecycle
+  const audioSourceManagerRef = useRef<AudioSourceManager | null>(null);
+  
+  // Initialize audio source manager on mount
+  useEffect(() => {
+    audioSourceManagerRef.current = createAudioSourceManager();
+    return () => {
+      // Cleanup on unmount
+      if (audioSourceManagerRef.current) {
+        audioSourceManagerRef.current.stopAll();
+      }
+    };
+  }, []);
    
   // Visualizer canvas ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -254,14 +268,14 @@ export function CreatorStreaming({
       return;
     }
 
-    // Validate audio source selection
-    if (!useMic && !useSystemAudio) {
-      setError('Select at least one audio source');
-      return;
+    // Validate audio source selection using AudioSourceManager
+    if (!audioSourceManagerRef.current) {
+      audioSourceManagerRef.current = createAudioSourceManager();
     }
-
-    if (mixAudio && (!useMic || !useSystemAudio)) {
-      setError('Mix requires both Microphone and System Audio');
+    
+    const audioValidationError = audioSourceManagerRef.current.validate();
+    if (audioValidationError) {
+      setError(audioValidationError);
       return;
     }
 
@@ -291,39 +305,28 @@ export function CreatorStreaming({
         throw new Error('No publish URL returned from API');
       }
 
-      // Step 2: Capture audio based on selection (exactly like test_webrtc.html)
-      let pubStream: MediaStream;
-      
-      if (useMic && !useSystemAudio) {
-        // Microphone only
-        console.log('Requesting microphone with device:', selectedMicDevice || 'default');
-        pubStream = await captureMicrophone(selectedMicDevice || undefined);
-        console.log('Microphone acquired');
-      } else if (useSystemAudio && !useMic) {
-        // System audio only
-        console.log('Requesting system audio...');
-        pubStream = await captureSystemAudio();
-      } else if (useMic && useSystemAudio && mixAudio) {
-        // Mixed audio
-        console.log('Requesting microphone and system audio...');
-        const [mic, system] = await Promise.all([
-          captureMicrophone(selectedMicDevice || undefined),
-          captureSystemAudio()
-        ]);
-        micStreamRef.current = mic;
-        systemStreamRef.current = system;
-        
-        // Mix them together
-        pubStream = mixAudioStreams([micStreamRef.current, systemStreamRef.current]);
-        console.log('Audio streams mixed');
-      } else if (useMic && useSystemAudio && !mixAudio) {
-        // Both but not mixed - use system audio
-        console.log('Requesting system audio (both selected)...');
-        pubStream = await captureSystemAudio();
-      } else {
-        throw new Error('Invalid audio source configuration');
+      // Step 2: Capture audio using AudioSourceManager (modular approach)
+      if (!audioSourceManagerRef.current) {
+        throw new Error('Audio source manager not initialized');
       }
-
+      
+      // Validate configuration using the manager
+      const validationError = audioSourceManagerRef.current.validate();
+      if (validationError) {
+        setError(validationError);
+        setIsStarting(false);
+        return;
+      }
+      
+      // Set the selected mic device if any
+      if (selectedMicDevice) {
+        audioSourceManagerRef.current.setSelectedMicDevice(selectedMicDevice);
+      }
+      
+      const audioResult = await audioSourceManagerRef.current.capture();
+      const pubStream = audioResult.stream;
+      
+      // Store reference for cleanup
       pubStreamRef.current = pubStream;
 
       // Step 3: Start visualizer (like test_webrtc.html)
@@ -420,7 +423,7 @@ export function CreatorStreaming({
     } finally {
       setIsStarting(false);
     }
-  }, [streamTitle, streamDescription, thumbnail, useMic, useSystemAudio, mixAudio, selectedMicDevice, onStreamStarted, recorder]);
+  }, [streamTitle, streamDescription, thumbnail, selectedMicDevice, onStreamStarted, recorder]);
 
   // Stats tracking (like test_webrtc.html)
   const startPubStats = useCallback(() => {
@@ -446,32 +449,38 @@ export function CreatorStreaming({
     }, 1500);
   }, []);
 
-  // Teardown function (exactly like test_webrtc.html)
+  // Teardown function - now uses AudioSourceManager for cleanup
   const teardownPublish = useCallback(() => {
+    // Close WebRTC peer connection
     if (pcRef.current) {
       pcRef.current.close();
       pcRef.current = null;
     }
+    
+    // Stop the main publish stream
     if (pubStreamRef.current) {
       pubStreamRef.current.getTracks().forEach(t => t.stop());
       pubStreamRef.current = null;
     }
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach(t => t.stop());
-      micStreamRef.current = null;
+    
+    // Use AudioSourceManager to stop all audio sources (handles mic, system, mixed)
+    if (audioSourceManagerRef.current) {
+      audioSourceManagerRef.current.stopAll();
     }
-    if (systemStreamRef.current) {
-      systemStreamRef.current.getTracks().forEach(t => t.stop());
-      systemStreamRef.current = null;
-    }
+    
+    // Stop visualizer
     if (stopVizRef.current) {
       stopVizRef.current();
       stopVizRef.current = null;
     }
+    
+    // Clear stats timer
     if (statsTimerRef.current) {
       clearInterval(statsTimerRef.current);
       statsTimerRef.current = null;
     }
+    
+    // Reset stats displays
     setBitrate('—');
     setIceState('—');
   }, []);
@@ -495,27 +504,27 @@ export function CreatorStreaming({
 
       setCurrentStream(streamData);
 
-      // Capture audio based on selection
-      let pubStream: MediaStream;
-      
-      if (useMic && !useSystemAudio) {
-        pubStream = await captureMicrophone(selectedMicDevice || undefined);
-      } else if (useSystemAudio && !useMic) {
-        pubStream = await captureSystemAudio();
-      } else if (useMic && useSystemAudio && mixAudio) {
-        const [mic, system] = await Promise.all([
-          captureMicrophone(selectedMicDevice || undefined),
-          captureSystemAudio()
-        ]);
-        micStreamRef.current = mic;
-        systemStreamRef.current = system;
-        pubStream = mixAudioStreams([micStreamRef.current, systemStreamRef.current]);
-      } else if (useMic && useSystemAudio && !mixAudio) {
-        pubStream = await captureSystemAudio();
-      } else {
-        throw new Error('Select at least one audio source');
+      // Capture audio using AudioSourceManager (modular approach)
+      if (!audioSourceManagerRef.current) {
+        audioSourceManagerRef.current = createAudioSourceManager();
       }
-
+      
+      const audioValidationError = audioSourceManagerRef.current.validate();
+      if (audioValidationError) {
+        setError(audioValidationError);
+        setIsStarting(false);
+        setConnectionState('idle');
+        return;
+      }
+      
+      // Set the selected mic device if any
+      if (selectedMicDevice) {
+        audioSourceManagerRef.current.setSelectedMicDevice(selectedMicDevice);
+      }
+      
+      const audioResult = await audioSourceManagerRef.current.capture();
+      const pubStream = audioResult.stream;
+      
       pubStreamRef.current = pubStream;
 
       // Start visualizer
@@ -603,7 +612,7 @@ export function CreatorStreaming({
     } finally {
       setIsStarting(false);
     }
-  }, [existingActiveStream, useMic, useSystemAudio, mixAudio, selectedMicDevice, onStreamStarted, teardownPublish, startPubStats]);
+  }, [existingActiveStream, selectedMicDevice, onStreamStarted, teardownPublish, startPubStats]);
 
   // Handle starting a new stream (dismiss reconnect prompt)
   const handleStartNewStream = useCallback(() => {
@@ -762,7 +771,11 @@ export function CreatorStreaming({
                     checked={useMic}
                     onChange={(e) => {
                       setUseMic(e.target.checked);
-                      if (!e.target.checked) setMixAudio(false);
+                      audioSourceManagerRef.current?.setUseMic(e.target.checked);
+                      if (!e.target.checked) {
+                        setMixAudio(false);
+                        audioSourceManagerRef.current?.setMixAudio(false);
+                      }
                     }}
                     disabled={isStreaming || isStarting}
                     className="w-4 h-4 accent-sky-500"
@@ -797,6 +810,7 @@ export function CreatorStreaming({
                               type="button"
                               onClick={() => {
                                 setSelectedMicDevice(device.deviceId);
+                                audioSourceManagerRef.current?.setSelectedMicDevice(device.deviceId);
                                 setShowMicPicker(false);
                               }}
                               className={cn(
@@ -819,7 +833,11 @@ export function CreatorStreaming({
                     checked={useSystemAudio}
                     onChange={(e) => {
                       setUseSystemAudio(e.target.checked);
-                      if (!e.target.checked) setMixAudio(false);
+                      audioSourceManagerRef.current?.setUseSystemAudio(e.target.checked);
+                      if (!e.target.checked) {
+                        setMixAudio(false);
+                        audioSourceManagerRef.current?.setMixAudio(false);
+                      }
                     }}
                     disabled={isStreaming || isStarting}
                     className="w-4 h-4 accent-purple-500"
@@ -837,7 +855,10 @@ export function CreatorStreaming({
                   <input
                     type="checkbox"
                     checked={mixAudio}
-                    onChange={(e) => setMixAudio(e.target.checked)}
+                    onChange={(e) => {
+                      setMixAudio(e.target.checked);
+                      audioSourceManagerRef.current?.setMixAudio(e.target.checked);
+                    }}
                     disabled={!useMic || !useSystemAudio || isStreaming || isStarting}
                     className="w-4 h-4 accent-yellow-500"
                   />
