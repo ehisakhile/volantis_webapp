@@ -17,9 +17,10 @@ interface RecordingPromptProps {
   isOpen: boolean;
   onAccept: () => void;
   onDecline: () => void;
+  onAcceptWithAutoUpload?: () => void;
 }
 
-export function RecordingPrompt({ isOpen, onAccept, onDecline }: RecordingPromptProps) {
+export function RecordingPrompt({ isOpen, onAccept, onDecline, onAcceptWithAutoUpload }: RecordingPromptProps) {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -49,7 +50,7 @@ export function RecordingPrompt({ isOpen, onAccept, onDecline }: RecordingPrompt
             {/* Description */}
             <div className="space-y-3 mb-6">
               <p className="text-slate-300 text-sm">
-                Would you like to record your livestream? This allows you to:
+                Would you like to record your livestream? Choose an option below:
               </p>
               <ul className="space-y-2">
                 <li className="flex items-start gap-2 text-sm text-slate-300">
@@ -58,11 +59,7 @@ export function RecordingPrompt({ isOpen, onAccept, onDecline }: RecordingPrompt
                 </li>
                 <li className="flex items-start gap-2 text-sm text-slate-300">
                   <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Upload the recording for viewers to replay</span>
-                </li>
-                <li className="flex items-start gap-2 text-sm text-slate-300">
-                  <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Share your content with a wider audience</span>
+                  <span>Upload for viewers to replay on-demand</span>
                 </li>
               </ul>
             </div>
@@ -72,28 +69,42 @@ export function RecordingPrompt({ isOpen, onAccept, onDecline }: RecordingPrompt
               <div className="flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-blue-300">
-                  The recording captures the same audio being sent to your stream. 
                   Recording starts automatically when you go live and stops when you end the stream.
+                  The recording captures the same audio being sent to your audience.
                 </p>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3">
+            <div className="space-y-3">
+              {/* Auto-upload option - Primary */}
+              {onAcceptWithAutoUpload && (
+                <Button
+                  onClick={onAcceptWithAutoUpload}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Record & Auto-Upload (Recommended)
+                </Button>
+              )}
+              
+              {/* Save locally only option */}
+              <Button
+                onClick={onAccept}
+                className="w-full bg-red-500 hover:bg-red-600 text-white"
+              >
+                <HardDrive className="w-4 h-4 mr-2" />
+                Record & Save Locally Only
+              </Button>
+              
+              {/* Skip option */}
               <Button
                 variant="outline"
                 onClick={onDecline}
-                className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-800"
+                className="w-full border-slate-600 text-slate-300 hover:bg-slate-800"
               >
                 <X className="w-4 h-4 mr-2" />
-                Skip Recording
-              </Button>
-              <Button
-                onClick={onAccept}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white"
-              >
-                <CircleDot className="w-4 h-4 mr-2" />
-                Record Stream
+                Do not Record
               </Button>
             </div>
           </motion.div>
@@ -110,6 +121,7 @@ interface RecordingStatusProps {
   recordedFilename: string | null;
   isUploading: boolean;
   uploadProgress: number;
+  isUploaded: boolean;
   onDownload: () => void;
   onUpload: () => void;
   error: string | null;
@@ -122,6 +134,7 @@ export function RecordingStatus({
   recordedFilename,
   isUploading,
   uploadProgress,
+  isUploaded,
   onDownload,
   onUpload,
   error,
@@ -183,7 +196,7 @@ export function RecordingStatus({
       {isUploading && (
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Uploading...</span>
+            <span className="text-slate-400">Processing for replay...</span>
             <span className="text-slate-300">{uploadProgress}%</span>
           </div>
           <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
@@ -213,18 +226,18 @@ export function RecordingStatus({
             className="flex-1 bg-green-500 hover:bg-green-600 text-white"
           >
             <Upload className="w-4 h-4 mr-2" />
-            Upload to Server
+            Make Available for Replay
           </Button>
         </div>
       )}
 
-      {/* Upload Success */}
-      {!isUploading && !error && recordedBlob && (
+      {/* Upload Success - show when recording has been uploaded/made available for replay */}
+      {!isUploading && !error && isUploaded && (
         <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
           <div className="flex items-center gap-2 text-sm text-green-400">
-            <CheckCircle className="w-4 h-4" />
-            Recording Uploaded successfully, Your Audience can now listen the replay on your Audio Stream.
-          </div>
+          <CheckCircle className="w-4 h-4" />
+          Recording is now available for on-demand replay. Your audience can listen anytime.
+        </div>
         </div>
       )}
     </div>

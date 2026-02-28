@@ -3,3 +3,8 @@ export { authApi } from './auth';
 export { companyApi } from './company';
 export { livestreamApi } from './livestream';
 export { recordingsApi } from './recordings';
+export { chatApi } from './chat';
+export { subscriptionsApi } from './subscriptions';
+export { viewerWs, ViewerWebSocket } from './viewer-websocket';
+export { useViewerCount } from './useViewerCount';
+export { useRecordingStats } from './useRecordingStats';

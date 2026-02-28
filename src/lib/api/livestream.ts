@@ -133,10 +133,27 @@ export const livestreamApi = {
 
   /**
    * Upload a recording for an existing livestream
+   * @param slug - The stream slug
+   * @param file - The recording file
+   * @param description - Optional description for the recording
+   * @param durationSeconds - Duration of the recording in seconds
    */
-  async uploadRecording(slug: string, file: File): Promise<{ recording_url: string }> {
+  async uploadRecording(
+    slug: string,
+    file: File,
+    description?: string,
+    durationSeconds?: number
+  ): Promise<{ recording_url: string }> {
     const formData = new FormData();
     formData.append('recording', file);
+    
+    if (description) {
+      formData.append('description', description);
+    }
+    
+    if (durationSeconds !== undefined) {
+      formData.append('duration_seconds', durationSeconds.toString());
+    }
 
     const response = await apiClient.requestFormData<{ recording_url: string }>(
       `/livestreams/${encodeURIComponent(slug)}/upload-recording`,
@@ -206,6 +223,46 @@ export const livestreamApi = {
     );
     return response;
   },
+
+  /**
+   * Get realtime viewer count and stats for a livestream
+   * Public endpoint - no authentication required
+   * Use for SSR or polling fallback
+   */
+  async getRealtimeStats(slug: string): Promise<LivestreamRealtimeResponse> {
+    const response = await apiClient.request<LivestreamRealtimeResponse>(
+      `/stream/${encodeURIComponent(slug)}/realtime`,
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
+   * Get current viewer count for a livestream
+   * Public endpoint - no authentication required
+   */
+  async getViewerCount(slug: string, companyId: number): Promise<ViewerCountResponse> {
+    const response = await apiClient.request<ViewerCountResponse>(
+      `/livestream/${encodeURIComponent(slug)}/viewers/count?company_id=${companyId}`,
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
+   * Get list of current viewers for a livestream
+   * Public endpoint - no authentication required
+   */
+  async getViewers(
+    slug: string,
+    limit: number = 50
+  ): Promise<ViewersListResponse> {
+    const response = await apiClient.request<ViewersListResponse>(
+      `/livestream/${encodeURIComponent(slug)}/viewers?limit=${limit}`,
+      { method: 'GET' }
+    );
+    return response;
+  },
 };
 
 // ==================== Types for Public Endpoints ====================
@@ -256,6 +313,35 @@ export interface CompanyLivePageResponse {
   } | null;
   subscribers_count: number;
   message?: string;
+}
+
+export interface LivestreamRealtimeResponse {
+  slug: string;
+  is_active: boolean;
+  viewer_count: number;
+  peak_viewers: number;
+  total_views: number;
+  websocket_url: string;
+}
+
+export interface ViewerCountResponse {
+  slug: string;
+  viewer_count: number;
+  anonymous_viewers: number;
+  is_live: boolean;
+}
+
+export interface ViewersListResponse {
+  slug: string;
+  viewers: AnonymousViewer[];
+  total: number;
+}
+
+export interface AnonymousViewer {
+  id: number;
+  name: string;
+  joined_at: string;
+  watch_duration: number | null;
 }
 
 export default livestreamApi;

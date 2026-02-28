@@ -10,6 +10,8 @@ export interface StreamRecorderOptions {
   onUploadComplete?: (recordingUrl: string) => void;
   /** Callback when upload fails */
   onUploadError?: (error: Error) => void;
+  /** Callback when auto-upload completes - used to navigate after success */
+  onAutoUploadComplete?: (recordingUrl: string) => void;
 }
 
 export interface StreamRecorderState {
@@ -31,14 +33,20 @@ export interface StreamRecorderState {
   error: string | null;
   /** Slug of the stream being recorded */
   streamSlug: string | null;
+  /** Whether auto-upload is enabled (recording will be uploaded automatically after stream ends) */
+  autoUpload: boolean;
+  /** Whether the recording has been uploaded/made available for replay */
+  isUploaded: boolean;
 }
 
 export interface StreamRecorderReturn {
   state: StreamRecorderState;
   /** Show recording prompt to user - call before starting stream */
   promptRecording: () => void;
-  /** User accepts recording */
+  /** User accepts recording - save locally only */
   acceptRecording: () => void;
+  /** User accepts recording with auto-upload */
+  acceptRecordingWithAutoUpload: () => void;
   /** User declines recording */
   declineRecording: () => void;
   /** Start recording with the provided media stream (audio being sent to WebRTC) */
@@ -69,7 +77,7 @@ export interface StreamRecorderReturn {
  * The recording captures the same audio that is being sent to the WebRTC stream.
  */
 export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRecorderReturn {
-  const { onRecordingReady, onUploadComplete, onUploadError } = options;
+  const { onRecordingReady, onUploadComplete, onUploadError, onAutoUploadComplete } = options;
 
   const [state, setState] = useState<StreamRecorderState>({
     wantsToRecord: null,
@@ -81,6 +89,8 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     uploadProgress: 0,
     error: null,
     streamSlug: null,
+    autoUpload: false,
+    isUploaded: false,
   });
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -89,6 +99,12 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const destNodeRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  
+  // Refs to store recording data for auto-upload (avoids async state issues)
+  const recordedBlobRef = useRef<Blob | null>(null);
+  const recordedFilenameRef = useRef<string | null>(null);
+  const streamTitleRef = useRef<string>('');
+  const streamSlugRef = useRef<string | null>(null);
 
   // Get supported MIME type for audio-only recording
   // Prefer MP4/M4A (AAC codec) over webm for better compatibility
@@ -112,6 +128,19 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     return 'audio/webm';
   }, []);
 
+  // Helper function to download a blob - defined before startRecording uses it
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    console.log('Recording downloaded:', filename);
+  };
+
   // Show recording prompt to user
   const promptRecording = useCallback(() => {
     setState(prev => ({
@@ -121,11 +150,21 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     }));
   }, []);
 
-  // User accepts recording
+  // User accepts recording - save locally only
   const acceptRecording = useCallback(() => {
     setState(prev => ({
       ...prev,
       wantsToRecord: true,
+      autoUpload: false,
+    }));
+  }, []);
+
+  // User accepts recording with auto-upload
+  const acceptRecordingWithAutoUpload = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      wantsToRecord: true,
+      autoUpload: true,
     }));
   }, []);
 
@@ -134,6 +173,7 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     setState(prev => ({
       ...prev,
       wantsToRecord: false,
+      autoUpload: false,
     }));
   }, []);
 
@@ -150,6 +190,10 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     }
 
     try {
+      // Store stream info in refs for auto-upload
+      streamSlugRef.current = streamSlug;
+      streamTitleRef.current = streamTitle;
+      
       // Create audio context to capture the stream audio
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
@@ -201,6 +245,10 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
         const safeTitle = streamTitle.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
         const filename = `recording_${safeTitle}_${timestamp}.${extension}`;
 
+        // Store in refs for auto-upload
+        recordedBlobRef.current = blob;
+        recordedFilenameRef.current = filename;
+
         setState(prev => ({
           ...prev,
           recordedBlob: blob,
@@ -211,8 +259,10 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
         // Notify callback
         onRecordingReady?.(blob, filename);
 
-        // Auto-download the recording
-        downloadBlob(blob, filename);
+        // Auto-download the recording (only if not auto-uploading)
+        if (!state.autoUpload) {
+          downloadBlob(blob, filename);
+        }
       };
 
       mediaRecorderRef.current = mediaRecorder;
@@ -247,17 +297,23 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
         wantsToRecord: false,
       }));
     }
-  }, [state.wantsToRecord, state.isRecording, getSupportedMimeType, onRecordingReady]);
+  }, [state.wantsToRecord, state.isRecording, state.autoUpload, getSupportedMimeType, onRecordingReady]);
 
   // Stop recording
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback(async () => {
     // Stop the timer
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
 
-    // Stop the media recorder
+    // Store autoUpload setting and recording data from refs (not state - state is async)
+    const shouldAutoUpload = state.autoUpload;
+    const currentStreamSlug = streamSlugRef.current;
+    const currentStreamTitle = streamTitleRef.current;
+
+    // Stop the media recorder - this will trigger the onstop handler
+    // which creates the blob and handles the rest
     if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
@@ -276,21 +332,64 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
       isRecording: false,
     }));
 
-    console.log('Recording stopped');
-  }, []);
+    console.log('Recording stopped, autoUpload:', shouldAutoUpload, 'slug:', currentStreamSlug);
 
-  // Helper function to download a blob
-  const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    console.log('Recording downloaded:', filename);
-  };
+    // If auto-upload is enabled and we have the stream slug and blob, upload
+    if (shouldAutoUpload && currentStreamSlug) {
+      // Wait for the blob to be created (onstop handler runs async)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Use refs for the blob and filename (these are populated in onstop handler)
+      const blob = recordedBlobRef.current;
+      const filename = recordedFilenameRef.current;
+      
+      if (blob && filename && currentStreamSlug) {
+        setState(prev => ({
+          ...prev,
+          isUploading: true,
+          uploadProgress: 0,
+        }));
+
+        try {
+          const blobType = blob.type || 'audio/mp4';
+          const file = new File([blob], filename, {
+            type: blobType,
+          });
+
+          // Pass description and duration to the API
+          const response = await livestreamApi.uploadRecording(
+            currentStreamSlug,
+            file,
+            `Recording of stream: ${currentStreamTitle}`,
+            state.recordingDuration
+          );
+
+          setState(prev => ({
+            ...prev,
+            isUploading: false,
+            uploadProgress: 100,
+            isUploaded: true,
+          }));
+
+          onUploadComplete?.(response.recording_url);
+          onAutoUploadComplete?.(response.recording_url);
+          console.log('Auto-upload completed:', response.recording_url);
+        } catch (err) {
+          console.error('Auto-upload failed:', err);
+          const error = err instanceof Error ? err : new Error('Failed to auto-upload recording');
+          setState(prev => ({
+            ...prev,
+            isUploading: false,
+            uploadProgress: 0,
+            error: error.message,
+          }));
+          onUploadError?.(error);
+        }
+      } else {
+        console.error('Auto-upload skipped: blob or filename not available', { blob: !!blob, filename: !!filename });
+      }
+    }
+  }, [state.autoUpload, state.recordingDuration, onUploadComplete, onUploadError, onAutoUploadComplete]);
 
   // Download the recording to local storage
   const downloadRecording = useCallback(() => {
@@ -386,6 +485,8 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
       uploadProgress: 0,
       error: null,
       streamSlug: null,
+      autoUpload: false,
+      isUploaded: false,
     });
   }, []);
 
@@ -396,6 +497,7 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     state,
     promptRecording,
     acceptRecording,
+    acceptRecordingWithAutoUpload,
     declineRecording,
     startRecording,
     stopRecording,

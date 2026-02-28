@@ -6,6 +6,20 @@ import type {
   RecordingWatchHistory
 } from '@/types/livestream';
 
+const DEBUG = process.env.NODE_ENV !== 'production';
+
+function debugLog(...args: any[]) {
+  if (DEBUG) {
+    console.log('[RecordingsAPI]', ...args);
+  }
+}
+
+function debugError(...args: any[]) {
+  if (DEBUG) {
+    console.error('[RecordingsAPI]', ...args);
+  }
+}
+
 export const recordingsApi = {
   /**
    * Get recordings for a company by slug (public endpoint).
@@ -62,10 +76,12 @@ export const recordingsApi = {
    * Requires authentication.
    */
   async getRecordingForPlayback(recordingId: number): Promise<VolRecordingWithReplayOut> {
+    debugLog(`[PLAYBACK] Fetching recording for playback, id: ${recordingId} (this will increment replay count)`);
     const response = await apiClient.request<VolRecordingWithReplayOut>(
       `/recordings/public/${recordingId}`,
       { method: 'GET' }
     );
+    debugLog(`[PLAYBACK] Recording loaded, replay_count: ${response.replay_count}`);
     return response;
   },
 
@@ -195,6 +211,28 @@ export const recordingsApi = {
     );
     return response;
   },
+
+  /**
+   * Get replay statistics for a recording.
+   * Public endpoint - no authentication required.
+   * Does NOT record a replay - use getRecordingForPlayback for that.
+   * Use this for UI display of replay counts.
+   */
+  async getRecordingStats(recordingId: number): Promise<RecordingStatsResponse> {
+    const response = await apiClient.request<RecordingStatsResponse>(
+      `/recordings/public/${recordingId}/stats`,
+      { method: 'GET' }
+    );
+    return response;
+  },
 };
+
+export interface RecordingStatsResponse {
+  recording_id: number;
+  replay_count: number;
+  unique_viewers: number;
+  average_watch_duration_seconds: number | null;
+  completion_rate: number | null;
+}
 
 export default recordingsApi;

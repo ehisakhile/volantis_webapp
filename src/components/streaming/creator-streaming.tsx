@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Mic,
@@ -22,7 +23,8 @@ import {
   Play,
   Image,
   X,
-  Upload
+  Upload,
+  CheckCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -81,10 +83,11 @@ export function CreatorStreaming({
   const [isStarting, setIsStarting] = useState(false);
   const [streamTitle, setStreamTitle] = useState('');
   const [streamDescription, setStreamDescription] = useState('');
+  const router = useRouter();
   const [thumbnail, setThumbnail] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [currentStream, setCurrentStream] = useState<VolLivestreamOut | null>(null);
-  
+   
   // Audio source selection (like test_webrtc.html)
   const [useMic, setUseMic] = useState(true);
   const [useSystemAudio, setUseSystemAudio] = useState(false);
@@ -157,7 +160,15 @@ export function CreatorStreaming({
     onUploadError: (error) => {
       console.error('Upload error:', error);
     },
+    onAutoUploadComplete: (recordingUrl) => {
+      console.log('Auto-upload completed, showing success modal and redirecting...');
+      // Show success modal and redirect to dashboard
+      setShowUploadSuccessModal(true);
+    },
   });
+  
+  // State for upload success modal
+  const [showUploadSuccessModal, setShowUploadSuccessModal] = useState(false);
   
   // Load microphone devices on mount and when showing picker
   useEffect(() => {
@@ -788,6 +799,7 @@ export function CreatorStreaming({
         <RecordingPrompt
           isOpen={recorder.shouldPromptRecording && !isStreaming}
           onAccept={recorder.acceptRecording}
+          onAcceptWithAutoUpload={recorder.acceptRecordingWithAutoUpload}
           onDecline={recorder.declineRecording}
         />
 
@@ -809,10 +821,41 @@ export function CreatorStreaming({
               recordedFilename={recorder.state.recordedFilename}
               isUploading={recorder.state.isUploading}
               uploadProgress={recorder.state.uploadProgress}
+              isUploaded={recorder.state.isUploaded}
               onDownload={recorder.downloadRecording}
               onUpload={recorder.uploadRecording}
               error={recorder.state.error}
             />
+          </div>
+        )}
+
+        {/* Upload Success Modal */}
+        {showUploadSuccessModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl text-center"
+            >
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Stream Ended</h2>
+              <p className="text-slate-300 mb-6">
+                Your recording has been uploaded and is now available for on-demand replay.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => {
+                    setShowUploadSuccessModal(false);
+                    router.push('/dashboard');
+                  }}
+                  className="px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl transition-colors"
+                >
+                  Go to Dashboard
+                </button>
+              </div>
+            </motion.div>
           </div>
         )}
         
