@@ -8,19 +8,22 @@ import {
   Radio, Users, Play, X, ChevronRight, Headphones, Eye, History, EyeIcon,
   Pause, Volume2, VolumeX, Minimize2, Maximize2, Wifi, WifiOff,
   Activity, Zap, ChevronDown, ChevronUp, Clock, BarChart2, Signal,
-  ArrowLeft, Share2, Heart, Bell, Disc3
+  ArrowLeft, Share2, Heart, Bell, BellPlus, Disc3, UserCheck
 } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar';
 import { StreamCard } from '@/components/streaming/stream-card';
 import { AudioPlayer } from '@/components/streaming/audio-player';
 import { LiveChat } from '@/components/streaming/live-chat';
-import { livestreamApi, type CompanyLivePageResponse } from '@/lib/api/livestream';
+import { livestreamApi, type CompanyLivePageResponse, type CompanyPageResponse } from '@/lib/api/livestream';
 import { recordingsApi, type RecordingStatsResponse } from '@/lib/api/recordings';
+import { subscriptionsApi } from '@/lib/api/subscriptions';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import type { VolLivestreamOut, VolRecordingOut } from '@/types/livestream';
 import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
 import { RecordingPlayer } from '@/components/streaming/recording-player';
 import type { VolCompanyResponse } from '@/types/company';
+import { useAuth } from '@/lib/auth-context';
+import { useRouter } from 'next/navigation';
 
 /* ─────────────────────── Waveform Visualizer ─────────────────────── */
 function AudioVisualizer({ isActive, color = '#38bdf8' }: { isActive: boolean; color?: string }) {
@@ -128,15 +131,24 @@ function StreamTile({
       {/* Top gradient bar */}
       <div className={`h-1 w-full bg-gradient-to-r ${grad}`} />
 
-      {/* Thumbnail area */}
-      <div className={`relative h-36 ${stream.thumbnail_url ? 'bg-cover bg-center' : `bg-gradient-to-br ${grad}`}`}
-        style={stream.thumbnail_url ? { backgroundImage: `url(${stream.thumbnail_url})`, opacity: 0.8 } : {}}
+      {/* Thumbnail area - priority: thumbnail_url > company_logo_url > gradient */}
+      <div
+        className={`relative h-36 bg-cover bg-center`}
+        style={{
+          backgroundImage: stream.thumbnail_url
+            ? `url(${stream.thumbnail_url})`
+            : stream.company_logo_url
+              ? `url(${stream.company_logo_url})`
+              : undefined,
+          backgroundColor: !stream.thumbnail_url && !stream.company_logo_url ? undefined : 'rgba(15,23,42,0.8)',
+          opacity: (stream.thumbnail_url || stream.company_logo_url) ? 0.6 : undefined,
+        }}
       >
-        {/* Gradient overlay when using thumbnail */}
-        {stream.thumbnail_url && (
+        {/* Gradient overlay when using thumbnail or logo */}
+        {(stream.thumbnail_url || stream.company_logo_url) && (
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent" />
         )}
-        {!stream.thumbnail_url && (
+        {!stream.thumbnail_url && !stream.company_logo_url && (
           <div className={`absolute inset-0 bg-gradient-to-br ${grad} opacity-20`} />
         )}
         <div className="absolute inset-0 flex items-center justify-center">
@@ -639,6 +651,17 @@ export default function CompanyPage() {
     streamTitle?: string;
   } | null>(null);
 
+  // Subscriber state
+  const [subscriberCount, setSubscriberCount] = useState<number>(0);
+  const [isSubscribed, setIsSubscribed] = useState<boolean>(false);
+  const [isSubscribing, setIsSubscribing] = useState<boolean>(false);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
+
+  // Auth and login modal state
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
   const {
     remoteStream,
     connectionState,
@@ -677,17 +700,36 @@ export default function CompanyPage() {
     setIsLoading(true);
     setStreamError(null);
     try {
-      const livePageData = await livestreamApi.getCompanyLivePage(slug) as CompanyLivePageResponse;
+      // Fetch company page data from the new endpoint
+      const companyPageData = await livestreamApi.getCompanyPage(slug) as CompanyPageResponse;
+      
+      // Set subscriber count and company logo from the new endpoint
+      setSubscriberCount(companyPageData.subscriber_count);
+      setCompanyLogoUrl(companyPageData.company.logo_url);
+      
+      // Set company data
       setCompany({
-        id: livePageData.company.id,
-        name: livePageData.company.name,
-        slug: livePageData.company.slug,
-        description: livePageData.company.description,
+        id: companyPageData.company.id,
+        name: companyPageData.company.name,
+        slug: companyPageData.company.slug,
+        description: companyPageData.company.description,
         email: '',
-        logo_url: livePageData.company.logo_url,
+        logo_url: companyPageData.company.logo_url,
         is_active: true,
         created_at: new Date().toISOString(),
       });
+      
+      // Try to check subscription status (may fail if not authenticated)
+      try {
+        const subStatus = await subscriptionsApi.checkSubscription(slug);
+        setIsSubscribed(subStatus.is_subscribed);
+      } catch (subErr) {
+        // User not authenticated, ignore
+        setIsSubscribed(false);
+      }
+
+      // Fetch live page data for stream details
+      const livePageData = await livestreamApi.getCompanyLivePage(slug) as CompanyLivePageResponse;
       setIsLoadingStreams(true);
       try {
         const allStreams = await livestreamApi.getCompanyStreams(slug, 50, 0, true);
@@ -867,6 +909,48 @@ export default function CompanyPage() {
     setCurrentRecording(null);
   }, []);
 
+  // Handle subscribe/unsubscribe
+  const handleSubscribe = useCallback(async () => {
+    if (!slug) return;
+    
+    // If not authenticated, show login modal
+    if (!isAuthenticated) {
+      setShowLoginModal(true);
+      return;
+    }
+    
+    // If already subscribed, unsubscribe; otherwise subscribe
+    if (isSubscribed) {
+      try {
+        await subscriptionsApi.unsubscribe(slug);
+        setIsSubscribed(false);
+        setSubscriberCount(prev => Math.max(0, prev - 1));
+      } catch (err) {
+        console.error('Failed to unsubscribe:', err);
+      }
+    } else {
+      try {
+        setIsSubscribing(true);
+        await subscriptionsApi.subscribe(slug);
+        setIsSubscribed(true);
+        setSubscriberCount(prev => prev + 1);
+      } catch (err) {
+        console.error('Failed to subscribe:', err);
+      } finally {
+        setIsSubscribing(false);
+      }
+    }
+  }, [slug, isSubscribed, isAuthenticated]);
+
+  // Navigate to login/signup pages
+  const handleLoginClick = () => {
+    router.push('/login');
+  };
+
+  const handleSignupClick = () => {
+    router.push('/signup/user');
+  };
+
   const visiblePast = showAllPast ? previousStreams : previousStreams.slice(0, 6);
   const visibleRecordings = showAllRecordings ? recordings : recordings.slice(0, 6);
 
@@ -894,6 +978,74 @@ export default function CompanyPage() {
         creatorName={creatorNotStreamingInfo?.creatorName || 'The Creator'}
         streamTitle={creatorNotStreamingInfo?.streamTitle}
       />
+
+      {/* Login/Signup Modal for Subscriptions */}
+      <AnimatePresence>
+        {showLoginModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(2,6,20,0.9)', backdropFilter: 'blur(8px)' }}
+            onClick={() => setShowLoginModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+              className="relative w-full max-w-md rounded-3xl border border-white/10 overflow-hidden shadow-2xl"
+              style={{ background: 'linear-gradient(160deg, rgba(15,23,42,0.98) 0%, rgba(8,14,28,0.98) 100%)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Gradient header */}
+              <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-violet-500 to-sky-400" />
+
+              <div className="p-8 text-center">
+                {/* Icon */}
+                <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-sky-500/20 flex items-center justify-center">
+                  <UserCheck className="w-8 h-8 text-sky-400" />
+                </div>
+
+                <h2 className="text-2xl font-bold text-white mb-2">Subscribe to {company?.name || 'this channel'}</h2>
+                <p className="text-slate-400 mb-8">Create an account to subscribe and get notified when they go live</p>
+
+                {/* Buttons */}
+                <div className="flex flex-col gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleSignupClick}
+                    className="w-full py-3.5 rounded-2xl text-white font-semibold flex items-center justify-center gap-2 transition-all"
+                    style={{ background: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)' }}
+                  >
+                    <BellPlus className="w-4 h-4" />
+                    Sign Up Free
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleLoginClick}
+                    className="w-full py-3.5 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-white font-semibold flex items-center justify-center gap-2 transition-all"
+                  >
+                    Log In
+                  </motion.button>
+                </div>
+
+                {/* Close button */}
+                <button
+                  onClick={() => setShowLoginModal(false)}
+                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=Space+Mono:wght@400;700&display=swap');
@@ -931,10 +1083,14 @@ export default function CompanyPage() {
                   whileHover={{ scale: 1.05 }}
                 >
                   <div
-                    className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl font-black text-white shadow-2xl"
+                    className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl font-black text-white shadow-2xl overflow-hidden"
                     style={{ background: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #8b5cf6 100%)' }}
                   >
-                    {company?.name?.[0]?.toUpperCase() || '?'}
+                    {companyLogoUrl ? (
+                      <img src={companyLogoUrl} alt={company?.name || 'Company'} className="w-full h-full object-cover" />
+                    ) : (
+                      company?.name?.[0]?.toUpperCase() || '?'
+                    )}
                   </div>
                   {allLiveStreams.length > 0 && (
                     <motion.div
@@ -977,16 +1133,40 @@ export default function CompanyPage() {
                       </div>
                       <span className="text-slate-400"><span className="text-white font-semibold">{previousStreams.length}</span> replays</span>
                     </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="w-6 h-6 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                        <UserCheck className="w-3 h-3 text-emerald-400" />
+                      </div>
+                      <span className="text-slate-400"><span className="text-white font-semibold">{subscriberCount.toLocaleString()}</span> subscribers</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Bell */}
+                {/* Subscribe Button */}
                 <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all self-start sm:self-center"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSubscribe}
+                  disabled={isSubscribing}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all self-start sm:self-center ${
+                    isSubscribed
+                      ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                      : 'border border-sky-500/30 bg-gradient-to-r from-sky-500 to-violet-500 text-white hover:shadow-lg hover:shadow-sky-500/25'
+                  }`}
                 >
-                  <Bell className="w-4 h-4" />
+                  {isSubscribing ? (
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ) : isSubscribed ? (
+                    <>
+                      <UserCheck className="w-4 h-4" />
+                      <span>Subscribed</span>
+                    </>
+                  ) : (
+                    <>
+                      <BellPlus className="w-4 h-4" />
+                      <span>Subscribe</span>
+                    </>
+                  )}
                 </motion.button>
               </div>
             </motion.div>

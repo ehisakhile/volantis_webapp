@@ -78,6 +78,18 @@ export const subscriptionsApi = {
     );
     return response;
   },
+
+  /**
+   * Check if current user is subscribed to a company
+   * Requires authentication
+   */
+  async checkSubscription(companySlug: string): Promise<{ is_subscribed: boolean }> {
+    const response = await apiClient.request<{ is_subscribed: boolean }>(
+      `/subscriptions/${encodeURIComponent(companySlug)}/check`,
+      { method: 'GET' }
+    );
+    return response;
+  },
 };
 
 export default subscriptionsApi;

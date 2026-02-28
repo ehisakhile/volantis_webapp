@@ -866,22 +866,23 @@ export function CreatorStreaming({
             <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Settings className="w-5 h-5 text-sky-500" />
-                Audio Sources
+                Primary Audio Source
               </h2>
               
               {/* Audio Source Checkboxes */}
               <div className="space-y-3 mb-4">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
-                    type="checkbox"
-                    checked={useMic}
-                    onChange={(e) => {
-                      setUseMic(e.target.checked);
-                      audioSourceManagerRef.current?.setUseMic(e.target.checked);
-                      if (!e.target.checked) {
-                        setMixAudio(false);
-                        audioSourceManagerRef.current?.setMixAudio(false);
-                      }
+                    type="radio"
+                    name="audioSource"
+                    checked={useMic && !useSystemAudio}
+                    onChange={() => {
+                      setUseMic(true);
+                      setUseSystemAudio(false);
+                      audioSourceManagerRef.current?.setUseMic(true);
+                      audioSourceManagerRef.current?.setUseSystemAudio(false);
+                      setMixAudio(false);
+                      audioSourceManagerRef.current?.setMixAudio(false);
                     }}
                     disabled={isStreaming || isStarting}
                     className="w-4 h-4 accent-sky-500"
@@ -935,15 +936,16 @@ export function CreatorStreaming({
                 
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
-                    type="checkbox"
-                    checked={useSystemAudio}
-                    onChange={(e) => {
-                      setUseSystemAudio(e.target.checked);
-                      audioSourceManagerRef.current?.setUseSystemAudio(e.target.checked);
-                      if (!e.target.checked) {
-                        setMixAudio(false);
-                        audioSourceManagerRef.current?.setMixAudio(false);
-                      }
+                    type="radio"
+                    name="audioSource"
+                    checked={useSystemAudio && !useMic}
+                    onChange={() => {
+                      setUseSystemAudio(true);
+                      setUseMic(false);
+                      audioSourceManagerRef.current?.setUseSystemAudio(true);
+                      audioSourceManagerRef.current?.setUseMic(false);
+                      setMixAudio(false);
+                      audioSourceManagerRef.current?.setMixAudio(false);
                     }}
                     disabled={isStreaming || isStarting}
                     className="w-4 h-4 accent-purple-500"
@@ -952,7 +954,7 @@ export function CreatorStreaming({
                   <span className="text-sm">System Audio</span>
                 </label>
                 
-                <label 
+                {/* <label 
                   className={cn(
                     "flex items-center gap-3 cursor-pointer",
                     (!useMic || !useSystemAudio) && "opacity-50"
@@ -970,7 +972,7 @@ export function CreatorStreaming({
                   />
                   <Volume2 className="w-4 h-4 text-yellow-400" />
                   <span className="text-sm">Mix (Mic + System)</span>
-                </label>
+                </label> */}
               </div>
               
               {/* Error display */}

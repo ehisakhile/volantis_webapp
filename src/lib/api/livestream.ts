@@ -193,6 +193,19 @@ export const livestreamApi = {
   },
 
   /**
+   * Get company page with subscriber count
+   * Public endpoint - no authentication required
+   * Returns company info, current livestream (if live), and subscriber count
+   */
+  async getCompanyPage(companySlug: string): Promise<CompanyPageResponse> {
+    const response = await apiClient.request<CompanyPageResponse>(
+      `/${encodeURIComponent(companySlug)}`,
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
    * Get all livestreams (active and inactive) for a company
    * Public endpoint - no authentication required
    */
@@ -313,6 +326,25 @@ export interface CompanyLivePageResponse {
   } | null;
   subscribers_count: number;
   message?: string;
+}
+
+// Response type for GET /{COMPANY_SLUG} endpoint - company page with subscriber count
+export interface CompanyPageResponse {
+  company: {
+    id: number;
+    name: string;
+    slug: string;
+    logo_url: string | null;
+    description: string | null;
+  };
+  livestream: {
+    id: number;
+    title: string;
+    slug: string;
+    is_live: boolean;
+    viewer_count: number;
+  } | null;
+  subscriber_count: number;
 }
 
 export interface LivestreamRealtimeResponse {
