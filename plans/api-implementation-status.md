@@ -19,8 +19,8 @@ This document tracks which APIs from `openapi.json` have been implemented in `sr
 | volantis-platform-owners | 1 | 11 | 12 |
 | volantis-subscriptions | 5 | 0 | 5 |
 | volantis-anonymous-viewers | 2 | 0 | 2 |
-| telegram | 0 | 10 | 10 |
-| **Total** | **54** | **31** | **85** |
+| telegram | 20 | 0 | 20 |
+| **Total** | **74** | **31** | **105** |
 
 ---
 
@@ -219,25 +219,42 @@ The hook automatically:
 
 ### telegram
 
-All Telegram integration endpoints are NOT implemented.
+All Telegram integration endpoints have been implemented.
 
 | Endpoint | Method | Implemented | Location |
 |----------|--------|-------------|----------|
-| /telegram/health | GET | ❌ No | - |
-| /telegram/start | POST | ❌ No | - |
-| /telegram/verify | POST | ❌ No | - |
-| /telegram/connect | POST | ❌ No | - |
-| /telegram/connections | GET | ❌ No | - |
-| /telegram/connection/{connection_id} | DELETE | ❌ No | - |
-| /telegram/{connection_id}/import-history | POST | ❌ No | - |
-| /telegram/{connection_id}/import-new | POST | ❌ No | - |
-| /telegram/{connection_id}/media | GET | ❌ No | - |
-| /telegram/{connection_id}/channel-media | GET | ❌ No | - |
-| /telegram/{connection_id}/import-media/{message_id} | POST | ❌ No | - |
+| /telegram/health | GET | ✅ Yes | `telegram.ts` |
+| /telegram/start | POST | ✅ Yes | `telegram.ts` |
+| /telegram/verify | POST | ✅ Yes | `telegram.ts` |
+| /telegram/connect | POST | ✅ Yes | `telegram.ts` |
+| /telegram/connections | GET | ✅ Yes | `telegram.ts` |
+| /telegram/connection/{connection_id} | DELETE | ✅ Yes | `telegram.ts` |
+| /telegram/{connection_id}/import-history | POST | ✅ Yes | `telegram.ts` |
+| /telegram/{connection_id}/import-new | POST | ✅ Yes | `telegram.ts` |
+| /telegram/{connection_id}/media | GET | ✅ Yes | `telegram.ts` |
+| /telegram/{connection_id}/channel-media | GET | ✅ Yes | `telegram.ts` |
+| /telegram/{connection_id}/import-media/{message_id} | POST | ✅ Yes | `telegram.ts` |
+| /telegram/{connection_id}/playlist | POST | ✅ Yes | `telegram.ts` |
+| /telegram/playlist/{playlist_id} | GET | ✅ Yes | `telegram.ts` |
+| /telegram/playlist/{playlist_id}/play | POST | ✅ Yes | `telegram.ts` |
+| /telegram/playlist/{playlist_id}/stop | POST | ✅ Yes | `telegram.ts` |
+| /telegram/playlist-by-company | GET | ✅ Yes | `telegram.ts` |
+| /telegram/playlist/{playlist_id}/add-media | POST | ✅ Yes | `telegram.ts` |
+| /telegram/media | POST | ✅ Yes | `telegram.ts` |
+| /telegram/download-job | GET | ✅ Yes | `telegram.ts` |
+| /telegram/download-job/{job_id} | GET | ✅ Yes | `telegram.ts` |
 
-**Status**: 0/11 implemented (0%)
+**Status**: Fully implemented (20/20)
 
-**Note**: Telegram integration appears to be a backend feature for importing content from Telegram channels. Frontend implementation depends on whether this feature is needed for the user-facing application.
+**Features:**
+- Telegram authentication via phone number
+- Connect/disconnect Telegram channels
+- Import channel history and new media
+- List imported media and channel media
+- Import individual media items
+- Create and manage playlists
+- Play/stop playlists
+- Download external media jobs
 
 ---
 

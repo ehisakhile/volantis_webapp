@@ -9,7 +9,8 @@ import { apiClient } from '@/lib/api/client';
 import {
   Radio, Users, BarChart3, Settings, LogOut,
   Play, Eye, Clock, TrendingUp, Link as LinkIcon,
-  Video, MessageSquare, DollarSign, Bell, Upload
+  Video, MessageSquare, DollarSign, Bell, Upload,
+  Plug
 } from 'lucide-react';
 
 // Stats API Response Type
@@ -97,6 +98,7 @@ export default function DashboardPage() {
     { icon: Play, label: 'Go Live', href: '/creator/stream', color: 'bg-red-500', description: 'Start streaming now' },
     { icon: Upload, label: 'Upload Recording', href: '/dashboard/upload-recording', color: 'bg-orange-500', description: 'Upload pre-recorded audio' },
     { icon: Video, label: 'My Streams', href: `/${companySlug}`, color: 'bg-sky-500', description: 'View past broadcasts' },
+    { icon: Plug, label: 'Integrations', href: '/dashboard/integrations', color: 'bg-indigo-500', description: 'Connect external services' },
     { icon: Settings, label: 'Settings', href: '/dashboard/settings', color: 'bg-slate-500', description: 'Channel configuration' },
   ];
 
