@@ -22,37 +22,50 @@ const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
+const emojiPickerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastFetchRef = useRef<number>(0);
   
   // Fetch messages
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (isInitial = false) => {
     if (!isAuthenticated) {
       setIsLoading(false);
       return;
     }
     
     try {
-      setIsLoading(true);
+      if (isInitial) setIsLoading(true);
       const data = await chatApi.getMessages(slug, 1, 50);
-      // API returns newest first, so reverse for display
-      setMessages(data.reverse());
+      // API returns newest first, so reverse to show oldest at top, newest at bottom
+      const sortedMessages = [...data].reverse();
+      
+      if (isInitial) {
+        setMessages(sortedMessages);
+      } else {
+        // Merge new messages, avoiding duplicates
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const newMessages = sortedMessages.filter(m => !existingIds.has(m.id));
+          if (newMessages.length === 0) return prev;
+          return [...prev, ...newMessages];
+        });
+      }
       setError(null);
     } catch (err) {
       console.error('Failed to fetch messages:', err);
       setError('Failed to load chat');
     } finally {
-      setIsLoading(false);
+      if (isInitial) setIsLoading(false);
     }
   }, [slug, isAuthenticated]);
   
-  // Poll for new messages every 3 seconds when authenticated
+// Poll for new messages every 3 seconds when authenticated
   useEffect(() => {
     if (!isAuthenticated) return;
     
-    fetchMessages();
+    fetchMessages(true);
     
-    const interval = setInterval(fetchMessages, 3000);
+    const interval = setInterval(() => fetchMessages(false), 3000);
     return () => clearInterval(interval);
   }, [isAuthenticated, fetchMessages]);
   
