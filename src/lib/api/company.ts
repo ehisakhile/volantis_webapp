@@ -5,6 +5,16 @@ import type {
   EditCompanyRequest 
 } from '@/types/company';
 
+export interface CompanySearchResult {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  logo_url: string | null;
+  is_active: boolean;
+  subscriber_count: number;
+}
+
 export const companyApi = {
   /**
    * Get current user's company info
@@ -14,6 +24,17 @@ export const companyApi = {
       method: 'GET',
     });
 
+    return response;
+  },
+
+  /**
+   * Search companies by name
+   */
+  async searchCompanies(query: string): Promise<CompanySearchResult[]> {
+    const response = await apiClient.request<CompanySearchResult[]>(
+      `/companies/search?q=${encodeURIComponent(query)}`,
+      { method: 'GET' }
+    );
     return response;
   },
 

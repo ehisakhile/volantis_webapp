@@ -12,6 +12,7 @@ import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
 import { livestreamApi, type ActiveStreamItem, type ActiveStreamsResponse } from '@/lib/api/livestream';
 import { recordingsApi } from '@/lib/api/recordings';
+import { companyApi, type CompanySearchResult } from '@/lib/api/company';
 import { useAuth } from '@/lib/auth-context';
 import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
 import { RecordingPlayer } from '@/components/streaming/recording-player';
@@ -64,10 +65,16 @@ function formatDuration(seconds: number | null): string {
 export default function ListenPage() {
   const { isAuthenticated } = useAuth();
   
-  const [streams, setStreams] = useState<ActiveStreamItem[]>([]);
+const [streams, setStreams] = useState<ActiveStreamItem[]>([]);
   const [filteredStreams, setFilteredStreams] = useState<ActiveStreamItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // All companies (for browsing even when not live)
+  const [allCompanies, setAllCompanies] = useState<CompanySearchResult[]>([]);
+  const [filteredCompanies, setFilteredCompanies] = useState<CompanySearchResult[]>([]);
+  const [isCompaniesLoading, setIsCompaniesLoading] = useState(false);
+  const [showAllCompanies, setShowAllCompanies] = useState(false);
   
   // Live stream playback state
   const [currentStream, setCurrentStream] = useState<ActiveStreamItem | null>(null);
@@ -105,7 +112,7 @@ export default function ListenPage() {
   const animationRef = useRef<number | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   
-  // ─── Fetch active streams ───────────────────────────────────────────────────
+// ─── Fetch active streams ───────────────────────────────────────────────────
   const fetchStreams = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -138,6 +145,30 @@ export default function ListenPage() {
     }
   }, []);
   
+// ─── Fetch all companies (for browsing) ─────────────────────────────────────
+  const fetchCompanies = useCallback(async (query: string = '') => {
+    setIsCompaniesLoading(true);
+    try {
+      const companies = await companyApi.searchCompanies(query);
+      setAllCompanies(companies);
+      setFilteredCompanies(companies);
+    } catch (err) {
+      console.error('Failed to fetch companies:', err);
+      setAllCompanies([]);
+      setFilteredCompanies([]);
+    } finally {
+      setIsCompaniesLoading(false);
+    }
+  }, []);
+  
+  // Debounced search for companies
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchCompanies(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, fetchCompanies]);
+  
   // ─── Fetch recordings ───────────────────────────────────────────────────────
   const fetchRecordings = useCallback(async () => {
     if (!isAuthenticated) { setAllRecordings([]); return; }
@@ -153,9 +184,12 @@ export default function ListenPage() {
     }
   }, [isAuthenticated]);
   
-  // Filter streams
+// Filter streams (companies are now filtered via API)
   useEffect(() => {
-    if (!searchQuery.trim()) { setFilteredStreams(streams); return; }
+    if (!searchQuery.trim()) { 
+      setFilteredStreams(streams); 
+      return; 
+    }
     const q = searchQuery.toLowerCase();
     setFilteredStreams(streams.filter(s =>
       s.company_name.toLowerCase().includes(q) ||
@@ -164,7 +198,9 @@ export default function ListenPage() {
     ));
   }, [searchQuery, streams]);
   
-  useEffect(() => { fetchStreams(); }, [fetchStreams]);
+useEffect(() => { fetchStreams(); }, [fetchStreams]);
+  
+  // Initial fetch of companies happens via debounced search effect (searchQuery starts empty)
   
   useEffect(() => {
     if (isAuthenticated) fetchRecordings();
@@ -500,93 +536,7 @@ export default function ListenPage() {
       </section>
       
       {/* Recordings Section */}
-      {isAuthenticated && allRecordings.length > 0 && (
-        <section className="px-4 pb-8">
-          <div className="container-custom">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock className="w-5 h-5 text-amber-400" />
-                <h2 className="text-2xl font-bold text-white">Your Recordings</h2>
-                <span className="text-sm text-slate-400">({allRecordings.length})</span>
-              </div>
-              {isRecordingsLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {[...Array(8)].map((_, i) => <div key={i} className="animate-pulse bg-slate-800/50 rounded-3xl h-72" />)}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  <AnimatePresence mode="popLayout">
-                    {allRecordings.map((recording, index) => {
-                      const isActive = currentRecording?.id === recording.id;
-                      return (
-                        <motion.div
-                          key={recording.id}
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          transition={{ delay: index * 0.05 }}
-                        >
-                          <button
-                            onClick={() => handleRecordingSelect(recording)}
-                            className="w-full text-left group relative overflow-hidden rounded-3xl bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 hover:border-amber-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/20"
-                          >
-                            {/* Recording thumbnail - priority: thumbnail_url > gradient */}
-                            {recording.thumbnail_url ? (
-                              <div
-                                className="absolute inset-0 bg-cover bg-center opacity-80 group-hover:opacity-90 transition-opacity"
-                                style={{ backgroundImage: `url(${recording.thumbnail_url})` }}
-                              />
-                            ) : (
-                              <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-500 to-rose-600 opacity-20 group-hover:opacity-30 transition-opacity" />
-                            )}
-                            {isActive && (
-                              <div className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/90 rounded-full text-white text-xs font-medium z-10">
-                                <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                                PLAYING
-                              </div>
-                            )}
-                            <div className="relative p-6 pt-24">
-                              <div className="relative w-16 h-16 mx-auto mb-4 -mt-14">
-                                <div className="absolute inset-0 bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 rounded-2xl blur-xl opacity-50" />
-                                <div className="relative w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center border-2 border-slate-700/50 group-hover:border-amber-500/50 transition-colors overflow-hidden">
-                                  {recording.thumbnail_url ? (
-                                    <img src={recording.thumbnail_url} alt={recording.title} className="w-full h-full object-cover" />
-                                  ) : recording.company_logo_url ? (
-                                    <img src={recording.company_logo_url} alt={recording.company_name || 'Company'} className="w-full h-full object-cover" />
-                                  ) : (
-                                    <Clock className="w-7 h-7 text-amber-400" />
-                                  )}
-                                </div>
-                              </div>
-                              <h3 className="text-lg font-semibold text-white text-center mb-1 line-clamp-1 group-hover:text-amber-400 transition-colors">
-                                {recording.title}
-                              </h3>
-                              {recording.description && (
-                                <p className="text-sm text-slate-400 text-center mb-3 line-clamp-1">{recording.description}</p>
-                              )}
-                              <div className="flex items-center justify-center gap-4 text-xs text-slate-500">
-                                <span className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  {formatDuration(recording.duration_seconds)}
-                                </span>
-                              </div>
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="w-16 h-16 bg-amber-500 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/30 transform scale-0 group-hover:scale-100 transition-transform duration-300">
-                                  <Play className="w-7 h-7 text-white ml-1" />
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                        </motion.div>
-                      );
-                    })}
-                  </AnimatePresence>
-                </div>
-              )}
-            </motion.div>
-          </div>
-        </section>
-      )}
+     
       
       {/* Streams Grid */}
       <section className="px-4 pb-32">
@@ -658,6 +608,86 @@ export default function ListenPage() {
               </AnimatePresence>
             </div>
           )}
+        </div>
+      </section>
+      
+      {/* Browse Channels Section - All companies even if not live */}
+      <section className="px-4 pb-32">
+        <div className="container-custom">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            className="mb-6"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Disc3 className="w-5 h-5 text-violet-400" />
+              <h2 className="text-2xl font-bold text-white">Browse Channels</h2>
+              <span className="text-sm text-slate-400">({allCompanies.length} channels)</span>
+            </div>
+            <p className="text-slate-400 text-sm mb-6">
+              Explore all channels and subscribe to get notified when they go live
+            </p>
+            
+            {isCompaniesLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                {[...Array(10)].map((_, i) => (
+                  <div key={i} className="animate-pulse bg-slate-800/50 rounded-2xl h-40" />
+                ))}
+              </div>
+            ) : filteredCompanies.length === 0 ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
+                <Disc3 className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-400">{searchQuery ? 'No channels found' : 'No channels available'}</p>
+              </motion.div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                  {(showAllCompanies ? filteredCompanies : filteredCompanies.slice(0, 12)).map((company, index) => (
+                    <motion.div
+                      key={company.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.03 }}
+                    >
+                      <Link href={`/${company.slug}`} className="block group">
+                        <div className="relative overflow-hidden rounded-2xl bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 hover:border-violet-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-violet-500/20 p-4 text-center">
+                          {/* Logo */}
+                          <div className="relative w-16 h-16 mx-auto mb-3">
+                            <div className={`absolute inset-0 bg-gradient-to-br ${getGradientForCompany(company.name)} rounded-xl blur-xl opacity-40`} />
+                            <div className="relative w-16 h-16 bg-slate-800 rounded-xl flex items-center justify-center border-2 border-slate-700/50 group-hover:border-violet-500/50 transition-colors overflow-hidden">
+                              {company.logo_url ? (
+                                <img src={company.logo_url} alt={company.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <Radio className="w-6 h-6 text-slate-400" />
+                              )}
+                            </div>
+                          </div>
+                          <h3 className="text-sm font-semibold text-white group-hover:text-violet-400 transition-colors line-clamp-1">{company.name}</h3>
+                          {company.subscriber_count > 0 && (
+                            <p className="text-xs text-slate-500 mt-1">{company.subscriber_count.toLocaleString()} subscribers</p>
+                          )}
+                          {company.description && (
+                            <p className="text-xs text-slate-500 mt-1 line-clamp-2">{company.description}</p>
+                          )}
+                        </div>
+                      </Link>
+                    </motion.div>
+                  ))}
+                </div>
+                
+                {filteredCompanies.length > 12 && (
+                  <div className="flex justify-center mt-6">
+                    <button
+                      onClick={() => setShowAllCompanies(!showAllCompanies)}
+                      className="px-6 py-2 rounded-full border border-slate-700 hover:border-violet-500 text-slate-400 hover:text-violet-400 text-sm font-medium transition-colors"
+                    >
+                      {showAllCompanies ? 'Show Less' : `Show ${filteredCompanies.length - 12} More`}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </motion.div>
         </div>
       </section>
       
