@@ -734,10 +734,10 @@ export default function CompanyPage() {
         created_at: new Date().toISOString(),
       });
       
-      // Try to check subscription status (may fail if not authenticated)
+// Try to check subscription status (may fail if not authenticated)
       try {
-        const subStatus = await subscriptionsApi.checkSubscription(slug);
-        setIsSubscribed(subStatus.is_subscribed);
+        const isSubscribed = await subscriptionsApi.checkSubscriptionBySlug(slug);
+        setIsSubscribed(isSubscribed);
       } catch (subErr) {
         // User not authenticated, ignore
         setIsSubscribed(false);

@@ -23,6 +23,16 @@ export interface CompanyStatsResponse {
   active_stream_title: string | null;
 }
 
+export interface UserSubscription {
+  company_id: number;
+  company_name: string;
+  company_slug: string;
+  company_logo_url: string | null;
+  subscribed_at: string;
+  is_live: boolean;
+  current_viewers: number;
+}
+
 export const subscriptionsApi = {
   /**
    * Subscribe to a company channel
@@ -53,6 +63,32 @@ export const subscriptionsApi = {
       method: 'GET',
     });
     return response;
+  },
+
+  /**
+   * Get all user subscriptions with company details
+   * Requires authentication
+   */
+  async getUserSubscriptions(): Promise<UserSubscription[]> {
+    const response = await apiClient.request<UserSubscription[]>('/subscriptions', {
+      method: 'GET',
+    });
+    return response;
+  },
+
+  /**
+   * Check if current user is subscribed to a company by slug
+   * Requires authentication - fetches all subscriptions and matches slug
+   */
+  async checkSubscriptionBySlug(companySlug: string): Promise<boolean> {
+    try {
+      const subscriptions = await apiClient.request<UserSubscription[]>('/subscriptions', {
+        method: 'GET',
+      });
+      return subscriptions.some(sub => sub.company_slug === companySlug);
+    } catch {
+      return false;
+    }
   },
 
   /**
