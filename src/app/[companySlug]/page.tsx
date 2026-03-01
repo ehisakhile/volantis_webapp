@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
+import Head from 'next/head';
 import Link from 'next/link';
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import {
@@ -785,6 +786,13 @@ export default function CompanyPage() {
       }
     } catch (err: unknown) {
       const error = err as { status?: number; detail?: string };
+      
+      // If company not found (404), redirect to /listen
+      if (error.status === 404) {
+        router.push('/listen');
+        return;
+      }
+      
       if (error.status === 409) setStreamError(error.detail || 'Stream has not started yet.');
       try {
         const companyStreams = await livestreamApi.getCompanyStreams(slug, 50, 0, true);
@@ -804,16 +812,9 @@ export default function CompanyPage() {
           created_at: new Date().toISOString(),
         });
       } catch {
-        setCompany({
-          id: 1,
-          name: slug.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
-          slug,
-          description: 'Live audio streaming',
-          email: '',
-          logo_url: null,
-          is_active: true,
-          created_at: new Date().toISOString(),
-        });
+        // Company validation failed - redirect to /listen
+        router.push('/listen');
+        return;
       } finally {
         setIsLoadingStreams(false);
       }
@@ -852,6 +853,58 @@ export default function CompanyPage() {
   }, [slug]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  
+  // SEO: Update metadata when company data loads
+  useEffect(() => {
+    if (!company) return;
+    
+    const liveStatus = allLiveStreams.length > 0 ? '🔴 LIVE' : '';
+    const title = `${company.name}${liveStatus ? ' ' + liveStatus : ''} | Volantis`;
+    const description = company.description 
+      ? `${company.description} - Listen to live streams and replays on Volantis.`
+      : `Listen to ${company.name}'s live audio streams and replays on Volantis.`;
+    const imageUrl = companyLogoUrl || company.logo_url;
+    const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://volantislive.com';
+    
+    // Update document title
+    document.title = title;
+    
+    // Update or create meta tags
+    const updateMetaTag = (name: string, content: string, isProperty = false) => {
+      const selector = isProperty ? `meta[property="${name}"]` : `meta[name="${name}"]`;
+      let meta = document.querySelector(selector) as HTMLMetaElement | null;
+      if (!meta) {
+        meta = document.createElement('meta');
+        if (isProperty) {
+          meta.setAttribute('property', name);
+        } else {
+          meta.setAttribute('name', name);
+        }
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', content);
+    };
+    
+    // Description
+    updateMetaTag('description', description);
+    
+    // Open Graph
+    updateMetaTag('og:title', title, true);
+    updateMetaTag('og:description', description, true);
+    updateMetaTag('og:type', 'website', true);
+    updateMetaTag('og:url', `${siteUrl}/${slug}`, true);
+    if (imageUrl) {
+      updateMetaTag('og:image', imageUrl, true);
+    }
+    
+    // Twitter Card
+    updateMetaTag('twitter:card', 'summary_large_image');
+    updateMetaTag('twitter:title', title);
+    updateMetaTag('twitter:description', description);
+    if (imageUrl) {
+      updateMetaTag('twitter:image', imageUrl);
+    }
+  }, [company, companyLogoUrl, allLiveStreams, slug]);
   
   useEffect(() => {
     if (slug) fetchRecordings();

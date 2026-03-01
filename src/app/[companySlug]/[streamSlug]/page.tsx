@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Head from 'next/head';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -443,6 +444,12 @@ export default function StreamPage() {
 
       setStream(streamData);
 
+      // Check if stream is active (live). If not, redirect to company page
+      if (!streamData.is_active) {
+        router.push(`/${companySlug}`);
+        return;
+      }
+
       // Also get company info
       try {
         const companyPageData = await livestreamApi.getCompanyPage(companySlug);
@@ -477,6 +484,27 @@ export default function StreamPage() {
 
     } catch (err: unknown) {
       const error = err as { status?: number; detail?: string; message?: string };
+       
+      // If stream not found (error.message includes "Stream not found"), redirect to company page
+      if (error.message?.includes('Stream not found')) {
+        router.push(`/${companySlug}`);
+        return;
+      }
+       
+      // If API returns 404, determine whether it's stream or company
+      if (error.status === 404) {
+        // Check if it's a company not found by trying to get company info
+        try {
+          await livestreamApi.getCompanyPage(companySlug);
+          // Company exists, so stream doesn't - redirect to company page
+          router.push(`/${companySlug}`);
+        } catch {
+          // Company doesn't exist - redirect to /listen
+          router.push('/listen');
+        }
+        return;
+      }
+       
       if (error.status === 409) {
         setStreamError(error.detail || 'Stream has not started yet.');
       } else {
@@ -485,11 +513,62 @@ export default function StreamPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [companySlug, streamSlug, startPlayback]);
+  }, [companySlug, streamSlug, startPlayback, router]);
 
-  useEffect(() => {
+useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // SEO: Update metadata when stream/company data loads
+  useEffect(() => {
+    if (!stream || !company) return;
+    
+    const title = `🔴 LIVE: ${stream.title} | ${company.name}`;
+    const description = stream.description 
+      ? `${stream.description} - Listen live on Volantis.`
+      : `Listen to ${stream.title} by ${company.name} live on Volantis.`;
+    const imageUrl = stream.thumbnail_url || company.logo_url;
+    const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://volantislive.com';
+    
+    // Update document title
+    document.title = title;
+    
+    // Update or create meta tags
+    const updateMetaTag = (name: string, content: string, isProperty = false) => {
+      const selector = isProperty ? `meta[property="${name}"]` : `meta[name="${name}"]`;
+      let meta = document.querySelector(selector) as HTMLMetaElement | null;
+      if (!meta) {
+        meta = document.createElement('meta');
+        if (isProperty) {
+          meta.setAttribute('property', name);
+        } else {
+          meta.setAttribute('name', name);
+        }
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', content);
+    };
+    
+    // Description
+    updateMetaTag('description', description);
+    
+    // Open Graph
+    updateMetaTag('og:title', title, true);
+    updateMetaTag('og:description', description, true);
+    updateMetaTag('og:type', 'video.other', true);
+    updateMetaTag('og:url', `${siteUrl}/${companySlug}/${streamSlug}`, true);
+    if (imageUrl) {
+      updateMetaTag('og:image', imageUrl, true);
+    }
+    
+    // Twitter Card
+    updateMetaTag('twitter:card', 'summary_large_image');
+    updateMetaTag('twitter:title', title);
+    updateMetaTag('twitter:description', description);
+    if (imageUrl) {
+      updateMetaTag('twitter:image', imageUrl);
+    }
+  }, [stream, company, companySlug, streamSlug]);
 
   // Cleanup on unmount
   useEffect(() => {
