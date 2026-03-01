@@ -106,15 +106,19 @@ function StreamTile({
   variant,
   onClick,
   isActive,
+  companyLogoUrl,
 }: {
   stream: VolLivestreamOut;
   variant: 'live' | 'recording';
   onClick?: () => void;
   isActive?: boolean;
+  companyLogoUrl?: string | null;
 }) {
   const [hovered, setHovered] = useState(false);
   const colors = ['from-sky-600 to-indigo-700', 'from-violet-600 to-fuchsia-700', 'from-emerald-600 to-cyan-700', 'from-orange-600 to-rose-700'];
   const grad = colors[stream.id % colors.length];
+  
+  const imageUrl = stream.thumbnail_url || companyLogoUrl || undefined;
 
   const handleClick = () => {
     if (onClick) onClick();
@@ -137,36 +141,34 @@ function StreamTile({
       {/* Top gradient bar */}
       <div className={`h-1 w-full bg-gradient-to-r ${grad}`} />
 
-      {/* Thumbnail area - priority: thumbnail_url > company_logo_url > gradient */}
+{/* Thumbnail area - priority: thumbnail_url > company_logo_url > gradient */}
       <div
         className={`relative h-36 bg-cover bg-center`}
         style={{
-          backgroundImage: stream.thumbnail_url
-            ? `url(${stream.thumbnail_url})`
-            : stream.company_logo_url
-              ? `url(${stream.company_logo_url})`
-              : undefined,
-          backgroundColor: !stream.thumbnail_url && !stream.company_logo_url ? undefined : 'rgba(15,23,42,0.8)',
-          opacity: (stream.thumbnail_url || stream.company_logo_url) ? 0.6 : undefined,
+          backgroundImage: imageUrl
+            ? `url(${imageUrl})`
+            : undefined,
+          backgroundColor: imageUrl ? 'rgba(15,23,42,0.8)' : undefined,
+          opacity: imageUrl ? 0.6 : undefined,
         }}
       >
         {/* Gradient overlay when using thumbnail or logo */}
-        {(stream.thumbnail_url || stream.company_logo_url) && (
+        {imageUrl && (
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent" />
         )}
-        {!stream.thumbnail_url && !stream.company_logo_url && (
+        {!imageUrl && (
           <div className={`absolute inset-0 bg-gradient-to-br ${grad} opacity-20`} />
         )}
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="relative">
             <PulseRings isActive={variant === 'live' && hovered} />
-            <motion.div
+<motion.div
               className={`w-14 h-14 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center shadow-2xl`}
               animate={variant === 'live' ? { boxShadow: ['0 0 0px rgba(56,189,248,0.3)', '0 0 30px rgba(56,189,248,0.5)', '0 0 0px rgba(56,189,248,0.3)'] } : {}}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              {stream.company_logo_url ? (
-                <img src={stream.company_logo_url} alt={stream.company_name || 'Company'} className="w-full h-full object-cover rounded-full" />
+              {imageUrl ? (
+                <img src={imageUrl} alt={stream.company_name || 'Company'} className="w-full h-full object-cover rounded-full" />
               ) : variant === 'live' ? <Radio className="w-6 h-6 text-white" /> : <History className="w-6 h-6 text-white" />}
             </motion.div>
           </div>
@@ -1288,11 +1290,12 @@ export default function CompanyPage() {
                           href={`/${company?.slug || slug}/${stream.slug}`}
                           className="block"
                         >
-                          <StreamTile
+<StreamTile
                             stream={stream}
                             variant="live"
                             // No onClick - the Link handles navigation
                             isActive={isPlaying && currentStream?.id === stream.id}
+                            companyLogoUrl={companyLogoUrl}
                           />
                         </Link>
                       </motion.div>
@@ -1302,11 +1305,11 @@ export default function CompanyPage() {
               )}
             </AnimatePresence>
 
-            {/* ── Past Broadcasts ── */}
+{/* ── Past Broadcasts ── */}
             <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
+              transition={{ delay: 0.35 }}
             >
               <div className="flex items-center gap-3 mb-6">
                 <History className="w-4 h-4 text-slate-500" />
@@ -1335,11 +1338,12 @@ export default function CompanyPage() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }}
                       >
-                        <StreamTile
+<StreamTile
                           stream={stream}
                           variant="recording"
                           onClick={() => handlePlayStream(stream)}
                           isActive={isPlaying && currentStream?.id === stream.id}
+                          companyLogoUrl={companyLogoUrl}
                         />
                       </motion.div>
                     ))}
@@ -1382,12 +1386,12 @@ export default function CompanyPage() {
               )}
             </motion.section>
 
-            {/* ── Previous Recordings ── */}
+{/* ── Previous Recordings ── */}
             {recordings.length > 0 && (
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.35 }}
+                transition={{ delay: 0.25 }}
                 className="mt-16"
               >
                 <div className="flex items-center gap-3 mb-6">
