@@ -32,6 +32,7 @@ export interface TelegramVerifyCodeResponse {
 
 export interface TelegramConnectRequest {
   channel_id: number;
+  session_id: string;
 }
 
 export interface TelegramConnection {
