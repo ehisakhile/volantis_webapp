@@ -772,7 +772,7 @@ export function CreatorStreaming({
     if (chatMessagesEndRef.current) {
       chatMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [chatMessages]);
+  }, []);
 
   // Handle network recovery - check for active stream and auto-reconnect
   useEffect(() => {
