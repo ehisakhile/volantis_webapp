@@ -73,6 +73,16 @@ export interface VerifyPaymentResponse {
   };
 }
 
+export interface CancelSubscriptionResponse {
+  message: string;
+  subscription_end_date: string;
+}
+
+export interface PermissionCheckResponse {
+  allowed: boolean;
+  reason: string;
+}
+
 export const subscriptionsApi = {
   /**
    * Subscribe to a company channel
@@ -199,6 +209,42 @@ export const subscriptionsApi = {
     const response = await apiClient.requestWithAuth('/api/subscriptions/current', {
       method: 'GET',
     });
+    return response;
+  },
+
+  /**
+   * Cancel current subscription
+   * Requires authentication
+   */
+  async cancelSubscription(): Promise<CancelSubscriptionResponse> {
+    const response = await apiClient.requestWithAuth<CancelSubscriptionResponse>(
+      '/api/subscriptions/cancel',
+      { method: 'POST' }
+    );
+    return response;
+  },
+
+  /**
+   * Check if user can stream
+   * Requires authentication
+   */
+  async canStream(): Promise<PermissionCheckResponse> {
+    const response = await apiClient.requestWithAuth<PermissionCheckResponse>(
+      '/api/subscriptions/can-stream',
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
+   * Check if user can upload recordings
+   * Requires authentication
+   */
+  async canUpload(): Promise<PermissionCheckResponse> {
+    const response = await apiClient.requestWithAuth<PermissionCheckResponse>(
+      '/api/subscriptions/can-upload',
+      { method: 'GET' }
+    );
     return response;
   },
 };

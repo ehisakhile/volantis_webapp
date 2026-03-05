@@ -6,11 +6,12 @@ import Link from 'next/link';
 import { Container } from '@/components/ui/container';
 import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api/client';
+import { subscriptionsApi } from '@/lib/api/subscriptions';
 import {
   Radio, Users, BarChart3, Settings, LogOut,
   Play, Eye, Clock, TrendingUp, Link as LinkIcon,
   Video, MessageSquare, DollarSign, Bell, Upload,
-  Plug, Crown, Zap
+  Plug, Crown, Zap, X
 } from 'lucide-react';
 
 // Subscription API Response Type
@@ -68,6 +69,8 @@ export default function DashboardPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelResult, setCancelResult] = useState<{ message: string; endDate: string } | null>(null);
 
   // Fetch stats from API
   const fetchStats = async (slug: string) => {
@@ -90,6 +93,7 @@ export default function DashboardPage() {
   const fetchSubscription = async () => {
     setSubscriptionLoading(true);
     setSubscriptionError(null);
+    setCancelResult(null);
     try {
       const response = await apiClient.requestWithAuth<Subscription>(
         '/api/subscriptions/current'
@@ -100,6 +104,29 @@ export default function DashboardPage() {
       setSubscriptionError('Failed to load subscription');
     } finally {
       setSubscriptionLoading(false);
+    }
+  };
+
+  // Cancel subscription
+  const handleCancelSubscription = async () => {
+    if (!confirm('Are you sure you want to cancel your subscription? Your access will continue until the end of your billing period.')) {
+      return;
+    }
+    
+    setIsCancelling(true);
+    try {
+      const response = await subscriptionsApi.cancelSubscription();
+      setCancelResult({
+        message: response.message,
+        endDate: response.subscription_end_date
+      });
+      // Refresh subscription data
+      fetchSubscription();
+    } catch (err: unknown) {
+      console.error('Failed to cancel subscription:', err);
+      alert('Failed to cancel subscription. Please try again.');
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -359,7 +386,41 @@ export default function DashboardPage() {
                     Upgrade Plan
                   </Link>
                 )}
+
+                {/* Cancel button for paid plans */}
+                {subscription.plan_name !== 'free' && subscription.is_active && (
+                  <button
+                    onClick={handleCancelSubscription}
+                    disabled={isCancelling}
+                    className="flex items-center gap-2 px-4 py-2 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                  >
+                    {isCancelling ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                        Cancelling...
+                      </>
+                    ) : (
+                      <>
+                        <X className="w-4 h-4" />
+                        Cancel Subscription
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
+              
+              {/* Cancel result message */}
+              {cancelResult && (
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800">
+                    <strong>Subscription will end on:</strong> {new Date(cancelResult.endDate).toLocaleDateString('en-NG', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </p>
+                </div>
+              )}
               
               {/* Usage Stats - Only show for non-free plans or if there are limits */}
               {subscription.plan_name !== 'free' && (

@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { Container } from '@/components/ui/container';
 import { useAuth } from '@/lib/auth-context';
 import { recordingsApi } from '@/lib/api/recordings';
+import { subscriptionsApi } from '@/lib/api/subscriptions';
+import { SubscriptionLimitModal } from '@/components/subscription/subscription-limit-modal';
 import {
   Radio, Upload, FileAudio, Image, Play, ArrowLeft,
   CheckCircle, AlertCircle, Loader2
@@ -32,6 +34,7 @@ export default function UploadRecordingPage() {
   const [uploadProgress, setUploadProgress] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<VolRecordingOut | null>(null);
+  const [uploadPermission, setUploadPermission] = useState<{ allowed: boolean; reason: string } | null>(null);
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -46,6 +49,18 @@ export default function UploadRecordingPage() {
     // Check if user is a viewer (no company_id) - redirect to user dashboard
     if (isAuthenticated && user && !user.company_id) {
       router.push('/user/dashboard');
+    }
+
+    // Check upload permission
+    if (isAuthenticated && user?.company_id) {
+      subscriptionsApi.canUpload()
+        .then((result) => {
+          setUploadPermission({ allowed: result.allowed, reason: result.reason });
+        })
+        .catch(() => {
+          // Default to allowed if API fails
+          setUploadPermission({ allowed: true, reason: '' });
+        });
     }
   }, [isAuthenticated, authLoading, router, user]);
 
@@ -173,6 +188,28 @@ export default function UploadRecordingPage() {
 
   if (!isAuthenticated) {
     return null;
+  }
+
+  // Show subscription limit modal if not allowed to upload
+  if (uploadPermission && !uploadPermission.allowed) {
+    return (
+      <SubscriptionLimitModal
+        isOpen={true}
+        onClose={() => router.push('/dashboard')}
+        title="Cannot Upload Recording"
+        reason={uploadPermission.reason}
+        action="upload"
+      />
+    );
+  }
+
+  // Show loading while checking permissions
+  if (!uploadPermission) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full" />
+      </div>
+    );
   }
 
   // Success state
