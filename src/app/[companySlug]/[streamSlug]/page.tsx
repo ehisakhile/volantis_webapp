@@ -306,21 +306,34 @@ function StreamPlayer({
                 Reconnect
               </motion.button>
             ) : null}
+         
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => setLiked(l => !l)}
-              className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${
-                liked
-                  ? 'bg-rose-500/30 border-rose-500/50 text-rose-400'
-                  : 'bg-white/5 border-white/10 text-slate-400 hover:text-rose-400'
-              }`}
-            >
-              <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                const shareUrl = `${window.location.origin}/${company?.slug}/${stream.slug}`;
+                const shareData = {
+                  title: stream.title,
+                  text: `Listen to "${stream.title}" live on Volantis`,
+                  url: shareUrl,
+                };
+
+                // Use Web Share API if available (mobile), fallback to clipboard
+                if (navigator.share && navigator.canShare?.(shareData)) {
+                  navigator.share(shareData).catch((err) => {
+                    if (err.name !== 'AbortError') {
+                      console.error('Share failed:', err);
+                    }
+                  });
+                } else {
+                  // Fallback: copy to clipboard
+                  navigator.clipboard.writeText(shareUrl).then(() => {
+                    // Could show a toast notification here
+                  }).catch((err) => {
+                    console.error('Failed to copy:', err);
+                  });
+                }
+              }}
               className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-slate-400 hover:text-sky-400 transition-colors"
             >
               <Share2 className="w-4 h-4" />
