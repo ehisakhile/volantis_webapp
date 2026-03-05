@@ -322,7 +322,7 @@ export default function IntegrationsPage() {
     setCreatingPlaylist(true);
     try {
       await telegramApi.createPlaylist(selectedConnectionId, {
-        title: playlistName,
+        name: playlistName,
         media_ids: selectedMediaIds,
       });
       setShowPlaylistModal(false);
