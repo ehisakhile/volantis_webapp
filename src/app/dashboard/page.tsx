@@ -10,8 +10,38 @@ import {
   Radio, Users, BarChart3, Settings, LogOut,
   Play, Eye, Clock, TrendingUp, Link as LinkIcon,
   Video, MessageSquare, DollarSign, Bell, Upload,
-  Plug
+  Plug, Crown, Zap
 } from 'lucide-react';
+
+// Subscription API Response Type
+interface Subscription {
+  id: number;
+  company_id: number;
+  plan_id: number;
+  billing_cycle: string;
+  subscription_start: string;
+  subscription_end: string | null;
+  paystack_subscription_code: string | null;
+  paystack_customer_code: string | null;
+  is_active: boolean;
+  auto_renew: boolean;
+  referral_code: string;
+  additional_integrations: number;
+  integration_addon_price_kobo: number;
+  created_at: string;
+  updated_at: string;
+  plan_name: string;
+  plan_display_name: string;
+  monthly_price_kobo: number;
+  annual_price_kobo: number;
+  daily_stream_used: number;
+  daily_stream_limit: number;
+  monthly_uploads_used: number;
+  monthly_uploads_limit: number;
+  integrations_used: number;
+  integrations_allowed: number;
+  is_within_limits: boolean;
+}
 
 // Stats API Response Type
 interface StreamStats {
@@ -35,6 +65,9 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<StreamStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
 
   // Fetch stats from API
   const fetchStats = async (slug: string) => {
@@ -50,6 +83,23 @@ export default function DashboardPage() {
       setStatsError('Failed to load stats');
     } finally {
       setStatsLoading(false);
+    }
+  };
+
+  // Fetch subscription from API
+  const fetchSubscription = async () => {
+    setSubscriptionLoading(true);
+    setSubscriptionError(null);
+    try {
+      const response = await apiClient.requestWithAuth<Subscription>(
+        '/api/subscriptions/current'
+      );
+      setSubscription(response);
+    } catch (err: unknown) {
+      console.error('Failed to fetch subscription:', err);
+      setSubscriptionError('Failed to load subscription');
+    } finally {
+      setSubscriptionLoading(false);
     }
   };
 
@@ -71,6 +121,8 @@ export default function DashboardPage() {
       setCompanySlug(user.company_slug);
       fetchStats(user.company_slug);
     }
+    // Fetch subscription details
+    fetchSubscription();
   }, [user]);
 
   if (isLoading) {
@@ -257,6 +309,121 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
+
+          {/* Subscription Card */}
+          {subscription && (
+            <div className="bg-white rounded-xl p-5 border border-slate-200 mb-8">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                    subscription.plan_name === 'free' 
+                      ? 'bg-slate-100' 
+                      : 'bg-amber-100'
+                  }`}>
+                    {subscription.plan_name === 'free' ? (
+                      <Zap className="w-6 h-6 text-slate-600" />
+                    ) : (
+                      <Crown className="w-6 h-6 text-amber-600" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-slate-900">
+                        {subscription.plan_display_name} Plan
+                      </h3>
+                      {subscription.is_active ? (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded-full">
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-500">
+                      {subscription.plan_name === 'free' 
+                        ? 'Upgrade to unlock more features'
+                        : `${subscription.billing_cycle === 'monthly' ? 'Monthly' : 'Annual'} billing`
+                      }
+                    </p>
+                  </div>
+                </div>
+                
+                {subscription.plan_name === 'free' && (
+                  <Link
+                    href="/pricing"
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-medium rounded-lg hover:from-amber-600 hover:to-orange-600 transition-all shadow-sm hover:shadow-md"
+                  >
+                    <Crown className="w-4 h-4" />
+                    Upgrade Plan
+                  </Link>
+                )}
+              </div>
+              
+              {/* Usage Stats - Only show for non-free plans or if there are limits */}
+              {subscription.plan_name !== 'free' && (
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {/* Daily Stream Time */}
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Daily Stream Time</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {Math.floor(subscription.daily_stream_used / 60)}m / {subscription.daily_stream_limit / 60}h
+                      </p>
+                      <div className="mt-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-sky-500 rounded-full"
+                          style={{ width: `${Math.min((subscription.daily_stream_used / subscription.daily_stream_limit) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Monthly Uploads */}
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Monthly Uploads</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {subscription.monthly_uploads_used} / {subscription.monthly_uploads_limit}
+                      </p>
+                      <div className="mt-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-purple-500 rounded-full"
+                          style={{ width: `${Math.min((subscription.monthly_uploads_used / subscription.monthly_uploads_limit) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Integrations */}
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Integrations</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {subscription.integrations_used} / {subscription.integrations_allowed}
+                      </p>
+                      <div className="mt-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-indigo-500 rounded-full"
+                          style={{ width: `${Math.min((subscription.integrations_used / (subscription.integrations_allowed || 1)) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Price */}
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Price</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {subscription.monthly_price_kobo > 0 
+                          ? `₦${(subscription.monthly_price_kobo / 100).toLocaleString()}/mo`
+                          : subscription.annual_price_kobo > 0 
+                            ? `₦${(subscription.annual_price_kobo / 100).toLocaleString()}/yr`
+                            : 'Free'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Quick Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
