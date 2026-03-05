@@ -57,13 +57,14 @@ interface TelegramPlaylistItem {
 
 interface TelegramChannelMediaItem {
   message_id: number;
-  date: string;
-  title: string | null;
-  file_name: string | null;
-  file_type: string;
-  file_size: number | null;
+  message_date: string;
+  media_type: string | null;
   duration_seconds: number | null;
-  performer: string | null;
+  caption: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  is_imported: boolean;
+  imported_media_id: number | null;
 }
 
 export default function IntegrationsPage() {
@@ -109,7 +110,7 @@ export default function IntegrationsPage() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchTelegramConnections();
-      fetchPlaylists();
+      // fetchPlaylists();
     }
   }, [isAuthenticated]);
 
@@ -509,38 +510,12 @@ export default function IntegrationsPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleImportHistory(connection.id)}
-                              disabled={importingHistory === connection.id}
-                              className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                              title="Import historical media"
-                            >
-                              {importingHistory === connection.id ? (
-                                <RefreshCw className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Download className="w-4 h-4" />
-                              )}
-                              Import
-                            </button>
-                            <button
-                              onClick={() => handleImportNew(connection.id)}
-                              disabled={telegramState.importingNew === connection.id}
-                              className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                              title="Import new media since last sync"
-                            >
-                              {telegramState.importingNew === connection.id ? (
-                                <RefreshCw className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Clock className="w-4 h-4" />
-                              )}
-                              New
-                            </button>
                             <Link
                               href={`/dashboard/integrations/telegram/${connection.id}`}
-                              className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors"
                             >
                               <Music className="w-4 h-4" />
-                              Media
+                              Browse Media
                             </Link>
                             <button
                               onClick={() => handleDisconnect(connection.id)}

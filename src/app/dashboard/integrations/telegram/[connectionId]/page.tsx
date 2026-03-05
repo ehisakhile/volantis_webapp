@@ -21,13 +21,14 @@ interface TelegramConnectionWithMedia extends TelegramConnection {
 
 interface TelegramChannelMediaItem {
   message_id: number;
-  date: string;
-  title: string | null;
-  file_name: string | null;
-  file_type: string;
-  file_size: number | null;
+  message_date: string;
+  media_type: string | null;
   duration_seconds: number | null;
-  performer: string | null;
+  caption: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  is_imported: boolean;
+  imported_media_id: number | null;
 }
 
 interface TelegramPlaylistItem {
@@ -66,6 +67,8 @@ export default function TelegramConnectionPage() {
   const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [playlistName, setPlaylistName] = useState('');
+  const [playlistDescription, setPlaylistDescription] = useState('');
+  const [loopEnabled, setLoopEnabled] = useState(false);
   const [creatingPlaylist, setCreatingPlaylist] = useState(false);
   const [playlists, setPlaylists] = useState<TelegramPlaylistOut[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
@@ -138,7 +141,7 @@ export default function TelegramConnectionPage() {
     setLoadingChannelMedia(true);
     try {
       const response = await telegramApi.getChannelMedia(connectionId, 50, 0);
-      setChannelMedia(response.messages);
+      setChannelMedia(response.media);
     } catch (err: unknown) {
       console.error('Failed to fetch channel media:', err);
     } finally {
@@ -182,11 +185,15 @@ export default function TelegramConnectionPage() {
     setCreatingPlaylist(true);
     try {
       await telegramApi.createPlaylist(connectionId, {
-        title: playlistName,
+        name: playlistName,
+        description: playlistDescription,
+        loop_enabled: loopEnabled,
         media_ids: selectedMediaIds,
       });
       setShowPlaylistModal(false);
       setPlaylistName('');
+      setPlaylistDescription('');
+      setLoopEnabled(false);
       setSelectedMediaIds([]);
       fetchPlaylists();
       alert('Playlist created successfully!');
@@ -236,7 +243,7 @@ export default function TelegramConnectionPage() {
   useEffect(() => {
     if (isAuthenticated && connectionId) {
       fetchConnectionDetails();
-      fetchPlaylists();
+      // fetchPlaylists();
     }
   }, [isAuthenticated, connectionId]);
 
@@ -469,25 +476,25 @@ export default function TelegramConnectionPage() {
                                 )}
                               </button>
                               <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                {getFileTypeIcon(item.file_type)}
+                                {getFileTypeIcon(item.media_type)}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium text-slate-900 truncate">
-                                  {item.title || item.file_name}
+                                  {item.caption || item.file_name}
                                 </p>
                                 <p className="text-xs text-slate-500">
-                                  {item.file_type} • {formatFileSize(item.file_size)}
+                                  {item.media_type} • {formatFileSize(item.file_size_bytes)}
                                   {item.duration_seconds && ` • ${formatDuration(item.duration_seconds)}`}
                                 </p>
                                 <p className="text-xs text-slate-400 mt-1">
-                                  {new Date(item.imported_at).toLocaleDateString()}
+                                  {new Date(item.created_at).toLocaleDateString()}
                                 </p>
                               </div>
                             </div>
                             <div className="mt-3 flex gap-2">
-                              {item.file_url ? (
+                              {item.s3_url ? (
                                 <a
-                                  href={item.file_url}
+                                  href={item.s3_url}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="flex items-center gap-1 px-2 py-1 text-xs text-sky-600 hover:bg-sky-50 rounded transition-colors"
@@ -497,11 +504,11 @@ export default function TelegramConnectionPage() {
                                 </a>
                               ) : (
                                 <button
-                                  onClick={() => handleDownload(item.file_url || '', item.file_type as 'video' | 'audio')}
-                                  disabled={downloadingFile === item.file_url}
+                                  onClick={() => handleDownload(item.s3_url || '', item.media_type as 'video' | 'audio')}
+                                  disabled={downloadingFile === item.s3_url}
                                   className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 rounded transition-colors disabled:opacity-50"
                                 >
-                                  {downloadingFile === item.file_url ? (
+                                  {downloadingFile === item.s3_url ? (
                                     <Loader2 className="w-3 h-3 animate-spin" />
                                   ) : (
                                     <ExternalLink className="w-3 h-3" />
@@ -545,35 +552,42 @@ export default function TelegramConnectionPage() {
                           >
                             <div className="flex items-start gap-3">
                               <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                {getFileTypeIcon(item.file_type)}
+                                {getFileTypeIcon(item.media_type || 'document')}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium text-slate-900 truncate">
-                                  {item.title || item.file_name || 'Untitled'}
+                                  {item.caption || item.file_name || 'Untitled'}
                                 </p>
                                 <p className="text-xs text-slate-500">
-                                  {item.file_type}
+                                  {item.media_type || 'unknown'}
                                   {item.file_size && ` • ${formatFileSize(item.file_size)}`}
                                   {item.duration_seconds && ` • ${formatDuration(item.duration_seconds)}`}
                                 </p>
                                 <p className="text-xs text-slate-400 mt-1">
-                                  {new Date(item.date).toLocaleDateString()}
+                                  {new Date(item.message_date).toLocaleDateString()}
                                 </p>
                               </div>
                             </div>
                             <div className="mt-3 flex gap-2">
-                              <button
-                                onClick={() => handleImportSingleMedia(item.message_id)}
-                                disabled={importingSingle === item.message_id}
-                                className="flex items-center gap-1 px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
-                              >
-                                {importingSingle === item.message_id ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <Download className="w-3 h-3" />
-                                )}
-                                Import
-                              </button>
+                              {item.is_imported ? (
+                                <span className="flex items-center gap-1 px-2 py-1 text-xs text-green-600">
+                                  <CheckCircle className="w-3 h-3" />
+                                  Imported
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleImportSingleMedia(item.message_id)}
+                                  disabled={importingSingle === item.message_id}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                                >
+                                  {importingSingle === item.message_id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Download className="w-3 h-3" />
+                                  )}
+                                  Import
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -675,6 +689,32 @@ export default function TelegramConnectionPage() {
             </div>
 
             <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Description (optional)
+              </label>
+              <textarea
+                value={playlistDescription}
+                onChange={(e) => setPlaylistDescription(e.target.value)}
+                placeholder="Enter playlist description"
+                rows={2}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              />
+            </div>
+
+            <div className="mb-4 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="loopEnabled"
+                checked={loopEnabled}
+                onChange={(e) => setLoopEnabled(e.target.checked)}
+                className="w-4 h-4 text-purple-500 rounded border-slate-300 focus:ring-purple-500"
+              />
+              <label htmlFor="loopEnabled" className="text-sm text-slate-700">
+                Enable loop playback
+              </label>
+            </div>
+
+            <div className="mb-4">
               <p className="text-sm text-slate-600 mb-2">
                 Selected {selectedMediaIds.length} media items
               </p>
@@ -685,6 +725,8 @@ export default function TelegramConnectionPage() {
                 onClick={() => {
                   setShowPlaylistModal(false);
                   setPlaylistName('');
+                  setPlaylistDescription('');
+                  setLoopEnabled(false);
                 }}
                 className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >

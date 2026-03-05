@@ -63,16 +63,18 @@ export interface TelegramImportStatusResponse {
 
 export interface TelegramMediaItem {
   id: number;
+  connection_id: number;
   telegram_message_id: number;
-  title: string | null;
+  telegram_message_link: string | null;
   file_name: string;
-  file_type: 'video' | 'audio' | 'voice' | 'document';
-  file_size: number;
+  s3_url: string;
+  media_type: 'audio' | 'video' | 'voice' | 'document';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
   duration_seconds: number | null;
-  file_url: string | null;
-  thumbnail_url: string | null;
-  imported_at: string;
-  telegram_created_at: string;
+  file_size_bytes: number;
+  caption: string | null;
+  telegram_upload_date: string;
+  created_at: string;
 }
 
 export interface TelegramMediaListResponse {
@@ -82,22 +84,27 @@ export interface TelegramMediaListResponse {
 
 export interface TelegramChannelMediaItem {
   message_id: number;
-  date: string;
-  title: string | null;
-  file_name: string | null;
-  file_type: string;
-  file_size: number | null;
+  message_date: string;
+  media_type: string | null;
   duration_seconds: number | null;
-  performer: string | null;
+  caption: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  is_imported: boolean;
+  imported_media_id: number | null;
 }
 
 export interface TelegramChannelMediaListResponse {
-  messages: TelegramChannelMediaItem[];
+  media: TelegramChannelMediaItem[];
   total: number;
+  connection_id: number;
 }
 
 export interface TelegramPlaylistCreateRequest {
-  title: string;
+  name: string;
+  description?: string;
+  loop_enabled?: boolean;
+  livestream_id?: number;
   media_ids: number[];
 }
 
