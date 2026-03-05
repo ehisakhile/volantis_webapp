@@ -33,6 +33,46 @@ export interface UserSubscription {
   current_viewers: number;
 }
 
+export interface CheckoutRequest {
+  plan_id: number;
+  billing_cycle: 'monthly' | 'annual';
+  coupon_code?: string;
+  additional_integrations?: number;
+}
+
+export interface CheckoutResponse {
+  authorization_url: string;
+  reference: string;
+  amount_kobo: number;
+  description: string;
+}
+
+export interface VerifyPaymentResponse {
+  success: boolean;
+  message: string;
+  subscription: {
+    id: number;
+    company_id: number;
+    plan_id: number;
+    billing_cycle: string;
+    subscription_start: string;
+    subscription_end: string;
+    paystack_subscription_code: string;
+    paystack_customer_code: string;
+    is_active: boolean;
+    auto_renew: boolean;
+    referral_code: string;
+    additional_integrations: number;
+    integration_addon_price_kobo: number;
+    created_at: string;
+    updated_at: string;
+    plan_name: string;
+    plan_display_name: string;
+    monthly_price_kobo: number;
+    annual_price_kobo: number;
+  };
+}
+
 export const subscriptionsApi = {
   /**
    * Subscribe to a company channel
@@ -124,6 +164,41 @@ export const subscriptionsApi = {
       `/subscriptions/${encodeURIComponent(companySlug)}/check`,
       { method: 'GET' }
     );
+    return response;
+  },
+
+  /**
+   * Create checkout session for subscription upgrade
+   * Requires authentication
+   */
+  async createCheckout(request: CheckoutRequest): Promise<CheckoutResponse> {
+    const response = await apiClient.requestWithAuth<CheckoutResponse>('/api/subscriptions/checkout', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    return response;
+  },
+
+  /**
+   * Verify payment after Paystack checkout
+   * Requires authentication
+   */
+  async verifyPayment(reference: string): Promise<VerifyPaymentResponse> {
+    const response = await apiClient.requestWithAuth<VerifyPaymentResponse>(
+      `/api/subscriptions/verify?reference=${encodeURIComponent(reference)}`,
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
+   * Get current user's subscription
+   * Requires authentication
+   */
+  async getCurrentSubscription(): Promise<unknown> {
+    const response = await apiClient.requestWithAuth('/api/subscriptions/current', {
+      method: 'GET',
+    });
     return response;
   },
 };
