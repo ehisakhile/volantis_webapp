@@ -40,18 +40,18 @@ export default function CreatorStreamPage() {
   }, [authLoading, isAuthenticated, checkEmailVerification, router]);
 
   // Check streaming permission on mount
-  useEffect(() => {
-    if (isAuthenticated && isVerified) {
-      subscriptionsApi.canStream()
-        .then((result) => {
-          setStreamPermission({ allowed: result.allowed, reason: result.reason });
-        })
-        .catch(() => {
-          // Default to allowed if API fails
-          setStreamPermission({ allowed: true, reason: '' });
-        });
-    }
-  }, [isAuthenticated, isVerified]);
+  // useEffect(() => {
+  //   if (isAuthenticated && isVerified) {
+  //     subscriptionsApi.canStream()
+  //       .then((result) => {
+  //         setStreamPermission({ allowed: result.allowed, reason: result.reason });
+  //       })
+  //       .catch(() => {
+  //         // Default to allowed if API fails
+  //         setStreamPermission({ allowed: true, reason: '' });
+  //       });
+  //   }
+  // }, [isAuthenticated, isVerified]);
   
   // Redirect if not authenticated or if user is a viewer (no company_id)
   useEffect(() => {
@@ -106,13 +106,13 @@ export default function CreatorStreamPage() {
   }
   
   // Show loading while checking permissions
-  if (!streamPermission) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="animate-pulse text-sky-500">Checking permissions...</div>
-      </div>
-    );
-  }
+  // if (!streamPermission) {
+  //   return (
+  //     <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+  //       <div className="animate-pulse text-sky-500">Checking permissions...</div>
+  //     </div>
+  //   );
+  // }
   
   return (
     <CreatorStreaming

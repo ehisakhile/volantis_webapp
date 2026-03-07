@@ -149,7 +149,7 @@ export default function DashboardPage() {
       fetchStats(user.company_slug);
     }
     // Fetch subscription details
-    fetchSubscription();
+    // fetchSubscription();
   }, [user]);
 
   if (isLoading) {
