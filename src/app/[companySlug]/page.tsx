@@ -21,7 +21,6 @@ import { subscriptionsApi } from '@/lib/api/subscriptions';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import type { VolLivestreamOut, VolRecordingOut } from '@/types/livestream';
 import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
-import { RecordingPlayer } from '@/components/streaming/recording-player';
 import type { VolCompanyResponse } from '@/types/company';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
@@ -652,7 +651,6 @@ export default function CompanyPage() {
   const [recordings, setRecordings] = useState<VolRecordingOut[]>([]);
   const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
   const [showAllRecordings, setShowAllRecordings] = useState(false);
-  const [currentRecording, setCurrentRecording] = useState<VolRecordingOut | null>(null);
    
   // Creator not streaming modal
   const [showCreatorNotStreaming, setShowCreatorNotStreaming] = useState(false);
@@ -964,20 +962,6 @@ export default function CompanyPage() {
     setIsMinimized(false);
     setCurrentStream(null);
   };
-
-  // Handle recording selection
-  const handleRecordingSelect = useCallback((recording: VolRecordingOut) => {
-    // Stop live stream if playing
-    if (isPlaying || currentStream) {
-      handleStopPlayback();
-    }
-    // Set the current recording to play
-    setCurrentRecording(recording);
-  }, [isPlaying, currentStream]);
-
-  const handleRecordingClose = useCallback(() => {
-    setCurrentRecording(null);
-  }, []);
 
   // Handle subscribe/unsubscribe
   const handleSubscribe = useCallback(async () => {
@@ -1412,76 +1396,66 @@ export default function CompanyPage() {
                 ) : (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {visibleRecordings.map((recording, i) => {
-                        const isActive = currentRecording?.id === recording.id;
-                        return (
-                          <motion.div
-                            key={recording.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.05 }}
+                      {visibleRecordings.map((recording, i) => (
+                        <motion.div
+                          key={recording.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.05 }}
+                        >
+                          <Link
+                            href={`/${company?.slug || slug}/recording/${recording.id}`}
+                            className="block group relative overflow-hidden rounded-2xl bg-slate-800/50 border border-slate-700/50 hover:border-amber-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/20"
                           >
-                            <button
-                              onClick={() => handleRecordingSelect(recording)}
-                              className="w-full text-left group relative overflow-hidden rounded-2xl bg-slate-800/50 border border-slate-700/50 hover:border-amber-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/20"
-                            >
-                              {/* Recording thumbnail - priority: thumbnail_url > gradient */}
-                              {recording.thumbnail_url ? (
-                                <div
-                                  className="absolute inset-0 bg-cover bg-center opacity-80 group-hover:opacity-90 transition-opacity"
-                                  style={{ backgroundImage: `url(${recording.thumbnail_url})` }}
-                                />
-                              ) : (
-                                <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-500 to-rose-600 opacity-20 group-hover:opacity-30 transition-opacity" />
-                              )}
-                              {isActive && (
-                                <div className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/90 rounded-full text-white text-xs font-medium z-10">
-                                  <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                                  PLAYING
-                                </div>
-                              )}
-                              <div className="relative p-5 pt-20">
-                                <div className="absolute top-4 right-4">
-                                  <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center overflow-hidden">
-                                    {recording.thumbnail_url ? (
-                                      <img src={recording.thumbnail_url} alt={recording.title} className="w-full h-full object-cover" />
-                                    ) : recording.company_logo_url ? (
-                                      <img src={recording.company_logo_url} alt={recording.company_name || 'Company'} className="w-full h-full object-cover" />
-                                    ) : (
-                                      <Clock className="w-4 h-4 text-amber-400" />
-                                    )}
-                                  </div>
-                                </div>
-                                <h3 className="text-lg font-semibold text-white mb-1 line-clamp-1 group-hover:text-amber-400 transition-colors">
-                                  {recording.title}
-                                </h3>
-                                {recording.description && (
-                                  <p className="text-sm text-slate-400 mb-3 line-clamp-1">{recording.description}</p>
-                                )}
-                                <div className="flex items-center justify-between text-xs text-slate-500">
-                                  <span>{new Date(recording.created_at).toLocaleDateString()}</span>
-                                  <div className="flex items-center gap-3">
-                                    {recording.replay_count !== undefined && recording.replay_count > 0 && (
-                                      <span className="flex items-center gap-1 text-amber-400/70">
-                                        <Users className="w-3 h-3" />
-                                        {recording.replay_count.toLocaleString()}
-                                      </span>
-                                    )}
-                                    {recording.duration_seconds && (
-                                      <span>{Math.floor(recording.duration_seconds / 60)}:{(recording.duration_seconds % 60).toString().padStart(2, '0')}</span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <div className="w-14 h-14 bg-amber-500 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/30 transform scale-0 group-hover:scale-100 transition-transform duration-300">
-                                    <Play className="w-6 h-6 text-white ml-1" />
-                                  </div>
+                            {recording.thumbnail_url ? (
+                              <div
+                                className="absolute inset-0 bg-cover bg-center opacity-80 group-hover:opacity-90 transition-opacity"
+                                style={{ backgroundImage: `url(${recording.thumbnail_url})` }}
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-500 to-rose-600 opacity-20 group-hover:opacity-30 transition-opacity" />
+                            )}
+                            <div className="relative p-5 pt-20">
+                              <div className="absolute top-4 right-4">
+                                <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center overflow-hidden">
+                                  {recording.thumbnail_url ? (
+                                    <img src={recording.thumbnail_url} alt={recording.title} className="w-full h-full object-cover" />
+                                  ) : recording.company_logo_url ? (
+                                    <img src={recording.company_logo_url} alt={recording.company_name || 'Company'} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <Clock className="w-4 h-4 text-amber-400" />
+                                  )}
                                 </div>
                               </div>
-                            </button>
-                          </motion.div>
-                        );
-                      })}
+                              <h3 className="text-lg font-semibold text-white mb-1 line-clamp-1 group-hover:text-amber-400 transition-colors">
+                                {recording.title}
+                              </h3>
+                              {recording.description && (
+                                <p className="text-sm text-slate-400 mb-3 line-clamp-1">{recording.description}</p>
+                              )}
+                              <div className="flex items-center justify-between text-xs text-slate-500">
+                                <span>{new Date(recording.created_at).toLocaleDateString()}</span>
+                                <div className="flex items-center gap-3">
+                                  {recording.replay_count !== undefined && recording.replay_count > 0 && (
+                                    <span className="flex items-center gap-1 text-amber-400/70">
+                                      <Users className="w-3 h-3" />
+                                      {recording.replay_count.toLocaleString()}
+                                    </span>
+                                  )}
+                                  {recording.duration_seconds && (
+                                    <span>{Math.floor(recording.duration_seconds / 60)}:{(recording.duration_seconds % 60).toString().padStart(2, '0')}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="w-14 h-14 bg-amber-500 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/30 transform scale-0 group-hover:scale-100 transition-transform duration-300">
+                                  <Play className="w-6 h-6 text-white ml-1" />
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        </motion.div>
+                      ))}
                     </div>
 
                     {recordings.length > 6 && (
@@ -1507,15 +1481,6 @@ export default function CompanyPage() {
           </div>
         </main>
       </div>
-
-      {/* ── Recording Player ── */}
-      {currentRecording && (
-        <RecordingPlayer
-          key={currentRecording.id}
-          recording={currentRecording}
-          onClose={handleRecordingClose}
-        />
-      )}
 
       {/* ── Player Overlay ── */}
       <AnimatePresence mode="wait">
