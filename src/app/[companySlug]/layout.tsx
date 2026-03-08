@@ -1,24 +1,38 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import { livestreamApi } from '@/lib/api/livestream';
+import { getCompanyFromRequest, shouldUseSubdomains, getBaseDomain } from '@/lib/subdomain';
 
 interface Props {
   params: Promise<{ companySlug: string }>;
   children: React.ReactNode;
 }
 
+function getCompanyUrl(companySlug: string, useSubdomains: boolean, baseDomain: string): string {
+  if (useSubdomains) {
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const port = process.env.NODE_ENV === 'development' ? ':3000' : '';
+    return `${protocol}://${companySlug}.${baseDomain}${port}`;
+  }
+  return `https://volantislive.com/${companySlug}`;
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { companySlug } = await params;
+  const headerList = await headers();
+  const useSubdomains = shouldUseSubdomains();
+  const baseDomain = getBaseDomain();
   
   try {
-    // Use getCompanyPage for company info with subscriber count
     const companyPageData = await livestreamApi.getCompanyPage(companySlug);
     const company = companyPageData.company;
     
-    // Check if there's a live stream
     const isLive = companyPageData.livestream?.is_live ?? false;
     const streamTitle = companyPageData.livestream?.title;
     const viewerCount = companyPageData.livestream?.viewer_count;
+    
+    const companyUrl = getCompanyUrl(companySlug, useSubdomains, baseDomain);
     
     let title = `${company.name} | Volantislive`;
     let description = company.description 
@@ -39,7 +53,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         type: 'website',
         locale: 'en_NG',
         siteName: 'Volantislive',
-        url: `https://volantislive.com/${companySlug}`,
+        url: companyUrl,
         ...(company.logo_url && {
           images: [{
             url: company.logo_url,
@@ -54,9 +68,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title,
         description,
       },
+      alternates: {
+        canonical: companyUrl,
+      },
     };
   } catch {
-    // Company not found
     return {
       title: 'Channel Not Found | Volantislive',
       description: 'This channel does not exist on Volantislive. Discover live audio streaming from churches and creators across Africa.',
