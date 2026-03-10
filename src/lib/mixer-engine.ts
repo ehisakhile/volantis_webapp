@@ -148,7 +148,7 @@ export class MixerEngine {
     
     // Create gain node for volume control
     const gainNode = this.audioCtx.createGain();
-    gainNode.gain.value = 0.75; // Default volume (75%)
+    gainNode.gain.value = 1; // Default volume (75%)
     
     // Create analyser node for VU meter visualization
     const analyserNode = this.audioCtx.createAnalyser();
@@ -169,7 +169,7 @@ export class MixerEngine {
       sourceNode,
       stream,
       isMuted: false,
-      volume: 75, // Default 75%
+      volume: 100, // Default 75%
       deviceId,
     };
 
