@@ -416,6 +416,12 @@ export function CreatorStreaming({
       setCodec(detectedCodec);
       console.log(`Negotiated codec: ${detectedCodec}`);
 
+      // Clear any existing duration interval and reset counter before starting new one
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+      }
+      setStreamDuration(0);
+
       // Start duration counter
       durationIntervalRef.current = setInterval(() => {
         setStreamDuration(prev => prev + 1);
@@ -612,6 +618,12 @@ export function CreatorStreaming({
       const detectedCodec = detectAudioCodec(answerSdp);
       setCodec(detectedCodec);
       console.log(`Negotiated codec: ${detectedCodec}`);
+
+      // Clear any existing duration interval and reset counter before starting new one
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+      }
+      setStreamDuration(0);
 
       // Start duration counter
       durationIntervalRef.current = setInterval(() => {
@@ -833,6 +845,7 @@ export function CreatorStreaming({
             setIsStreaming(false);
             setCurrentStream(null);
             setConnectionState('idle');
+            setStreamDuration(0);
             teardownPublish();
           }
         } catch (err) {
@@ -853,6 +866,7 @@ export function CreatorStreaming({
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current);
       }
+      setStreamDuration(0);
     };
   }, [teardownPublish]);
 
