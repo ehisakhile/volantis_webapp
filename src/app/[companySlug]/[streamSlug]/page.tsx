@@ -743,7 +743,7 @@ useEffect(() => {
 
               {/* Chat Section - Hidden on mobile, visible on desktop */}
               <div className="hidden lg:block w-80 flex-shrink-0">
-                <LiveChat slug={streamSlug} />
+                <LiveChat slug={streamSlug} companyName={company?.name} />
               </div>
             </div>
 
@@ -756,7 +756,7 @@ useEffect(() => {
                   <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
                 </summary>
                 <div className="mt-2">
-                  {streamSlug && <LiveChat slug={streamSlug} />}
+                  {streamSlug && <LiveChat slug={streamSlug} companyName={company?.name} />}
                 </div>
               </details>
             </div>

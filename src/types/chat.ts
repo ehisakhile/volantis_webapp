@@ -7,6 +7,7 @@ export interface VolChatMessageOut {
   content: string;
   is_deleted: boolean;
   is_edited: boolean
+  is_creator: boolean;
   created_at: string;
   updated_at?: string;
 }

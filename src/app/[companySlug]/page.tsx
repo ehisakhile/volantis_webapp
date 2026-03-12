@@ -622,7 +622,7 @@ function FullPlayer({
           {/* Chat column */}
           {streamSlug && (
             <div className="w-80 flex-shrink-0">
-              <LiveChat slug={streamSlug} />
+              <LiveChat slug={streamSlug} companyName={company?.name || streamSlug} />
             </div>
           )}
         </div>

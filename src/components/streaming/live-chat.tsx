@@ -8,13 +8,15 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { chatApi } from '@/lib/api/chat';
 import type { VolChatMessageOut } from '@/types/chat';
+import { getUserColors } from '@/lib/utils';
 
 interface LiveChatProps {
   slug: string; // Stream slug for chat
   isCreator?: boolean; // If true, show creator controls (delete, edit)
+  companyName?: string; // Company name for displaying creator messages
 }
 
-export function LiveChat({ slug, isCreator = false }: LiveChatProps) {
+export function LiveChat({ slug, isCreator = false, companyName }: LiveChatProps) {
   const { user, isAuthenticated } = useAuth();
   const [messages, setMessages] = useState<VolChatMessageOut[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -196,21 +198,42 @@ const emojiPickerRef = useRef<HTMLDivElement>(null);
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className={`group flex gap-3 ${message.is_deleted ? 'opacity-50' : ''}`}
+                className={`group flex gap-3 ${message.is_deleted ? 'opacity-50' : ''} ${message.is_creator ? 'bg-sky-500/10 -mx-2 px-2 rounded-lg' : ''}`}
               >
-                {/* Avatar */}
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-violet-500 flex items-center justify-center text-white text-xs font-bold">
-                  { (
-                    message.username?.toUpperCase().slice(0, 1)  || '?'
-                  )}
-                </div>
+                {/* Avatar - Different style for creator messages */}
+                {message.is_creator ? (
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-sky-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold border-2 border-sky-400">
+                    {companyName?.toUpperCase().slice(0, 1) || 'C'}
+                  </div>
+                ) : (
+                  (() => {
+                    const { gradient } = getUserColors(message.username || '');
+                    return (
+                      <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br ${gradient[0]} ${gradient[1]} flex items-center justify-center text-white text-xs font-bold`}>
+                        {message.username?.toUpperCase().slice(0, 1) || '?'}
+                      </div>
+                    );
+                  })()
+                )}
                 
                 {/* Message content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sky-400 font-semibold text-sm">
-                      {message.username}
-                    </span>
+                    {message.is_creator ? (
+                      <span className="font-semibold text-sm text-sky-400 flex items-center gap-1">
+                        {companyName || 'Creator'}
+                        <span className="text-xs bg-sky-500/20 text-sky-400 px-1.5 py-0.5 rounded">CREATOR</span>
+                      </span>
+                    ) : (
+                      (() => {
+                        const { color } = getUserColors(message.username || '');
+                        return (
+                          <span className={`${color} font-semibold text-sm`}>
+                            {message.username}
+                          </span>
+                        );
+                      })()
+                    )}
                     <span className="text-slate-500 text-xs">
                       {formatTime(message.created_at)}
                     </span>
@@ -227,7 +250,7 @@ const emojiPickerRef = useRef<HTMLDivElement>(null);
                       </div>
                     )}
                   </div>
-                  <p className={`text-sm ${message.is_deleted ? 'text-slate-600 italic' : 'text-slate-200'}`}>
+                  <p className={`text-sm ${message.is_deleted ? 'text-slate-600 italic' : message.is_creator ? 'text-white' : 'text-slate-200'}`}>
                     {message.is_deleted ? 'This message was deleted' : message.content}
                   </p>
                 </div>
