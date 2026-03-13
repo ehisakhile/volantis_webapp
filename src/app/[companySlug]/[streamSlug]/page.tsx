@@ -16,6 +16,7 @@ import type { VolLivestreamOut } from '@/types/livestream';
 import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
 import type { VolCompanyResponse } from '@/types/company';
 import { useViewerCount } from '@/lib/api/useViewerCount';
+import { useMobileBackgroundAudio } from '@/hooks/useMobileBackgroundAudio';
 
 /* ─────────────────────── Waveform Visualizer ─────────────────────── */
 function AudioVisualizer({ isActive, color = '#38bdf8' }: { isActive: boolean; color?: string }) {
@@ -408,6 +409,26 @@ export default function StreamPage() {
     if (el) audioRef.current = el;
   }, []);
 
+  // ─── Mobile Background Audio ─────────────────────────────────────────
+  // Handle background playback on iOS Safari and Android Chrome
+  const { updateMediaSessionState } = useMobileBackgroundAudio({
+    audioRef,
+    isPlaying,
+    title: stream?.title || 'Live Stream',
+    artist: company?.name || 'Volantislive',
+    artwork: stream?.thumbnail_url ?? company?.logo_url ?? undefined,
+    onRemotePlay: () => {
+      if (!isPlaying && playbackUrlRef.current) {
+        startPlayback(playbackUrlRef.current);
+      }
+    },
+    onRemotePause: () => {
+      if (isPlaying) {
+        handleStopPlayback();
+      }
+    },
+  });
+
   // ─── Media Session API ────────────────────────────────────────────
   /**
    * Registers the stream with the OS so it appears in:
@@ -494,12 +515,25 @@ export default function StreamPage() {
     // "emptied" fires on iOS when an audio session is interrupted
     audio.onemptied  = healAudio;
 
+    // Handle iOS Safari audio interruptions
+    audio.onpause = () => {
+      // Only update media session if we didn't intentionally pause
+      if (isPlaying) {
+        updateMediaSessionState(false);
+      }
+    };
+
+    audio.onplay = () => {
+      updateMediaSessionState(true);
+    };
+
     audio.play().catch(err => {
       console.warn('[Audio] play() blocked:', err);
     });
 
     wiredStreamIdRef.current = mediaStream.id;
-  }, []);
+    updateMediaSessionState(true);
+  }, [isPlaying, updateMediaSessionState]);
 
   // Wire audio whenever useWebRTC delivers a new stream
   useEffect(() => {
@@ -559,7 +593,12 @@ export default function StreamPage() {
   // ─── Tab visibility / background healing ─────────────────────────
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible') {
+        // Page is hidden - update media session to show it's still playing
+        updateMediaSessionState(isPlaying);
+        return;
+      }
+      
       if (!isPlaying) return;
 
       const audio = audioRef.current;
@@ -573,6 +612,9 @@ export default function StreamPage() {
           triggerReconnect();
         }
       }
+      
+      // Update media session state when coming back to foreground
+      updateMediaSessionState(isPlaying);
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -861,6 +903,8 @@ export default function StreamPage() {
       <audio
         id="volantis-bg-audio"
         playsInline
+        webkit-playsinline="true"
+        preload="none"
         style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
       />
 
