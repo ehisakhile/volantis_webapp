@@ -159,7 +159,7 @@ const emojiPickerRef = useRef<HTMLDivElement>(null);
               Sign In
             </Link>
             <Link
-              href="/signup"
+              href="/signup/user"
               className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium text-sm transition-colors"
             >
               Sign Up

@@ -482,18 +482,18 @@ export function Navbar() {
                     Login
                   </Link>
                   <Link
-                    href="/signup"
+                    href="/signup/user"
                     className="text-center py-3 bg-sky-500 text-white font-semibold rounded-xl hover:bg-sky-600 transition-colors shadow-md shadow-sky-500/20"
                     onClick={() => setIsOpen(false)}
                   >
-                    Start Streaming — Free
+                    I want to Listen 
                   </Link>
                   <Link
-                    href="/signup/user"
+                    href="/signup"
                     className="text-center py-2.5 text-sky-600 font-medium text-sm hover:underline"
                     onClick={() => setIsOpen(false)}
                   >
-                    Join as Viewer
+                    I want to Stream 
                   </Link>
                 </div>
               )}
