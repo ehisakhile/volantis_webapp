@@ -2,17 +2,15 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Head from 'next/head';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Radio, Play, X, ChevronLeft, Volume2, VolumeX, Minimize2, Maximize2,
-  Wifi, Users, Activity, Signal, Eye, Share2, Heart, ArrowLeft, Disc3,
+  Radio, Play, X, Volume2, VolumeX,
+  Wifi, Users, Activity, Signal, Eye, Share2, ArrowLeft, Disc3,
   ChevronRight
 } from 'lucide-react';
-import { Navbar } from '@/components/layout/navbar';
 import { LiveChat } from '@/components/streaming/live-chat';
-import { livestreamApi, type CompanyLivePageResponse } from '@/lib/api/livestream';
+import { livestreamApi } from '@/lib/api/livestream';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import type { VolLivestreamOut } from '@/types/livestream';
 import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
@@ -119,15 +117,12 @@ function StreamPlayer({
   viewerCount?: number;
 }) {
   const [muted, setMuted] = useState(false);
-  const [liked, setLiked] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [showStats, setShowStats] = useState(false);
 
   const handleVolumeChange = (newVolume: number) => {
     setVolume(newVolume);
-    if (onVolumeChange) {
-      onVolumeChange(newVolume);
-    }
+    onVolumeChange?.(newVolume);
   };
 
   const isConnected = connectionState === 'connected';
@@ -138,7 +133,7 @@ function StreamPlayer({
 
   return (
     <div className="flex-1 min-w-0">
-      {/* Top bar with back button and status */}
+      {/* Top bar */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border"
@@ -181,7 +176,6 @@ function StreamPlayer({
         className="rounded-2xl border border-white/10 overflow-hidden"
         style={{ background: 'linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(8,14,28,0.98) 100%)' }}
       >
-        {/* Gradient header */}
         <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-violet-500 to-sky-400 bg-[size:200%_100%]" />
 
         <div className="p-6">
@@ -200,7 +194,7 @@ function StreamPlayer({
             </motion.div>
             <div className="flex-1 min-w-0">
               <Link
-                href={`/${stream.company_slug || ''}`}
+                href={`/${stream.company_slug || company?.slug || ''}`}
                 className="text-sky-400 text-xs font-semibold uppercase tracking-widest hover:underline"
               >
                 {company?.name || 'Channel'}
@@ -225,13 +219,11 @@ function StreamPlayer({
           {/* Visualizer stage */}
           <div className="relative rounded-xl overflow-hidden mb-4 h-24"
             style={{ background: 'linear-gradient(180deg, rgba(56,189,248,0.04) 0%, rgba(139,92,246,0.04) 100%)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            {/* Grid lines */}
             <div className="absolute inset-0 opacity-10"
               style={{
                 backgroundImage: 'linear-gradient(rgba(56,189,248,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(56,189,248,0.3) 1px, transparent 1px)',
                 backgroundSize: '40px 40px',
               }} />
-
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="relative">
                 <PulseRings isActive={isPlaying} />
@@ -247,8 +239,6 @@ function StreamPlayer({
                 </motion.div>
               </div>
             </div>
-
-            {/* Waveform at bottom */}
             <div className="absolute bottom-0 left-0 right-0 px-3 pb-2 h-10">
               <AudioVisualizer isActive={isPlaying} color="#38bdf8" />
             </div>
@@ -306,32 +296,17 @@ function StreamPlayer({
                 Reconnect
               </motion.button>
             ) : null}
-         
+
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => {
-                const shareUrl = `${window.location.origin}/${company?.slug}/${stream.slug}`;
-                const shareData = {
-                  title: stream.title,
-                  text: `Listen to "${stream.title}" live on Volantis`,
-                  url: shareUrl,
-                };
-
-                // Use Web Share API if available (mobile), fallback to clipboard
+                const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://volantislive.com'}/${company?.slug}/${stream.slug}`;
+                const shareData = { title: stream.title, text: `Listen to "${stream.title}" live on Volantis`, url: shareUrl };
                 if (navigator.share && navigator.canShare?.(shareData)) {
-                  navigator.share(shareData).catch((err) => {
-                    if (err.name !== 'AbortError') {
-                      console.error('Share failed:', err);
-                    }
-                  });
+                  navigator.share(shareData).catch(err => { if (err.name !== 'AbortError') console.error('Share failed:', err); });
                 } else {
-                  // Fallback: copy to clipboard
-                  navigator.clipboard.writeText(shareUrl).then(() => {
-                    // Could show a toast notification here
-                  }).catch((err) => {
-                    console.error('Failed to copy:', err);
-                  });
+                  navigator.clipboard.writeText(shareUrl).catch(err => console.error('Failed to copy:', err));
                 }
               }}
               className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-slate-400 hover:text-sky-400 transition-colors"
@@ -385,7 +360,6 @@ export default function StreamPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
 
-  // Creator not streaming modal
   const [showCreatorNotStreaming, setShowCreatorNotStreaming] = useState(false);
   const [creatorNotStreamingInfo, setCreatorNotStreamingInfo] = useState<{
     creatorName: string;
@@ -397,42 +371,241 @@ export default function StreamPage() {
     connectionState,
     startPlayback,
     stop: stopPlayback,
-    retryConnection,
     audioStats,
   } = useWebRTC();
 
-  // Real-time viewer count
-  const { viewerCount: realtimeViewerCount, isConnected: isViewerWsConnected } = useViewerCount({
+  const { viewerCount: realtimeViewerCount } = useViewerCount({
     slug: streamSlug || '',
-    companyId: company?.id || 0,
+    companyId: company?.id ?? 0,
     enabled: !!streamSlug && !!company?.id,
     pollingInterval: 10000,
   });
 
-  // Audio element ref
+  // ─── Audio refs ───────────────────────────────────────────────────
+  /**
+   * Points at the persistent <audio id="volantis-bg-audio"> rendered in JSX.
+   *
+   * WHY a DOM element instead of `new Audio()`?
+   * Chrome on Android and desktop only keeps audio alive in the background
+   * when the element is attached to the document. A detached JS Audio object
+   * gets suspended as soon as the tab loses focus. The DOM element stays
+   * active, letting the OS media session and the browser audio pipeline
+   * treat it like a real media player.
+   */
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const volumeRef = useRef(0.8);
+  /** ID of the MediaStream currently assigned to the audio element */
+  const wiredStreamIdRef = useRef<string | null>(null);
+  /** Stored so every reconnect path can restart without prop-drilling */
+  const playbackUrlRef = useRef<string | null>(null);
+  const isReconnectingRef = useRef(false);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Handle remote stream - play audio when available
+  // Grab the DOM element once on mount
   useEffect(() => {
-    if (remoteStream && !audioRef.current) {
-      const audio = new Audio();
-      audio.srcObject = remoteStream;
-      audio.volume = volumeRef.current;
-      audio.play().catch(err => console.error('Audio playback error:', err));
-      audioRef.current = audio;
-    }
-  }, [remoteStream]);
-
-  // Update volume
-  const updateVolume = useCallback((vol: number) => {
-    volumeRef.current = vol;
-    if (audioRef.current) {
-      audioRef.current.volume = vol;
-    }
+    const el = document.getElementById('volantis-bg-audio') as HTMLAudioElement | null;
+    if (el) audioRef.current = el;
   }, []);
 
-  // Fetch stream and company data
+  // ─── Media Session API ────────────────────────────────────────────
+  /**
+   * Registers the stream with the OS so it appears in:
+   *  • Chrome's mini-player bar when the tab is backgrounded
+   *  • Android lock-screen / notification shade media controls
+   *  • macOS Control Center
+   *
+   * The play/pause/stop handlers delegate back to our own stop function
+   * so the UI state stays in sync.
+   */
+  const registerMediaSession = useCallback((
+    streamData: VolLivestreamOut,
+    companyData: VolCompanyResponse | null,
+    onStop: () => void,
+  ) => {
+    if (!('mediaSession' in navigator)) return;
+
+    const artworkSrc = streamData.thumbnail_url ?? companyData?.logo_url;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: streamData.title,
+      artist: companyData?.name ?? 'Volantislive',
+      album: '🔴 Live Stream',
+      ...(artworkSrc && {
+        artwork: [
+          { src: artworkSrc, sizes: '96x96',   type: 'image/jpeg' },
+          { src: artworkSrc, sizes: '256x256',  type: 'image/jpeg' },
+          { src: artworkSrc, sizes: '512x512',  type: 'image/jpeg' },
+        ],
+      }),
+    });
+
+    navigator.mediaSession.playbackState = 'playing';
+
+    // "Play" from the OS notification resumes the audio element directly
+    navigator.mediaSession.setActionHandler('play', () => {
+      audioRef.current?.play().catch(() => {});
+      navigator.mediaSession.playbackState = 'playing';
+    });
+
+    // "Pause" on a live stream means stop — there is nothing to resume to
+    navigator.mediaSession.setActionHandler('pause', () => {
+      onStop();
+      navigator.mediaSession.playbackState = 'paused';
+    });
+
+    navigator.mediaSession.setActionHandler('stop', () => {
+      onStop();
+      navigator.mediaSession.playbackState = 'none';
+    });
+
+    // Disable seek / track controls — meaningless on a live feed
+    navigator.mediaSession.setActionHandler('seekbackward',  null);
+    navigator.mediaSession.setActionHandler('seekforward',   null);
+    navigator.mediaSession.setActionHandler('previoustrack', null);
+    navigator.mediaSession.setActionHandler('nexttrack',     null);
+  }, []);
+
+  // ─── Core audio wiring ────────────────────────────────────────────
+  /**
+   * Swaps the srcObject on the persistent DOM element without ever
+   * destroying it. Keeping the same element alive is what lets Chrome's
+   * background-audio pipeline stay active across tab switches.
+   */
+  const wireAudio = useCallback((mediaStream: MediaStream) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.pause();
+    audio.srcObject = mediaStream;
+    audio.volume = volumeRef.current;
+
+    // Stall/buffer healing — re-assign and re-play if the browser drops the stream
+    const healAudio = () => {
+      if (!audioRef.current) return;
+      if (audioRef.current.srcObject !== mediaStream) {
+        audioRef.current.srcObject = mediaStream;
+      }
+      audioRef.current.play().catch(() => {});
+    };
+
+    audio.onstalled  = healAudio;
+    audio.onwaiting  = healAudio;
+    // "emptied" fires on iOS when an audio session is interrupted
+    audio.onemptied  = healAudio;
+
+    audio.play().catch(err => {
+      console.warn('[Audio] play() blocked:', err);
+    });
+
+    wiredStreamIdRef.current = mediaStream.id;
+  }, []);
+
+  // Wire audio whenever useWebRTC delivers a new stream
+  useEffect(() => {
+    if (!remoteStream) return;
+    if (remoteStream.id === wiredStreamIdRef.current && audioRef.current?.srcObject) return;
+    wireAudio(remoteStream);
+    reconnectAttemptsRef.current = 0;
+    isReconnectingRef.current = false;
+    // Keep the OS notification bar in sync after an auto-reconnect
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = 'playing';
+    }
+  }, [remoteStream, wireAudio]);
+
+  // ─── Volume control ───────────────────────────────────────────────
+  const updateVolume = useCallback((vol: number) => {
+    volumeRef.current = vol;
+    if (audioRef.current) audioRef.current.volume = vol;
+  }, []);
+
+  // ─── Reconnection logic ───────────────────────────────────────────
+  const triggerReconnect = useCallback(async () => {
+    if (isReconnectingRef.current) return;
+    if (!playbackUrlRef.current) return;
+
+    isReconnectingRef.current = true;
+    reconnectAttemptsRef.current += 1;
+
+    try {
+      await startPlayback(playbackUrlRef.current);
+      setIsPlaying(true);
+    } catch (err) {
+      const error = err as { status?: number };
+      isReconnectingRef.current = false;
+
+      if (error.status === 409) {
+        setIsPlaying(false);
+        setShowCreatorNotStreaming(true);
+        return;
+      }
+
+      // Exponential backoff: 2s → 4s → 8s … capped at 30s
+      const delay = Math.min(2000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30_000);
+      reconnectTimerRef.current = setTimeout(triggerReconnect, delay);
+    }
+  }, [startPlayback]);
+
+  // ─── Network online recovery ──────────────────────────────────────
+  useEffect(() => {
+    const handleOnline = () => {
+      if (isPlaying) setTimeout(() => triggerReconnect(), 500);
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [isPlaying, triggerReconnect]);
+
+  // ─── Tab visibility / background healing ─────────────────────────
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!isPlaying) return;
+
+      const audio = audioRef.current;
+      if (!audio) { triggerReconnect(); return; }
+
+      if (audio.paused || audio.ended || !audio.srcObject) {
+        if (remoteStream?.active) {
+          audio.srcObject = remoteStream;
+          audio.play().catch(() => triggerReconnect());
+        } else {
+          triggerReconnect();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isPlaying, remoteStream, triggerReconnect]);
+
+  // ─── WebRTC state monitoring ──────────────────────────────────────
+  useEffect(() => {
+    if (!isPlaying) return;
+    if (connectionState === 'failed' || connectionState === 'disconnected') {
+      reconnectTimerRef.current = setTimeout(() => triggerReconnect(), 1500);
+    }
+    return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+    };
+  }, [connectionState, isPlaying, triggerReconnect]);
+
+  // ─── Cleanup on unmount ───────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.srcObject = null;
+      }
+      stopPlayback();
+    };
+  }, [stopPlayback]);
+
+  // ─── Fetch stream + company data ──────────────────────────────────
   const fetchData = useCallback(async () => {
     if (!companySlug || !streamSlug) return;
 
@@ -440,30 +613,27 @@ export default function StreamPage() {
     setStreamError(null);
 
     try {
-      // First try to get the stream directly by its slug
       let streamData: VolLivestreamOut;
       try {
         streamData = await livestreamApi.getLivestream(streamSlug);
       } catch {
-        // Fallback: fetch from company streams
         const companyStreams = await livestreamApi.getCompanyStreams(companySlug, 50, 0, true);
         const foundStream = companyStreams.find(s => s.slug === streamSlug);
-        
-        if (!foundStream) {
-          throw new Error('Stream not found');
-        }
+        if (!foundStream) throw new Error('Stream not found');
         streamData = foundStream;
       }
 
       setStream(streamData);
 
-      // Check if stream is active (live). If not, redirect to company page
       if (!streamData.is_active) {
         router.push(`/${companySlug}`);
         return;
       }
 
-      // Also get company info
+      if (streamData.cf_webrtc_playback_url) {
+        playbackUrlRef.current = streamData.cf_webrtc_playback_url;
+      }
+
       try {
         const companyPageData = await livestreamApi.getCompanyPage(companySlug);
         setCompany({
@@ -477,7 +647,6 @@ export default function StreamPage() {
           created_at: new Date().toISOString(),
         });
       } catch {
-        // Use stream's company info if available
         if (streamData.company_id) {
           setCompany({
             id: streamData.company_id,
@@ -491,33 +660,24 @@ export default function StreamPage() {
           });
         }
       }
-
-      // DON'T auto-play - user must click Play button to start
-      // This gives time for proper initialization
-
     } catch (err: unknown) {
       const error = err as { status?: number; detail?: string; message?: string };
-       
-      // If stream not found (error.message includes "Stream not found"), redirect to company page
+
       if (error.message?.includes('Stream not found')) {
         router.push(`/${companySlug}`);
         return;
       }
-       
-      // If API returns 404, determine whether it's stream or company
+
       if (error.status === 404) {
-        // Check if it's a company not found by trying to get company info
         try {
           await livestreamApi.getCompanyPage(companySlug);
-          // Company exists, so stream doesn't - redirect to company page
           router.push(`/${companySlug}`);
         } catch {
-          // Company doesn't exist - redirect to /listen
           router.push('/listen');
         }
         return;
       }
-       
+
       if (error.status === 409) {
         setStreamError(error.detail || 'Stream has not started yet.');
       } else {
@@ -526,95 +686,91 @@ export default function StreamPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [companySlug, streamSlug, startPlayback, router]);
+  }, [companySlug, streamSlug, router]);
 
-useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // SEO: Update metadata when stream/company data loads
+  // ─── SEO meta tags ────────────────────────────────────────────────
   useEffect(() => {
     if (!stream || !company) return;
-    
+
     const title = `🔴 LIVE: ${stream.title} | ${company.name}`;
-    const description = stream.description 
+    const description = stream.description
       ? `${stream.description} - Listen live on Volantis.`
       : `Listen to ${stream.title} by ${company.name} live on Volantis.`;
     const imageUrl = stream.thumbnail_url || company.logo_url;
     const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://volantislive.com';
-    
-    // Update document title
+
     document.title = title;
-    
-    // Update or create meta tags
+
     const updateMetaTag = (name: string, content: string, isProperty = false) => {
       const selector = isProperty ? `meta[property="${name}"]` : `meta[name="${name}"]`;
       let meta = document.querySelector(selector) as HTMLMetaElement | null;
       if (!meta) {
         meta = document.createElement('meta');
-        if (isProperty) {
-          meta.setAttribute('property', name);
-        } else {
-          meta.setAttribute('name', name);
-        }
+        if (isProperty) meta.setAttribute('property', name);
+        else meta.setAttribute('name', name);
         document.head.appendChild(meta);
       }
       meta.setAttribute('content', content);
     };
-    
-    // Description
+
     updateMetaTag('description', description);
-    
-    // Open Graph
     updateMetaTag('og:title', title, true);
     updateMetaTag('og:description', description, true);
     updateMetaTag('og:type', 'video.other', true);
     updateMetaTag('og:url', `${siteUrl}/${companySlug}/${streamSlug}`, true);
-    if (imageUrl) {
-      updateMetaTag('og:image', imageUrl, true);
-    }
-    
-    // Twitter Card
+    if (imageUrl) updateMetaTag('og:image', imageUrl, true);
     updateMetaTag('twitter:card', 'summary_large_image');
     updateMetaTag('twitter:title', title);
     updateMetaTag('twitter:description', description);
-    if (imageUrl) {
-      updateMetaTag('twitter:image', imageUrl);
-    }
+    if (imageUrl) updateMetaTag('twitter:image', imageUrl);
   }, [stream, company, companySlug, streamSlug]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.srcObject = null;
-        audioRef.current = null;
-      }
-      stopPlayback();
-    };
-  }, [stopPlayback]);
-
-  const handleStopPlayback = () => {
+  // ─── Play / Stop handlers ─────────────────────────────────────────
+  const handleStopPlayback = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current.srcObject = null;
-      audioRef.current = null;
+      audioRef.current.srcObject  = null;
+      audioRef.current.onstalled  = null;
+      audioRef.current.onwaiting  = null;
+      audioRef.current.onemptied  = null;
+      // Do NOT null out audioRef — the DOM element stays mounted
     }
+    wiredStreamIdRef.current     = null;
+    isReconnectingRef.current    = false;
+    reconnectAttemptsRef.current = 0;
+
+    // Clear OS media controls
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = 'none';
+      navigator.mediaSession.metadata      = null;
+      navigator.mediaSession.setActionHandler('play',  null);
+      navigator.mediaSession.setActionHandler('pause', null);
+      navigator.mediaSession.setActionHandler('stop',  null);
+    }
+
     stopPlayback();
     setIsPlaying(false);
-    // Navigate back to the channel page
     router.push(`/${companySlug}`);
-  };
+  }, [stopPlayback, companySlug, router]);
 
   const handlePlay = async () => {
     if (!stream?.cf_webrtc_playback_url) {
-      setIsPlaying(true);
+      console.warn('[StreamPage] No playback URL available, cannot start stream');
+      setStreamError('Stream playback is not available at this time.');
       return;
     }
     try {
+      playbackUrlRef.current = stream.cf_webrtc_playback_url;
       await startPlayback(stream.cf_webrtc_playback_url);
       setIsPlaying(true);
+      // Register with OS — this is what makes the Chrome mini-player appear
+      registerMediaSession(stream, company, handleStopPlayback);
     } catch (err) {
       const error = err as { status?: number; message?: string };
       if (error.status === 409) {
@@ -623,28 +779,24 @@ useEffect(() => {
           streamTitle: stream.title,
         });
         setShowCreatorNotStreaming(true);
+      } else {
+        console.error('[StreamPage] Playback failed:', error.message);
+        setStreamError(error.message || 'Failed to start playback');
       }
     }
   };
 
   const handleRetry = async () => {
-    if (stream?.cf_webrtc_playback_url) {
-      try {
-        await startPlayback(stream.cf_webrtc_playback_url);
-        setIsPlaying(true);
-      } catch (err) {
-        const error = err as { status?: number; message?: string };
-        if (error.status === 409) {
-          setCreatorNotStreamingInfo({
-            creatorName: company?.name || 'The Creator',
-            streamTitle: stream.title,
-          });
-          setShowCreatorNotStreaming(true);
-        }
-      }
+    reconnectAttemptsRef.current = 0;
+    isReconnectingRef.current    = false;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
     }
+    await triggerReconnect();
   };
 
+  // ─── Render ───────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -684,12 +836,32 @@ useEffect(() => {
 
   return (
     <>
-      {/* Creator Not Streaming Modal */}
       <CreatorNotStreamingModal
         isOpen={showCreatorNotStreaming}
         onClose={() => setShowCreatorNotStreaming(false)}
         creatorName={creatorNotStreamingInfo?.creatorName || 'The Creator'}
         streamTitle={creatorNotStreamingInfo?.streamTitle}
+      />
+
+      {/*
+        ┌─────────────────────────────────────────────────────┐
+        │  BACKGROUND AUDIO ELEMENT                           │
+        │                                                     │
+        │  Must be in the DOM (not `new Audio()`) for Chrome  │
+        │  to keep audio alive when the tab is backgrounded   │
+        │  or the screen is locked on Android/desktop.        │
+        │                                                     │
+        │  autoPlay is intentionally absent — wireAudio()     │
+        │  calls .play() after setting srcObject.             │
+        │                                                     │
+        │  Hidden with CSS, not conditional rendering, so     │
+        │  the element is never unmounted mid-stream.         │
+        └─────────────────────────────────────────────────────┘
+      */}
+      <audio
+        id="volantis-bg-audio"
+        playsInline
+        style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
       />
 
       <style>{`
@@ -703,7 +875,6 @@ useEffect(() => {
       <GrainOverlay />
 
       <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #030712 0%, #060c1e 50%, #03060f 100%)' }}>
-        {/* Minimal Navbar */}
         <div className="fixed top-0 left-0 right-0 z-40 border-b border-white/5" style={{ background: 'rgba(2,6,20,0.9)', backdropFilter: 'blur(20px)' }}>
           <div className="container mx-auto px-4 max-w-6xl">
             <div className="flex items-center justify-between h-14">
@@ -724,7 +895,6 @@ useEffect(() => {
         <main className="pt-20 pb-6">
           <div className="container mx-auto px-4 max-w-6xl">
             <div className="flex flex-col lg:flex-row gap-6">
-              {/* Player Section - Full width on mobile, 2/3 on desktop */}
               <div className="flex-1 min-w-0">
                 <StreamPlayer
                   stream={stream}
@@ -741,13 +911,11 @@ useEffect(() => {
                 />
               </div>
 
-              {/* Chat Section - Hidden on mobile, visible on desktop */}
               <div className="hidden lg:block w-80 flex-shrink-0">
                 <LiveChat slug={streamSlug} companyName={company?.name} />
               </div>
             </div>
 
-            {/* Mobile Chat Toggle - Only visible on mobile */}
             <div className="lg:hidden mt-4">
               <details className="group">
                 <summary className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-white/5 border border-white/10 text-white font-medium cursor-pointer">
