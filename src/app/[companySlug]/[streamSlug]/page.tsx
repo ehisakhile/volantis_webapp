@@ -15,9 +15,9 @@ import type { VolLivestreamOut } from '@/types/livestream';
 import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
 import type { VolCompanyResponse } from '@/types/company';
 import { useViewerCount } from '@/lib/api/useViewerCount';
-import { useBackgroundAudio } from '@/hooks/useBackgroundAudio';
 import { useMediaSession } from '@/hooks/useMediaSession';
 import { useVisibilityChange } from '@/hooks/useVisibilityChange';
+import { useAudioProvider } from '@/components/audio/audio-provider';
 
 /* ─────────────────────── Waveform Visualizer ─────────────────────── */
 function AudioVisualizer({ isActive, color = '#22d3ee' }: { isActive: boolean; color?: string }) {
@@ -389,13 +389,12 @@ export default function StreamPage() {
     enabled: !!streamSlug && !!company?.id,
     pollingInterval: 10000,
   });
-  const { initializeAudio, setVolume, play, pause, stop } = useBackgroundAudio({
-    title: stream?.title,
-    artist: company?.name,
-    artwork: stream?.thumbnail_url || company?.logo_url || undefined,
-    onPlay: () => setIsPlaying(true),
-    onPause: () => setIsPlaying(false),
-  });
+  
+  // Use the global AudioProvider for background audio playback
+  // This creates a persistent audio element at the app root level
+  // which helps mobile browsers continue playback when minimized
+  const { initializeAudio, setVolume, play, pause, stop, isInitialized: audioIsInitialized } = useAudioProvider();
+  
   useMediaSession({
     title: stream?.title || 'Live Stream',
     artist: company?.name || 'Channel',
@@ -407,12 +406,17 @@ export default function StreamPage() {
   });
   useVisibilityChange();
 
+  // Initialize audio when remote stream becomes available
   useEffect(() => {
-    if (remoteStream && !isAudioInitialized) {
+    if (remoteStream && !audioIsInitialized) {
       initializeAudio(remoteStream);
-      setIsAudioInitialized(true);
+      // After initialization, start playback to actually hear the audio
+      // This is critical for mobile browsers to recognize audio playback
+      play().then(() => {
+        setIsPlaying(true);
+      }).catch(console.error);
     }
-  }, [remoteStream, initializeAudio, isAudioInitialized]);
+  }, [remoteStream, initializeAudio, play, audioIsInitialized]);
 
   const updateVolume = useCallback((vol: number) => setVolume(vol), [setVolume]);
 
