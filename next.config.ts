@@ -4,6 +4,7 @@ const baseDomain = process.env.NEXT_PUBLIC_BASE_DOMAIN || 'volantislive.com';
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+
   
   images: {
     remotePatterns: [
@@ -50,6 +51,15 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+       {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'autoplay=(self)'
+          }
+        ]
+      }
     ];
   },
 };

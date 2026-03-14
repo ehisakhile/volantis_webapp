@@ -18,21 +18,23 @@ interface LiveChatProps {
 
 /** Parse @username mentions in message content */
 function parseMessageContent(content: string) {
-  // Matches @username - supports multi-word company names like @st albert uniben
-  // Stops at the first non-word character (other than space) after the @mention
-  const parts = content.split(/(@[\w]+(?:\s+[\w]+)*)/g);
-  return parts.map((part, i) =>
-    part.startsWith('@') ? (
+  // Matches @username with zero-width space delimiter - supports multi-word names like @st albert uniben
+  // The \u200B (zero-width space) acts as an invisible delimiter after the username
+  const parts = content.split(/(@[\w]+(?:\s+[\w]+)*\u200B?)/g);
+  return parts.map((part, i) => {
+    // Remove the zero-width space delimiter for display
+    const cleanPart = part.replace(/\u200B$/, '');
+    return part.startsWith('@') ? (
       <span
         key={i}
         className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-sky-500/20 text-sky-300 font-semibold text-xs leading-tight"
       >
-        {part}
+        {cleanPart}
       </span>
     ) : (
       <span key={i}>{part}</span>
-    )
-  );
+    );
+  });
 }
 
 /** Single message row */
@@ -266,10 +268,11 @@ export function LiveChat({ slug, isCreator = false, companyName }: LiveChatProps
       if (!trimmed || !isAuthenticated) return;
 
       // Prepend display name if replying — use companyName for host, @username for regular users
+      // Add zero-width space (\u200B) as delimiter after username for clear parsing
       const replyPrefix = replyTo
         ? replyTo.is_creator
-          ? `@${companyName || 'Host'} `
-          : `@${replyTo.username} `
+          ? `@${companyName || 'Host'}\u200B `
+          : `@${replyTo.username}\u200B `
         : '';
       const content = replyPrefix + trimmed;
 
