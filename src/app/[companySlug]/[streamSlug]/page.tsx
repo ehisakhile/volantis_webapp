@@ -84,7 +84,7 @@ function GrainOverlay() {
 /* ─────────────────── Stream Player ─────────────────── */
 function StreamPlayer({
   stream, company, isPlaying, connectionState, remoteStream, audioStats,
-  onStop, onPlay, onRetry, onVolumeChange, viewerCount, peakViewers,
+  onStop, onPlay, onRetry, onVolumeChange, viewerCount,
 }: {
   stream: VolLivestreamOut;
   company: VolCompanyResponse | null;
@@ -97,21 +97,10 @@ function StreamPlayer({
   onRetry: () => void;
   onVolumeChange?: (volume: number) => void;
   viewerCount?: number;
-  peakViewers?: number;
 }) {
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [showStats, setShowStats] = useState(false);
-  
-  // Get audio element from global provider for visible controls
-  const { audioRef, isPlaying: audioPlaying } = useAudioProvider();
-
-  // Sync the visible audio element with remoteStream
-  useEffect(() => {
-    if (audioRef.current && remoteStream) {
-      audioRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream, audioRef]);
 
   const handleVolumeChange = (v: number) => {
     setVolume(v);
@@ -239,15 +228,6 @@ function StreamPlayer({
           </div>
         </div>
 
-        {/* Visible audio element for mobile browsers - tricks browser into thinking regular audio is playing */}
-        <audio
-          ref={audioRef}
-          controls
-          className="w-full h-8 mb-4"
-          playsInline
-          preload="auto"
-        />
-
         {/* Volume */}
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => setMuted(m => !m)} className="text-slate-500 hover:text-white transition-colors flex-shrink-0">
@@ -322,7 +302,7 @@ function StreamPlayer({
                 {[
                   { label: 'State', value: connectionState, icon: Wifi },
                   { label: 'Viewers', value: liveViewers.toLocaleString(), icon: Users },
-                  { label: 'Peak', value: (peakViewers ?? stream.peak_viewers ?? 0).toLocaleString(), icon: Activity },
+                  { label: 'Peak', value: (stream.peak_viewers ?? 0).toLocaleString(), icon: Activity },
                 ].map(({ label, value, icon: Icon }) => (
                   <div key={label} className="rounded-xl p-2.5 text-center"
                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -403,7 +383,7 @@ export default function StreamPage() {
   const [creatorNotStreamingInfo, setCreatorNotStreamingInfo] = useState<{ creatorName: string; streamTitle?: string } | null>(null);
 
   const { remoteStream, connectionState, startPlayback, stop: stopPlayback, retryConnection, audioStats } = useWebRTC();
-  const { viewerCount: realtimeViewerCount, peakViewers: realtimePeakViewers } = useViewerCount({
+  const { viewerCount: realtimeViewerCount } = useViewerCount({
     slug: streamSlug || '',
     companyId: company?.id || 0,
     enabled: !!streamSlug && !!company?.id,
@@ -622,7 +602,6 @@ export default function StreamPage() {
                   audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
                   onRetry={handleRetry} onVolumeChange={updateVolume}
                   viewerCount={realtimeViewerCount}
-                  peakViewers={realtimePeakViewers}
                 />
               </div>
 
@@ -642,7 +621,6 @@ export default function StreamPage() {
                 audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
                 onRetry={handleRetry} onVolumeChange={updateVolume}
                 viewerCount={realtimeViewerCount}
-                peakViewers={realtimePeakViewers}
               />
               <MobileChatSection streamSlug={streamSlug} companyName={company?.name} />
             </div>

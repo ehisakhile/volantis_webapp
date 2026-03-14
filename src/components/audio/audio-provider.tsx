@@ -14,7 +14,6 @@ interface AudioProviderActions {
   pause: () => void;
   stop: () => void;
   setVolume: (volume: number) => void;
-  audioRef: React.RefObject<HTMLAudioElement | null>;
 }
 
 const AudioContext = createContext<AudioProviderState & AudioProviderActions | null>(null);
@@ -246,7 +245,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     pause,
     stop,
     setVolume,
-    audioRef,
   };
 
   return (
