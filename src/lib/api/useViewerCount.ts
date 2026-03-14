@@ -25,6 +25,7 @@ export interface UseViewerCountOptions {
 
 export interface UseViewerCountResult {
   viewerCount: number;
+  peakViewers: number;
   isLive: boolean;
   isConnected: boolean;
   isPolling: boolean;
@@ -41,6 +42,7 @@ export function useViewerCount({
   enabled = true,
 }: UseViewerCountOptions): UseViewerCountResult {
   const [viewerCount, setViewerCount] = useState(0);
+  const [peakViewers, setPeakViewers] = useState(0);
   const [isLive, setIsLive] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -72,6 +74,7 @@ export function useViewerCount({
       const data = await livestreamApi.getRealtimeStats(slug);
       debugLog(`[POLL] Realtime stats response:`, data);
       setViewerCount(data.viewer_count);
+      setPeakViewers(data.peak_viewers ?? data.viewer_count);
       setIsLive(data.is_active);
       setError(null);
     } catch (err) {
@@ -210,6 +213,7 @@ export function useViewerCount({
 
   return {
     viewerCount,
+    peakViewers,
     isLive,
     isConnected,
     isPolling,
