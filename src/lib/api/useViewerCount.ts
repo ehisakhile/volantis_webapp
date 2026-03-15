@@ -1,6 +1,7 @@
 // React hook for real-time viewer count with WebSocket + polling fallback
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { livestreamApi } from './livestream';
+import { debug } from 'console';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
@@ -25,6 +26,8 @@ export interface UseViewerCountOptions {
 
 export interface UseViewerCountResult {
   viewerCount: number;
+  totalViews: number;
+  peakViewers: number;
   isLive: boolean;
   isConnected: boolean;
   isPolling: boolean;
@@ -41,6 +44,8 @@ export function useViewerCount({
   enabled = true,
 }: UseViewerCountOptions): UseViewerCountResult {
   const [viewerCount, setViewerCount] = useState(0);
+  const [totalViews, setTotalViews] = useState(0);
+  const [peakViewers, setPeakViewers] = useState(0);
   const [isLive, setIsLive] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -48,20 +53,25 @@ export function useViewerCount({
   
   const wsRef = useRef<any>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const statsPollingRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pollCountRef = useRef(0);
 
   const fetchViewerCount = useCallback(async () => {
-    debugLog(`[REST] Fetching viewer count for: ${slug}, companyId: ${companyId}`);
+    debugLog(`[REST] Fetching realtime stats for: ${slug}, companyId: ${companyId}`);
     try {
-      const data = await livestreamApi.getViewerCount(slug, companyId);
-      debugLog(`[REST] Viewer count response:`, data);
+      // Use getRealtimeStats which includes total_views
+      const data = await livestreamApi.getRealtimeStats(slug);
+      debugLog(`[REST] Realtime stats response:`, data);
       setViewerCount(data.viewer_count);
-      setIsLive(data.is_live);
+      setIsLive(data.is_active);
+      setTotalViews(data.total_views);
+      setPeakViewers(data.peak_viewers);
       setError(null);
+      debugLog(`[REST] Updated viewer count: ${data.viewer_count}, total views: ${data.total_views}, peak viewers: ${data.peak_viewers}`);
     } catch (err) {
-      debugError('[REST] Failed to fetch viewer count:', err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch viewer count'));
+      debugError('[REST] Failed to fetch realtime stats:', err);
+      setError(err instanceof Error ? err : new Error('Failed to fetch realtime stats'));
     }
   }, [slug, companyId]);
 
@@ -73,6 +83,8 @@ export function useViewerCount({
       debugLog(`[POLL] Realtime stats response:`, data);
       setViewerCount(data.viewer_count);
       setIsLive(data.is_active);
+      setTotalViews(data.total_views);
+      setPeakViewers(data.peak_viewers);
       setError(null);
     } catch (err) {
       debugError('[POLL] Failed to fetch realtime stats:', err);
@@ -101,6 +113,30 @@ export function useViewerCount({
       pollingRef.current = null;
     }
     setIsPolling(false);
+  }, []);
+
+  // Separate polling for stats (total_views, peak_viewers) that runs even when WebSocket is connected
+  const startStatsPolling = useCallback(() => {
+    if (statsPollingRef.current) {
+      debugLog('[STATS_POLL] Stats polling already running, skipping start');
+      return;
+    }
+    
+    // Poll for stats (including total_views) at a slower interval (every 30s or 3x the polling interval)
+    const statsInterval = Math.max(pollingInterval * 3, 30000);
+    debugLog(`[STATS_POLL] Starting stats polling every ${statsInterval}ms`);
+    
+    statsPollingRef.current = setInterval(() => {
+      fetchRealtimeStats();
+    }, statsInterval);
+  }, [pollingInterval, fetchRealtimeStats]);
+
+  const stopStatsPolling = useCallback(() => {
+    if (statsPollingRef.current) {
+      debugLog('[STATS_POLL] Stopping stats polling');
+      clearInterval(statsPollingRef.current);
+      statsPollingRef.current = null;
+    }
   }, []);
 
   const connectWebSocket = useCallback(async () => {
@@ -144,12 +180,14 @@ export function useViewerCount({
       debugLog('[WS] WebSocket connected successfully');
       setIsConnected(true);
       setIsPolling(false);
+      // Start stats polling for total_views even when WebSocket is connected
+      startStatsPolling();
     } catch (err) {
       debugError('[WS] WebSocket connection failed:', err);
       setIsConnected(false);
       startPolling();
     }
-  }, [slug, companyId, enabled, startPolling]);
+  }, [slug, companyId, enabled, startPolling, startStatsPolling]);
 
   const handleVisibilityChange = useCallback(() => {
     debugLog('[Visibility] Document visibility changed:', document.visibilityState);
@@ -180,6 +218,7 @@ export function useViewerCount({
       debugLog('[Cleanup] Cleaning up viewer count');
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       stopPolling();
+      stopStatsPolling();
       
       if (wsRef.current) {
         wsRef.current.disconnect();
@@ -210,6 +249,8 @@ export function useViewerCount({
 
   return {
     viewerCount,
+    totalViews,
+    peakViewers,
     isLive,
     isConnected,
     isPolling,

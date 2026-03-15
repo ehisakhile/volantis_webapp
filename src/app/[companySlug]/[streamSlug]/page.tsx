@@ -84,7 +84,7 @@ function GrainOverlay() {
 /* ─────────────────── Stream Player ─────────────────── */
 function StreamPlayer({
   stream, company, isPlaying, connectionState, remoteStream, audioStats,
-  onStop, onPlay, onRetry, onVolumeChange, viewerCount,
+  onStop, onPlay, onRetry, onVolumeChange, viewerCount, peakViewers,
 }: {
   stream: VolLivestreamOut;
   company: VolCompanyResponse | null;
@@ -97,6 +97,7 @@ function StreamPlayer({
   onRetry: () => void;
   onVolumeChange?: (volume: number) => void;
   viewerCount?: number;
+  peakViewers?: number;
 }) {
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
@@ -107,11 +108,14 @@ function StreamPlayer({
     onVolumeChange?.(v);
   };
 
+  console.log('prop drilled peak viewers', peakViewers);
+
   const isConnected = connectionState === 'connected';
   const isConnecting = connectionState === 'connecting' || connectionState === 'new';
   const statusColor = isConnected ? '#22d3ee' : isConnecting ? '#f59e0b' : '#ef4444';
   const statusLabel = isConnected ? 'Connected' : isConnecting ? 'Connecting…' : 'Disconnected';
   const liveViewers = viewerCount !== undefined ? viewerCount : stream.viewer_count;
+
 
   return (
     <motion.div
@@ -302,7 +306,7 @@ function StreamPlayer({
                 {[
                   { label: 'State', value: connectionState, icon: Wifi },
                   { label: 'Viewers', value: liveViewers.toLocaleString(), icon: Users },
-                  { label: 'Peak', value: (stream.peak_viewers ?? 0).toLocaleString(), icon: Activity },
+                  { label: 'Peak', value: ((peakViewers ?? 0).toLocaleString()), icon: Activity },
                 ].map(({ label, value, icon: Icon }) => (
                   <div key={label} className="rounded-xl p-2.5 text-center"
                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -383,12 +387,14 @@ export default function StreamPage() {
   const [creatorNotStreamingInfo, setCreatorNotStreamingInfo] = useState<{ creatorName: string; streamTitle?: string } | null>(null);
 
   const { remoteStream, connectionState, startPlayback, stop: stopPlayback, retryConnection, audioStats } = useWebRTC();
-  const { viewerCount: realtimeViewerCount } = useViewerCount({
+  const { viewerCount: realtimeViewerCount, peakViewers } = useViewerCount({
     slug: streamSlug || '',
     companyId: company?.id || 0,
     enabled: !!streamSlug && !!company?.id,
     pollingInterval: 10000,
   });
+
+  console.log('fetched peak viewers', peakViewers);
   
   // Use the global AudioProvider for background audio playback
   // This creates a persistent audio element at the app root level
@@ -602,6 +608,7 @@ export default function StreamPage() {
                   audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
                   onRetry={handleRetry} onVolumeChange={updateVolume}
                   viewerCount={realtimeViewerCount}
+                  peakViewers={peakViewers}
                 />
               </div>
 
@@ -621,6 +628,7 @@ export default function StreamPage() {
                 audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
                 onRetry={handleRetry} onVolumeChange={updateVolume}
                 viewerCount={realtimeViewerCount}
+                peakViewers={peakViewers}
               />
               <MobileChatSection streamSlug={streamSlug} companyName={company?.name} />
             </div>

@@ -358,9 +358,11 @@ export interface LivestreamRealtimeResponse {
 
 export interface ViewerCountResponse {
   slug: string;
+  is_active: boolean;
   viewer_count: number;
-  anonymous_viewers: number;
-  is_live: boolean;
+  peak_viewers: number;
+  total_views: number;
+  websocket_url: string;
 }
 
 export interface ViewersListResponse {

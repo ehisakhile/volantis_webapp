@@ -59,6 +59,7 @@ import type { VolChatMessageOut } from "@/types/chat";
 import { useStreamRecorder } from "@/hooks/useStreamRecorder";
 import { RecordingPrompt, RecordingStatus } from "./recording-prompt";
 import { CreatorNotStreamingModal } from "./creator-not-streaming-modal";
+import { useViewerCount } from "@/lib/api/useViewerCount";
 
 // Audio visualizer component using canvas (like test_webrtc.html)
 interface AudioVisualizerProps {
@@ -143,6 +144,14 @@ export function CreatorStreaming({
   const [codec, setCodec] = useState<string>("—");
   const [bitrate, setBitrate] = useState<string>("—");
   const [iceState, setIceState] = useState<string>("—");
+
+  // Real-time viewer count
+  const { viewerCount: realtimeViewerCount, totalViews: creatorTotalViews } = useViewerCount({
+    slug: currentStream?.slug || '',
+    companyId: currentStream?.company_id || 0,
+    enabled: isStreaming && !!currentStream?.slug && !!currentStream?.company_id,
+    pollingInterval: 5000,
+  });
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<VolChatMessageOut[]>([]);
@@ -1498,7 +1507,7 @@ export function CreatorStreaming({
                     <span className="text-xs">Viewers</span>
                   </div>
                   <span className="font-semibold">
-                    {currentStream?.viewer_count || 0}
+                    {realtimeViewerCount || currentStream?.viewer_count || 0}
                   </span>
                 </div>
 
