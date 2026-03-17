@@ -83,3 +83,17 @@ export interface Subscription {
   is_live: boolean;
   current_viewers: number;
 }
+
+export interface PasswordResetRequest {
+  email: string;
+}
+
+export interface PasswordResetVerify {
+  email: string;
+  otp: string;
+  new_password: string;
+}
+
+export interface PasswordResetResponse {
+  message: string;
+}

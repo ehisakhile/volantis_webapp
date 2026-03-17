@@ -281,6 +281,47 @@ export const authApi = {
     localStorage.removeItem('token_timestamp');
     localStorage.removeItem('user');
   },
+
+  /**
+   * Request password reset - sends OTP to user's email
+   */
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    const response = await apiClient.request<{ message: string }>('/auth/password-reset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+    return response;
+  },
+
+  /**
+   * Verify OTP and set new password
+   */
+  async verifyPasswordReset(email: string, otp: string, newPassword: string): Promise<VolTokenResponse> {
+    const response = await apiClient.request<VolTokenResponse>('/auth/password-reset/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        otp,
+        new_password: newPassword,
+      }),
+    });
+
+    // Store tokens on successful password reset
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('access_token', response.access_token);
+      localStorage.setItem('refresh_token', response.refresh_token);
+      localStorage.setItem('token_expires_in', String(response.expires_in));
+      localStorage.setItem('token_timestamp', String(Date.now()));
+    }
+
+    return response;
+  },
 };
 
 export default authApi;
