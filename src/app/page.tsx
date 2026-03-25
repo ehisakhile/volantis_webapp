@@ -141,7 +141,7 @@ function LiveBroadcastCard() {
     <div className="relative">
       {/* Glow effect */}
       <div className="absolute -inset-4 bg-sky-500/20 rounded-3xl blur-2xl animate-pulse" />
-      
+
       <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-700/50">
         {/* Top bar */}
         <div className="bg-slate-900/80 px-5 py-4 flex items-center justify-between border-b border-slate-700/50">
@@ -372,6 +372,89 @@ export default function HomePage() {
                       {s}
                     </span>
                   ))}
+                </div>
+                {/* App download banner */}
+                <div style={{
+                  marginTop: 32,
+                  background: 'rgba(14,165,233,0.06)',
+                  border: '1px solid rgba(14,165,233,0.18)',
+                  borderRadius: 14,
+                  padding: '14px 18px',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: 14,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 200 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                    background: 'rgba(14,165,233,0.12)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    📱
+                  </div>
+                  <div>
+                    <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem', margin: 0 }}>
+                    Get the Volantislive app
+                    </p>
+                    <p style={{ color: '#64748b', fontSize: '0.78rem', margin: 0 }}>
+                    Android APK available now &middot; iOS &amp; Play Store coming soon
+                    </p>
+                  </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {/* Active — APK download */}
+                  <a href="https://pub-5103cbf5e90e49189df8feb43623fd78.r2.dev/app-arm64-v8a-release.apk"
+                    style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
+                    color: 'white', padding: '8px 16px', borderRadius: 10,
+                    fontWeight: 700, fontSize: '0.82rem', textDecoration: 'none',
+                    boxShadow: '0 2px 10px rgba(14,165,233,0.25)',
+                    }}
+                  >
+                    ⬇ Download Android APK
+                  </a>
+
+                  {/* Disabled — Play Store */}
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    border: '1px solid #e2e8f0', borderRadius: 10,
+                    padding: '8px 14px', fontSize: '0.8rem', color: '#94a3b8',
+                    cursor: 'not-allowed',
+                    opacity: 0.6,
+                  }}>
+                    <img src="/play.png" alt="Play Store" style={{ width: 18, height: 18 }} />
+                    Play Store
+                    <span style={{
+                    background: '#fef9c3', color: '#92400e',
+                    fontSize: '0.68rem', fontWeight: 700,
+                    padding: '1px 6px', borderRadius: 5,
+                    }}>Soon</span>
+                  </span>
+
+                  {/* Disabled — App Store */}
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    border: '1px solid #e2e8f0', borderRadius: 10,
+                    padding: '8px 14px', fontSize: '0.8rem', color: '#94a3b8',
+                    cursor: 'not-allowed',
+                    opacity: 0.6,
+                  }}>
+                    <img src="/apple.png" alt="App Store" style={{ width: 18, height: 18 }} />
+                    App Store
+                    <span style={{
+                    background: '#fef9c3', color: '#92400e',
+                    fontSize: '0.68rem', fontWeight: 700,
+                    padding: '1px 6px', borderRadius: 5,
+                    }}>Soon</span>
+                  </span>
+                  </div>
+
+                  <p style={{ width: '100%', margin: 0, fontSize: '0.72rem', color: '#94a3b8' }}>
+                  APK is in active testing — your feedback helps us improve before the full store launch.
+                  </p>
                 </div>
               </div>
 
