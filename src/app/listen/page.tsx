@@ -501,7 +501,7 @@ useEffect(() => { fetchStreams(); }, [fetchStreams]);
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6" style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}>
               Listen to Live{' '}
-              <span className="bg-gradient-to-r from-sky-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent">Radio Streams</span>
+              <span className="bg-gradient-to-r from-sky-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent">Audio Streams</span>
             </h1>
             <p className="text-lg text-slate-400 mb-8 max-w-2xl mx-auto">
               Discover and tune into live audio streams from churches, ministries, and community radio stations from around the world.
