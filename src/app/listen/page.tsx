@@ -6,13 +6,13 @@ import Link from 'next/link';
 import { 
   Search, Radio, Play, Pause, Volume2, VolumeX, 
   Users, Eye, X,
-  Headphones, Waves, Disc3, RadioReceiver, Clock
+  Headphones, Waves, Disc3, RadioReceiver, Clock, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
 import { livestreamApi, type ActiveStreamItem, type ActiveStreamsResponse } from '@/lib/api/livestream';
 import { recordingsApi } from '@/lib/api/recordings';
-import { companyApi, type CompanySearchResult } from '@/lib/api/company';
+import { companyApi, type CompanySearchResult, type CompaniesResponse } from '@/lib/api/company';
 import { useAuth } from '@/lib/auth-context';
 import { CreatorNotStreamingModal } from '@/components/streaming/creator-not-streaming-modal';
 import { RecordingPlayer } from '@/components/streaming/recording-player';
@@ -74,7 +74,12 @@ const [streams, setStreams] = useState<ActiveStreamItem[]>([]);
   const [allCompanies, setAllCompanies] = useState<CompanySearchResult[]>([]);
   const [filteredCompanies, setFilteredCompanies] = useState<CompanySearchResult[]>([]);
   const [isCompaniesLoading, setIsCompaniesLoading] = useState(false);
-  const [showAllCompanies, setShowAllCompanies] = useState(false);
+  
+  // Pagination state for companies
+  const [companiesPage, setCompaniesPage] = useState(0);
+  const [companiesLimit] = useState(50);
+  const [companiesTotal, setCompaniesTotal] = useState(0);
+  const [isLoadingMoreCompanies, setIsLoadingMoreCompanies] = useState(false);
   
   // Live stream playback state
   const [currentStream, setCurrentStream] = useState<ActiveStreamItem | null>(null);
@@ -145,29 +150,120 @@ const [streams, setStreams] = useState<ActiveStreamItem[]>([]);
     }
   }, []);
   
-// ─── Fetch all companies (for browsing) ─────────────────────────────────────
-  const fetchCompanies = useCallback(async (query: string = '') => {
-    setIsCompaniesLoading(true);
+// ─── Fetch all companies (for browsing with pagination) ─────────────────────
+  const fetchCompanies = useCallback(async (reset: boolean = true) => {
+    const offset = reset ? 0 : companiesPage * companiesLimit;
+    
+    if (reset) {
+      setIsCompaniesLoading(true);
+      setCompaniesPage(0);
+    } else {
+      setIsLoadingMoreCompanies(true);
+    }
+    
     try {
-      const companies = await companyApi.searchCompanies(query);
-      setAllCompanies(companies);
-      setFilteredCompanies(companies);
+      const response: CompaniesResponse = await companyApi.getCompanies(companiesLimit, offset);
+      
+      // Sort companies: those with logo_url first, then by name
+      const sortedCompanies = [...response.companies].sort((a, b) => {
+        // Companies with logos first
+        if (a.logo_url && !b.logo_url) return -1;
+        if (!a.logo_url && b.logo_url) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      
+      if (reset) {
+        setAllCompanies(sortedCompanies);
+        setFilteredCompanies(sortedCompanies);
+      } else {
+        // Append new companies and sort again
+        const newAllCompanies = [...allCompanies, ...sortedCompanies];
+        const reSorted = newAllCompanies.sort((a, b) => {
+          if (a.logo_url && !b.logo_url) return -1;
+          if (!a.logo_url && b.logo_url) return 1;
+          return a.name.localeCompare(b.name);
+        });
+        setAllCompanies(reSorted);
+        setFilteredCompanies(reSorted);
+      }
+      
+      setCompaniesTotal(response.total);
     } catch (err) {
       console.error('Failed to fetch companies:', err);
-      setAllCompanies([]);
-      setFilteredCompanies([]);
+      if (reset) {
+        setAllCompanies([]);
+        setFilteredCompanies([]);
+      }
     } finally {
-      setIsCompaniesLoading(false);
+      if (reset) {
+        setIsCompaniesLoading(false);
+      } else {
+        setIsLoadingMoreCompanies(false);
+      }
     }
-  }, []);
-  
-  // Debounced search for companies
+  }, [companiesPage, companiesLimit]);
+
+  // Store allCompanies in a ref to avoid dependency issues
+  const allCompaniesRef = useRef<CompanySearchResult[]>([]);
+  useEffect(() => { allCompaniesRef.current = allCompanies; }, [allCompanies]);
+
+  // Updated fetchCompanies with ref
+  const fetchCompaniesWithRef = useCallback(async (reset: boolean = true) => {
+    const offset = reset ? 0 : companiesPage * companiesLimit;
+    
+    if (reset) {
+      setIsCompaniesLoading(true);
+      setCompaniesPage(0);
+    } else {
+      setIsLoadingMoreCompanies(true);
+    }
+    
+    try {
+      const response: CompaniesResponse = await companyApi.getCompanies(companiesLimit, offset);
+      
+      // Sort companies: those with logo_url first, then by name
+      const sortedCompanies = [...response.companies].sort((a, b) => {
+        // Companies with logos first
+        if (a.logo_url && !b.logo_url) return -1;
+        if (!a.logo_url && b.logo_url) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      
+      if (reset) {
+        setAllCompanies(sortedCompanies);
+        setFilteredCompanies(sortedCompanies);
+      } else {
+        // Append new companies and sort again using ref
+        const newAllCompanies = [...allCompaniesRef.current, ...sortedCompanies];
+        const reSorted = newAllCompanies.sort((a, b) => {
+          if (a.logo_url && !b.logo_url) return -1;
+          if (!a.logo_url && b.logo_url) return 1;
+          return a.name.localeCompare(b.name);
+        });
+        setAllCompanies(reSorted);
+        setFilteredCompanies(reSorted);
+      }
+      
+      setCompaniesTotal(response.total);
+    } catch (err) {
+      console.error('Failed to fetch companies:', err);
+      if (reset) {
+        setAllCompanies([]);
+        setFilteredCompanies([]);
+      }
+    } finally {
+      if (reset) {
+        setIsCompaniesLoading(false);
+      } else {
+        setIsLoadingMoreCompanies(false);
+      }
+    }
+  }, [companiesPage, companiesLimit]);
+
+  // Initial fetch of companies on mount
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchCompanies(searchQuery);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, fetchCompanies]);
+    fetchCompaniesWithRef(true);
+  }, []);
   
   // ─── Fetch recordings ───────────────────────────────────────────────────────
   const fetchRecordings = useCallback(async () => {
@@ -549,7 +645,19 @@ useEffect(() => { fetchStreams(); }, [fetchStreams]);
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20">
               <Radio className="w-16 h-16 text-slate-600 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-white mb-2">No stations found</h3>
-              <p className="text-slate-400">{searchQuery ? 'Try adjusting your search query' : 'No stations are currently live'}</p>
+              <p className="text-slate-400 mb-6">{searchQuery ? 'Try adjusting your search query' : 'No stations are currently live'}</p>
+              {!searchQuery && (
+                <div className="flex flex-col items-center gap-4">
+                  <p className="text-slate-500">But there are still {companiesTotal} channels to explore!</p>
+                  <Link 
+                    href="#browse-channels"
+                    className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-full font-medium transition-colors inline-flex items-center gap-2"
+                  >
+                    <Disc3 className="w-5 h-5" />
+                    Browse Channels
+                  </Link>
+                </div>
+              )}
             </motion.div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -612,7 +720,7 @@ useEffect(() => { fetchStreams(); }, [fetchStreams]);
       </section>
       
       {/* Browse Channels Section - All companies even if not live */}
-      <section className="px-4 pb-32">
+      <section id="browse-channels" className="px-4 pb-32">
         <div className="container-custom">
           <motion.div 
             initial={{ opacity: 0, y: 20 }} 
@@ -622,7 +730,7 @@ useEffect(() => { fetchStreams(); }, [fetchStreams]);
             <div className="flex items-center gap-2 mb-4">
               <Disc3 className="w-5 h-5 text-violet-400" />
               <h2 className="text-2xl font-bold text-white">Browse Channels</h2>
-              <span className="text-sm text-slate-400">({allCompanies.length} channels)</span>
+              <span className="text-sm text-slate-400">({companiesTotal} channels)</span>
             </div>
             <p className="text-slate-400 text-sm mb-6">
               Explore all channels and subscribe to get notified when they go live
@@ -642,7 +750,7 @@ useEffect(() => { fetchStreams(); }, [fetchStreams]);
             ) : (
               <>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                  {(showAllCompanies ? filteredCompanies : filteredCompanies.slice(0, 12)).map((company, index) => (
+                  {filteredCompanies.slice(0, 24).map((company, index) => (
                     <motion.div
                       key={company.id}
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -675,13 +783,24 @@ useEffect(() => { fetchStreams(); }, [fetchStreams]);
                   ))}
                 </div>
                 
-                {filteredCompanies.length > 12 && (
+                {allCompanies.length < companiesTotal && (
                   <div className="flex justify-center mt-6">
                     <button
-                      onClick={() => setShowAllCompanies(!showAllCompanies)}
-                      className="px-6 py-2 rounded-full border border-slate-700 hover:border-violet-500 text-slate-400 hover:text-violet-400 text-sm font-medium transition-colors"
+                      onClick={() => {
+                        setCompaniesPage(prev => prev + 1);
+                        fetchCompaniesWithRef(false);
+                      }}
+                      disabled={isLoadingMoreCompanies}
+                      className="px-6 py-2 rounded-full border border-slate-700 hover:border-violet-500 text-slate-400 hover:text-violet-400 text-sm font-medium transition-colors disabled:opacity-50"
                     >
-                      {showAllCompanies ? 'Show Less' : `Show ${filteredCompanies.length - 12} More`}
+                      {isLoadingMoreCompanies ? (
+                        <span className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-slate-400/30 border-t-violet-400 rounded-full animate-spin" />
+                          Loading...
+                        </span>
+                      ) : (
+                        `Load More (${companiesTotal - allCompanies.length} remaining)`
+                      )}
                     </button>
                   </div>
                 )}

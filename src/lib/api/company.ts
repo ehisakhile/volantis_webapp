@@ -15,6 +15,11 @@ export interface CompanySearchResult {
   subscriber_count: number;
 }
 
+export interface CompaniesResponse {
+  companies: CompanySearchResult[];
+  total: number;
+}
+
 export const companyApi = {
   /**
    * Get current user's company info
@@ -33,6 +38,18 @@ export const companyApi = {
   async searchCompanies(query: string): Promise<CompanySearchResult[]> {
     const response = await apiClient.request<CompanySearchResult[]>(
       `/companies/search?q=${encodeURIComponent(query)}`,
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
+   * Get companies with pagination (used in listen page)
+   * Shows companies with logos first
+   */
+  async getCompanies(limit: number = 50, offset: number = 0): Promise<CompaniesResponse> {
+    const response = await apiClient.request<CompaniesResponse>(
+      `/companies?limit=${limit}&offset=${offset}`,
       { method: 'GET' }
     );
     return response;
