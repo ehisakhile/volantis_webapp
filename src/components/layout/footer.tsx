@@ -43,6 +43,14 @@ const footerLinks = {
       { name: "Contact", href: "/contact" },
     ],
   },
+  legal: {
+    title: "Legal",
+    links: [
+      { name: "Privacy Policy", href: "/privacy-policy" },
+      { name: "Terms of Service", href: "/terms-of-service" },
+      { name: "Delete Account", href: "/delete-account" },
+    ],
+  },
 };
 
 const socialLinks = [
@@ -58,7 +66,7 @@ export function Footer() {
     <footer className="bg-slate-900 text-white">
       {/* Main Footer */}
       <div className="container-custom py-16">
-        <div className="grid grid-cols-2 md:grid-cols-7 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-8 gap-8">
           {/* Brand Column */}
           <div className="col-span-2 md:col-span-2">
             <Link href="/" className="flex items-center gap-2 mb-4">
@@ -151,6 +159,20 @@ export function Footer() {
             <ul className="space-y-3">
               {footerLinks.company.links.map((link, index) => (
                 <li key={`company-${index}`}>
+                  <Link href={link.href} className="text-slate-400 hover:text-white transition-colors">
+                    {link.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Legal */}
+          <div>
+            <h3 className="font-semibold mb-4">{footerLinks.legal.title}</h3>
+            <ul className="space-y-3">
+              {footerLinks.legal.links.map((link, index) => (
+                <li key={`legal-${index}`}>
                   <Link href={link.href} className="text-slate-400 hover:text-white transition-colors">
                     {link.name}
                   </Link>

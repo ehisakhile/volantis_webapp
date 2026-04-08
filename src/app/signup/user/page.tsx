@@ -268,7 +268,7 @@ export default function UserSignupPage() {
                         required
                       />
                       <span className="text-sm text-navy-600">
-                        I agree to the <Link href="/terms" className="text-sky-600 hover:underline">Terms of Service</Link> and <Link href="/privacy" className="text-sky-600 hover:underline">Privacy Policy</Link> *
+                        I agree to the <Link href="/terms-of-service" className="text-sky-600 hover:underline">Terms of Service</Link> and <Link href="/privacy-policy" className="text-sky-600 hover:underline">Privacy Policy</Link> *
                       </span>
                     </label>
                   </div>
