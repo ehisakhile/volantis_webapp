@@ -7,11 +7,12 @@ import { Container } from '@/components/ui/container';
 import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api/client';
 import { subscriptionsApi } from '@/lib/api/subscriptions';
+import { categoriesApi } from '@/lib/api/categories';
 import {
   Radio, Users, BarChart3, Settings, LogOut,
   Play, Eye, Clock, TrendingUp, Link as LinkIcon,
   Video, MessageSquare, DollarSign, Bell, Upload,
-  Plug, Crown, Zap, X
+  Plug, Crown, Zap, X, Bookmark
 } from 'lucide-react';
 
 // Subscription API Response Type
@@ -152,6 +153,23 @@ export default function DashboardPage() {
     // fetchSubscription();
   }, [user]);
 
+  // Check user preferences on load (non-blocking async)
+  useEffect(() => {
+    if (isAuthenticated && user?.company_id) {
+      const checkPreferences = async () => {
+        try {
+          const preferences = await categoriesApi.getMyCompanyPreferences();
+          if (preferences.length === 0) {
+            router.push('/dashboard/preferences');
+          }
+        } catch (err) {
+          console.error('Failed to check preferences:', err);
+        }
+      };
+      checkPreferences();
+    }
+  }, [isAuthenticated, user]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -178,6 +196,7 @@ export default function DashboardPage() {
     { icon: Upload, label: 'Upload Recording', href: '/dashboard/upload-recording', color: 'bg-orange-500', description: 'Upload pre-recorded audio' },
     { icon: Video, label: 'My Streams', href: `/${companySlug}`, color: 'bg-sky-500', description: 'View past broadcasts' },
     { icon: Plug, label: 'Integrations', href: '/dashboard/integrations', color: 'bg-indigo-500', description: 'Connect external services' },
+    { icon: Bookmark, label: 'Preferences', href: '/dashboard/preferences', color: 'bg-teal-500', description: 'Content categories' },
     { icon: Settings, label: 'Settings', href: '/dashboard/settings', color: 'bg-slate-500', description: 'Channel configuration' },
   ];
 

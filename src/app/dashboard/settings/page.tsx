@@ -17,7 +17,8 @@ import {
   Save, 
   Trash2,
   AlertTriangle,
-  Loader2
+  Loader2,
+  Bookmark
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -309,6 +310,21 @@ export default function SettingsPage() {
 
             {/* Sidebar */}
             <div className="space-y-6">
+              {/* Preferences Card */}
+              <div className="bg-white rounded-xl border border-navy-100 p-6">
+                <h3 className="text-sm font-semibold text-navy-900 mb-4">Content Preferences</h3>
+                <p className="text-sm text-navy-600 mb-4">
+                  Set the categories that best describe your content to reach the right audience.
+                </p>
+                <Link
+                  href="/dashboard/preferences"
+                  className="flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  <Bookmark className="w-4 h-4" />
+                  Edit Preferences
+                </Link>
+              </div>
+
               {/* Company Info Card */}
               <div className="bg-white rounded-xl border border-navy-100 p-6">
                 <h3 className="text-sm font-semibold text-navy-900 mb-4">Company Information</h3>
