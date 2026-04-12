@@ -437,7 +437,13 @@ export class BackgroundAudioSource extends AudioSource {
   private audioBuffer: AudioBuffer | null = null;
   private sourceNode: AudioBufferSourceNode | null = null;
   private destinationNode: MediaStreamAudioDestinationNode | null = null;
+  private audioContext: AudioContext | null = null;
   private isPlaying: boolean = false;
+  private currentPosition: number = 0;
+  private playOutEnabled: boolean = false;
+  private gainNode: GainNode | null = null;
+  private playbackStartTime: number = 0;
+  private playbackPosition: number = 0;
 
   constructor(file: File, loop = true) {
     super({
@@ -484,6 +490,8 @@ export class BackgroundAudioSource extends AudioSource {
       throw new Error('Failed to create AudioContext');
     }
 
+    this.audioContext = audioCtx;
+
     // Resume if suspended
     if (audioCtx.state === 'suspended') {
       await audioCtx.resume();
@@ -502,18 +510,29 @@ export class BackgroundAudioSource extends AudioSource {
     // Create destination node for output stream
     this.destinationNode = audioCtx.createMediaStreamDestination();
 
+    // Create gain node for volume control
+    this.gainNode = audioCtx.createGain();
+
     // Create buffer source
     this.sourceNode = audioCtx.createBufferSource();
     this.sourceNode.buffer = this.audioBuffer;
     this.sourceNode.loop = this.loop;
 
-    // Connect: source -> destination (for WebRTC stream ONLY)
-    // Do NOT connect to audioCtx.destination - that would play through speakers
-    this.sourceNode.connect(this.destinationNode);
+    // Connect: source -> gain -> destination (for WebRTC stream)
+    this.sourceNode.connect(this.gainNode);
+    this.gainNode.connect(this.destinationNode);
+
+    // If play-out is enabled, also connect to speakers
+    if (this.playOutEnabled) {
+      this.gainNode.connect(audioCtx.destination);
+    }
 
     // Start playback
     this.sourceNode.start(0);
     this.isPlaying = true;
+    this.playbackStartTime = audioCtx.currentTime;
+    this.playbackPosition = 0;
+    this.currentPosition = 0;
     this.config.isActive = true;
 
     console.log('[BackgroundAudio] Started playback');
@@ -550,30 +569,94 @@ export class BackgroundAudioSource extends AudioSource {
 
   /** Seek to a specific position (0-1) */
   seek(position: number): void {
-    if (!this.sourceNode || !this.audioBuffer) return;
+    if (!this.sourceNode || !this.audioBuffer || !this.audioContext) return;
     
     const clampedPosition = Math.max(0, Math.min(1, position));
     const startTime = this.audioBuffer.duration * clampedPosition;
+    this.currentPosition = clampedPosition;
+    this.startOffset = startTime;
+    this.startTime = this.audioContext.currentTime;
+    this.isPlaying = true;
     
     this.sourceNode.stop();
+    this.sourceNode.disconnect();
     this.sourceNode = null;
     
     // Recreate source node at new position
-    const audioCtx = this.destinationNode?.context;
-    if (!audioCtx || !this.destinationNode) return;
+    const audioCtx = this.audioContext;
+    if (!this.gainNode || !this.destinationNode) return;
 
     this.sourceNode = audioCtx.createBufferSource();
     this.sourceNode.buffer = this.audioBuffer;
     this.sourceNode.loop = this.loop;
-    this.sourceNode.connect(this.destinationNode);
-    this.sourceNode.connect(audioCtx.destination);
+    this.sourceNode.connect(this.gainNode);
+    this.gainNode.connect(this.destinationNode);
+    
+    if (this.playOutEnabled) {
+      this.gainNode.connect(audioCtx.destination);
+    }
+    
     this.sourceNode.start(0, startTime);
+  }
+
+  /** Enable/disable play-out to speakers */
+  setPlayOut(enabled: boolean): void {
+    this.playOutEnabled = enabled;
+    
+    if (this.gainNode && this.audioContext && this.sourceNode) {
+      // Disconnect from destination first
+      try {
+        this.gainNode.disconnect(this.audioContext.destination);
+      } catch (e) {
+        // Ignore if not connected
+      }
+      
+      if (enabled) {
+        this.gainNode.connect(this.audioContext.destination);
+      }
+    }
+  }
+
+  /** Get play-out status */
+  getPlayOut(): boolean {
+    return this.playOutEnabled;
+  }
+
+  /** Get current position (0-1) */
+  getCurrentPosition(): number {
+    if (!this.audioContext || !this.audioBuffer || !this.isPlaying) {
+      return this.currentPosition;
+    }
+    
+    const elapsed = this.audioContext.currentTime - this.startTime;
+    let position = (this.startOffset + elapsed) / this.audioBuffer.duration;
+    
+    // Handle looping
+    if (this.loop) {
+      position = position % 1;
+    } else if (position >= 1) {
+      position = 1;
+      this.isPlaying = false;
+    }
+    
+    this.currentPosition = position;
+    return position;
+  }
+
+  /** Get current time in seconds */
+  getCurrentTime(): number {
+    if (!this.audioBuffer) return 0;
+    return this.getCurrentPosition() * this.audioBuffer.duration;
+  }
+
+  /** Get audio duration in seconds */
+  getDuration(): number {
+    return this.audioBuffer?.duration || 0;
   }
 
   /** Pause playback */
   pause(): void {
     if (this.sourceNode && this.isPlaying) {
-      // Note: AudioBufferSourceNode doesn't support pause, so we'd need to stop and track position
       this.isPlaying = false;
     }
   }
@@ -581,7 +664,6 @@ export class BackgroundAudioSource extends AudioSource {
   /** Resume playback */
   resume(): void {
     if (this.sourceNode && !this.isPlaying) {
-      // Similar limitation - would need to track position
       this.isPlaying = true;
     }
   }

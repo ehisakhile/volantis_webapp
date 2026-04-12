@@ -20,11 +20,24 @@ import {
   SkipBack,
   Repeat,
   FileAudio,
+  Speaker,
+  Radio,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { MixerEngine, type MixerChannel, type ChannelType, createMixerEngine, getAudioInputDevicesList, captureMicSource, captureSystemSource } from '@/lib/mixer-engine';
 import { BackgroundAudioSource, createBackgroundAudioSource } from '@/lib/audio-sources';
+
+// ─────────────────────────────────────────────
+// Helper Functions
+// ─────────────────────────────────────────────
+
+function formatTime(seconds: number): string {
+  if (!seconds || isNaN(seconds)) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
 
 // ─────────────────────────────────────────────
 // Types & Interfaces
@@ -548,6 +561,9 @@ export function CreatorMixer({
   // Background music player state
   const [bgMusicName, setBgMusicName] = useState<string>('');
   const [bgMusicPlaying, setBgMusicPlaying] = useState(true);
+  const [bgPlayOut, setBgPlayOut] = useState(false);
+  const [bgCurrentTime, setBgCurrentTime] = useState(0);
+  const [bgDuration, setBgDuration] = useState(0);
   const bgSourceRef = useRef<BackgroundAudioSource | null>(null);
 
   // Update channels when engine changes
@@ -736,6 +752,8 @@ export function CreatorMixer({
         // Track the music name and state
         setBgMusicName(file.name);
         setBgMusicPlaying(true);
+        setBgDuration(bgSource.getDuration());
+        setBgCurrentTime(0);
         
         onAddChannel?.('background');
         setChannels([...mixerEngine.allChannels]);
@@ -746,6 +764,22 @@ export function CreatorMixer({
     
     input.click();
   }, [mixerEngine, onAddChannel]);
+
+  // Track background music position
+  useEffect(() => {
+    if (!bgSourceRef.current || !bgMusicPlaying) return;
+    
+    const interval = setInterval(() => {
+      if (bgSourceRef.current) {
+        const time = bgSourceRef.current.getCurrentTime();
+        const dur = bgSourceRef.current.getDuration();
+        setBgCurrentTime(time);
+        setBgDuration(dur);
+      }
+    }, 250);
+    
+    return () => clearInterval(interval);
+  }, [bgMusicPlaying]);
 
   // Handle background music controls
   const handleBgPlayPause = useCallback(() => {
@@ -782,6 +816,9 @@ export function CreatorMixer({
     
     setBgMusicName('');
     setBgMusicPlaying(false);
+    setBgPlayOut(false);
+    setBgCurrentTime(0);
+    setBgDuration(0);
     setChannels([...mixerEngine.allChannels]);
     onRemoveChannel?.(bgChannel?.id || '');
   }, [channels, mixerEngine, onRemoveChannel]);
@@ -792,6 +829,20 @@ export function CreatorMixer({
     // Trigger new file selection after a short delay
     setTimeout(() => handleAddBackgroundChannel(), 100);
   }, [handleBgStop, handleAddBackgroundChannel]);
+
+  const handleBgPlayOutToggle = useCallback(() => {
+    if (!bgSourceRef.current) return;
+    
+    const newPlayOut = !bgPlayOut;
+    bgSourceRef.current.setPlayOut(newPlayOut);
+    setBgPlayOut(newPlayOut);
+  }, [bgPlayOut]);
+
+  const handleBgSeek = useCallback((position: number) => {
+    if (!bgSourceRef.current || !bgDuration) return;
+    bgSourceRef.current.seek(position);
+    setBgCurrentTime(position * bgDuration);
+  }, [bgDuration]);
 
   return (
     <div className="bg-slate-950 rounded-xl p-6 border border-slate-800">
@@ -910,13 +961,26 @@ export function CreatorMixer({
             </button>
           </div>
           
-          {/* Progress bar (visual only - loop is continuous) */}
+          {/* Seek bar with time display */}
           <div className="mb-3">
-            <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
-              <div className={cn(
-                'h-full bg-emerald-500 rounded-full transition-all duration-1000',
-                bgMusicPlaying ? 'animate-pulse w-full' : 'w-1/2'
-              )} />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 w-10 text-right">
+                {formatTime(bgCurrentTime)}
+              </span>
+              <div className="flex-1 relative">
+                <input
+                  type="range"
+                  min="0"
+                  max={bgDuration || 100}
+                  value={bgCurrentTime}
+                  onChange={(e) => handleBgSeek(Number(e.target.value) / bgDuration)}
+                  disabled={!isStreaming}
+                  className="w-full h-2 bg-slate-700 rounded-full appearance-none cursor-pointer disabled:cursor-not-allowed accent-emerald-500"
+                />
+              </div>
+              <span className="text-xs text-slate-400 w-10">
+                {formatTime(bgDuration)}
+              </span>
             </div>
           </div>
           
@@ -951,6 +1015,23 @@ export function CreatorMixer({
             
             {/* Right controls */}
             <div className="flex items-center gap-2">
+              {/* Play Out button (radio studio monitor) */}
+              <button
+                onClick={handleBgPlayOutToggle}
+                disabled={!isStreaming}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors',
+                  bgPlayOut
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/50'
+                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700',
+                  !isStreaming && 'opacity-50 cursor-not-allowed'
+                )}
+                title="Play out to speakers - hear the music to confirm seek position"
+              >
+                <Speaker className="w-4 h-4" />
+                <span>{bgPlayOut ? 'Playing Out' : 'Play Out'}</span>
+              </button>
+              
               {/* Loop indicator */}
               <div className="flex items-center gap-1 px-2 py-1 bg-slate-800 rounded text-xs text-slate-400">
                 <Repeat className="w-3 h-3" />
