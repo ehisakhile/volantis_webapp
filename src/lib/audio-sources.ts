@@ -574,8 +574,8 @@ export class BackgroundAudioSource extends AudioSource {
     const clampedPosition = Math.max(0, Math.min(1, position));
     const startTime = this.audioBuffer.duration * clampedPosition;
     this.currentPosition = clampedPosition;
-    this.startOffset = startTime;
-    this.startTime = this.audioContext.currentTime;
+    this.playbackPosition = startTime;
+    this.playbackStartTime = this.audioContext.currentTime;
     this.isPlaying = true;
     
     this.sourceNode.stop();
@@ -624,29 +624,31 @@ export class BackgroundAudioSource extends AudioSource {
 
   /** Get current position (0-1) */
   getCurrentPosition(): number {
-    if (!this.audioContext || !this.audioBuffer || !this.isPlaying) {
+    if (!this.audioContext || !this.audioBuffer) {
       return this.currentPosition;
     }
     
-    const elapsed = this.audioContext.currentTime - this.startTime;
-    let position = (this.startOffset + elapsed) / this.audioBuffer.duration;
+    const elapsed = this.audioContext.currentTime - this.playbackStartTime;
+    let absolutePosition = this.playbackPosition + elapsed;
+    const duration = this.audioBuffer.duration;
     
     // Handle looping
     if (this.loop) {
-      position = position % 1;
-    } else if (position >= 1) {
-      position = 1;
+      absolutePosition = absolutePosition % duration;
+    } else if (absolutePosition >= duration) {
+      absolutePosition = duration;
       this.isPlaying = false;
     }
     
-    this.currentPosition = position;
-    return position;
+    this.currentPosition = absolutePosition / duration;
+    return this.currentPosition;
   }
 
   /** Get current time in seconds */
   getCurrentTime(): number {
     if (!this.audioBuffer) return 0;
-    return this.getCurrentPosition() * this.audioBuffer.duration;
+    const pos = this.getCurrentPosition();
+    return pos * this.audioBuffer.duration;
   }
 
   /** Get audio duration in seconds */

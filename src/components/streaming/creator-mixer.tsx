@@ -767,8 +767,6 @@ export function CreatorMixer({
 
   // Track background music position
   useEffect(() => {
-    if (!bgSourceRef.current || !bgMusicPlaying) return;
-    
     const interval = setInterval(() => {
       if (bgSourceRef.current) {
         const time = bgSourceRef.current.getCurrentTime();
@@ -776,10 +774,10 @@ export function CreatorMixer({
         setBgCurrentTime(time);
         setBgDuration(dur);
       }
-    }, 250);
+    }, 100);
     
     return () => clearInterval(interval);
-  }, [bgMusicPlaying]);
+  }, []);
 
   // Handle background music controls
   const handleBgPlayPause = useCallback(() => {
