@@ -33,7 +33,7 @@ export function AppBanner() {
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border px-4 py-3 flex items-center gap-3 z-[9999]">
       <img
-        src="/app-icon.png"
+        src="/logo.png"
         alt="Volantislive"
         width={48}
         height={48}
