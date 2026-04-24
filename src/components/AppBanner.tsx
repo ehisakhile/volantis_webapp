@@ -3,7 +3,7 @@
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useAppBanner } from '@/hooks/useAppBanner';
 
-const APP_SCHEME = 'https://volantislive.com';
+const APP_CUSTOM_SCHEME = 'volantislive://open';
 const IOS_STORE_URL = 'https://apps.apple.com/us/app/volantislive/id6762115839';
 const ANDROID_STORE_URL = 'https://play.google.com/store/apps/details?id=com.volantislive.volantislive';
 
@@ -18,15 +18,11 @@ export function AppBanner() {
     ? `${pathname}?${searchParams}`
     : pathname;
 
-    const deepLink = `${APP_SCHEME}${currentPath}`; 
-
-  const storeUrl = platform === 'ios' ? IOS_STORE_URL : ANDROID_STORE_URL;
-
   const handleOpen = () => {
-    window.location.href = deepLink;
+    window.location.href = `${APP_CUSTOM_SCHEME}${currentPath}`;
 
     setTimeout(() => {
-      window.location.href = storeUrl;
+      window.location.href = platform === 'ios' ? IOS_STORE_URL : ANDROID_STORE_URL;
     }, 1500);
   };
 
@@ -39,12 +35,10 @@ export function AppBanner() {
         height={48}
         className="rounded-lg flex-shrink-0"
       />
-
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground m-0">Volantislive</p>
         <p className="text-xs text-muted m-0">Better experience in the app</p>
       </div>
-
       <div className="flex flex-col gap-1.5 items-end">
         <button
           onClick={handleOpen}
