@@ -3,6 +3,8 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { Analytics } from "@vercel/analytics/next";
 import { AudioProvider } from "@/components/audio/audio-provider";
+import { Suspense } from "react";
+import { AppBanner } from "@/components/AppBanner";
 export const metadata: Metadata = {
   title: "Volantislive - Live Audio Streaming Built for Africa",
   description: "Stream your church services, events, and content live with ultra-low bandwidth. Works on any connection across Africa.",
@@ -36,6 +38,9 @@ export default function RootLayout({
           </AudioProvider>
         </AuthProvider>
         <Analytics />
+        <Suspense>
+          <AppBanner />
+        </Suspense>
       </body>
     </html>
   );
