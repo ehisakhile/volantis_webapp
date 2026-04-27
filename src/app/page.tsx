@@ -6,7 +6,7 @@ import Image from "next/image";
 import {
   ArrowRight, Play, Radio, Users, Zap, Shield, Clock,
   CheckCircle, Star, Menu, X, Volume2, Signal, ChevronRight,
-  Wifi, Globe, Mic, BarChart3, Headphones, RadioIcon, Podcast,
+  Wifi, Globe, Mic, BarChart3, Headphones, RadioIcon, Podcast,  Download,
   Music, Mic2, Church, RadioTower, Mic as MicIcon
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
@@ -123,129 +123,255 @@ function useCountUp(target: number, duration = 2000, trigger: boolean) {
   return count;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-function LiveBroadcastCard() {
-  const [listeners, setListeners] = useState(847);
-  const [waveform] = useState(() => Array.from({ length: 20 }, () => Math.random() * 40 + 10));
-  const [waveActive, setWaveActive] = useState(0);
 
-  useEffect(() => {
-    const t = setInterval(() => {
-      setListeners(v => v + Math.floor(Math.random() * 3) - 1);
-      setWaveActive(v => (v + 1) % 20);
-    }, 800);
-    return () => clearInterval(t);
-  }, []);
+const styles = `
+  @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+ 
+  @keyframes vl-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(34,197,94,0.25); }
+    50%       { box-shadow: 0 0 0 7px rgba(34,197,94,0.08); }
+  }
+ 
+  .vl-hero * { box-sizing: border-box; }
+ 
+  .vl-hero {
+    font-family: 'DM Sans', sans-serif;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(160deg, #f0f9ff 0%, #f8fafc 50%, #e0f2fe 100%);
+    padding: 80px 24px 72px;
+  }
+ 
+  .vl-orb1 {
+    position: absolute; top: -80px; right: -80px;
+    width: 380px; height: 380px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(14,165,233,0.14) 0%, transparent 70%);
+    pointer-events: none;
+  }
+ 
+  .vl-orb2 {
+    position: absolute; bottom: -60px; left: -60px;
+    width: 300px; height: 300px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(56,189,248,0.09) 0%, transparent 70%);
+    pointer-events: none;
+  }
+ 
+  /* Centered column */
+  .vl-inner {
+    position: relative;
+    max-width: 640px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+ 
+  .vl-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(14,165,233,0.1); border: 1px solid rgba(14,165,233,0.28);
+    color: #0369a1; padding: 5px 16px; border-radius: 100px;
+    font-size: 0.8rem; font-weight: 600; margin-bottom: 22px;
+  }
+ 
+  .vl-pulse {
+    width: 7px; height: 7px; border-radius: 50%; background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34,197,94,0.25);
+    animation: vl-pulse 2s infinite;
+    flex-shrink: 0;
+  }
+ 
+  .vl-h1 {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-weight: 800;
+    font-size: clamp(2rem, 5vw, 3.4rem);
+    line-height: 1.08;
+    color: #0f172a;
+    margin: 0 0 18px;
+  }
+ 
+  .vl-h1-grad {
+    background: linear-gradient(135deg, #0ea5e9, #0369a1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+ 
+  .vl-sub {
+    font-size: 1.05rem; color: #475569; line-height: 1.7;
+    max-width: 500px; margin: 0 0 40px;
+  }
+ 
+  /* ── App Card ── */
+  .app-card {
+    width: 100%;
+    background: white;
+    border: 1.5px solid rgba(14,165,233,0.22);
+    border-radius: 20px;
+    padding: 28px;
+    box-shadow: 0 8px 40px rgba(14,165,233,0.1), 0 2px 12px rgba(0,0,0,0.06);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+ 
+  .app-card-bar {
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, #0ea5e9, #22c55e, #0369a1);
+  }
+ 
+  .app-card-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 24px;
+  }
+ 
+  .app-icon {
+    width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
+    background: linear-gradient(135deg, #beeaff, #fafdfe);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 14px rgba(0, 41, 59, 0.3);
+  }
+ 
+  .app-name-block { text-align: left; flex: 1; }
+  .app-title { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 1.1rem; color: #0f172a; margin: 0 0 3px; }
+  .app-desc  { font-size: 0.8rem; color: #64748b; margin: 0; }
+ 
+  .live-chip {
+    background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3);
+    color: #15803d; padding: 4px 12px; border-radius: 100px;
+    font-size: 0.75rem; font-weight: 700;
+    display: flex; align-items: center; gap: 5px; white-space: nowrap; flex-shrink: 0;
+  }
+ 
+  .live-chip-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: #22c55e;
+    animation: vl-pulse 2s infinite;
+  }
+ 
+  /* ── Store Buttons ── */
+  .store-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+ 
+  .store-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px; border-radius: 14px;
+    text-decoration: none; border: none;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    cursor: pointer;
+  }
+ 
+  .store-btn:hover { transform: translateY(-2px); }
+ 
+  .store-btn.android {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+  }
+ 
+  .store-btn.ios {
+    background: linear-gradient(135deg, #1c1c1e, #2c2c2e);
+    box-shadow: 0 4px 18px rgba(0,0,0,0.15);
+  }
+ 
+  .store-icon {
+    width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+    background: rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: center;
+  }
+ 
+  .store-label { display: flex; flex-direction: column; text-align: left; }
+  .store-eyebrow { font-size: 0.67rem; color: rgba(255,255,255,0.55); font-weight: 400; }
+  .store-name    { font-size: 0.92rem; font-weight: 700; color: white; }
+ 
+  /* ── APK button ── */
+  .apk-btn {
+    width: 100%;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px; border-radius: 12px;
+    background: rgba(14,165,233,0.07); border: 1.5px dashed rgba(14,165,233,0.3);
+    color: #0369a1; font-size: 0.84rem; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease;
+    font-family: 'DM Sans', sans-serif;
+  }
+ 
+  .apk-btn:hover { background: rgba(14,165,233,0.13); border-color: rgba(14,165,233,0.5); }
+ 
+  /* ── Rating row ── */
+  .rating-row {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center;
+    margin-top: 16px; padding-top: 16px;
+    border-top: 1px solid rgba(0,0,0,0.06);
+  }
+ 
+  .stars { color: #f59e0b; font-size: 0.85rem; letter-spacing: 1px; }
+  .rating-label { font-size: 0.8rem; color: #64748b; }
+ 
+  .platform-pills { display: flex; align-items: center; gap: 10px; }
+  .platform-pill  { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: #64748b; }
+  .pdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+ 
+  /* ── Secondary CTAs ── */
+  .cta-row {
+    display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+    margin-bottom: 24px;
+  }
+ 
+  .sec-btn {
+    display: flex; align-items: center; gap: 7px;
+    padding: 11px 22px; border-radius: 10px; text-decoration: none;
+    font-size: 0.88rem; font-weight: 600; cursor: pointer; border: none;
+    transition: all 0.18s ease; font-family: 'DM Sans', sans-serif;
+    white-space: nowrap;
+  }
+ 
+  .sec-btn.primary {
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+    color: white; box-shadow: 0 4px 16px rgba(14,165,233,0.28);
+  }
+ 
+  .sec-btn.ghost {
+    background: white; color: #0f172a;
+    border: 1.5px solid #e2e8f0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  }
+ 
+  /* ── Trust row ── */
+  .trust-row {
+    display: flex; flex-wrap: wrap; gap: 16px; justify-content: center;
+  }
+ 
+  .trust-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.83rem; color: #64748b;
+  }
+ 
+  .trust-check {
+    width: 17px; height: 17px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(34,197,94,0.13); border: 1px solid rgba(34,197,94,0.3);
+    display: flex; align-items: center; justify-content: center;
+  }
+ 
+  /* ── Responsive breakpoints ── */
+  @media (max-width: 520px) {
+    .vl-hero { padding: 56px 16px 52px; }
+    .store-grid { grid-template-columns: 1fr; }
+    .app-card { padding: 20px; }
+    .app-card-header { flex-wrap: wrap; }
+    .live-chip { order: 3; }
+    .cta-row { flex-direction: column; align-items: center; }
+    .sec-btn { width: 100%; justify-content: center; }
+  }
+ 
+  @media (max-width: 360px) {
+    .vl-h1 { font-size: 1.75rem; }
+    .vl-sub { font-size: 0.95rem; }
+  }
+`;
 
-  return (
-    <div className="relative">
-      {/* Glow effect */}
-      <div className="absolute -inset-4 bg-sky-500/20 rounded-3xl blur-2xl animate-pulse" />
-
-      <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-700/50">
-        {/* Top bar */}
-        <div className="bg-slate-900/80 px-5 py-4 flex items-center justify-between border-b border-slate-700/50">
-          <div className="flex items-center gap-3">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-            </span>
-            <span className="text-red-400 font-bold text-xs tracking-widest uppercase">Live Now</span>
-          </div>
-          <span className="text-slate-400 text-xs">{new Date().toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })}</span>
-        </div>
-
-        {/* Stream image */}
-        <div className="relative h-40 overflow-hidden">
-          <img
-            src="https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=600&q=80"
-            alt="Live audio stream"
-            className="w-full h-full object-cover opacity-60"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
-          <div className="absolute bottom-4 left-5 right-5">
-            <p className="text-white font-bold text-base">The Morning Vibe</p>
-            <p className="text-slate-300 text-sm">with Ade Banks</p>
-          </div>
-        </div>
-
-        {/* Waveform */}
-        <div className="px-5 py-4">
-          <div className="flex items-center gap-[3px] h-12 mb-4">
-            {waveform.map((h, i) => (
-              <div
-                key={i}
-                className="flex-1 rounded-full transition-all duration-300"
-                style={{
-                  height: `${i === waveActive || i === (waveActive + 1) % 20 ? h * 1.8 : h}%`,
-                  background: i <= waveActive
-                    ? `linear-gradient(to top, #0ea5e9, #38bdf8)`
-                    : '#334155',
-                }}
-              />
-            ))}
-          </div>
-
-          {/* Stats row */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-sky-500/20 rounded-full flex items-center justify-center">
-                <Users className="w-3.5 h-3.5 text-sky-400" />
-              </div>
-              <div>
-                <span className="text-white font-bold tabular-nums">{listeners.toLocaleString()}</span>
-                <span className="text-slate-400 text-xs ml-1">listening</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Signal className="w-3 h-3 text-green-400" />
-              <span className="text-green-400 text-xs font-medium">32kbps · Low Data</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Data meter */}
-        <div className="mx-5 mb-5 bg-slate-700/50 rounded-lg p-3">
-          <div className="flex justify-between text-xs text-slate-400 mb-2">
-            <span>Data used this hour</span>
-            <span className="text-sky-400 font-medium">14.3 MB</span>
-          </div>
-          <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-            <div className="h-full w-1/5 bg-gradient-to-r from-sky-500 to-sky-400 rounded-full" />
-          </div>
-        </div>
-      </div>
-
-      {/* Floating badges */}
-      <div className="absolute -top-3 -right-3 bg-white rounded-xl shadow-xl px-3 py-2 flex items-center gap-2 text-xs font-semibold text-slate-700 animate-bounce-slow">
-        <Globe className="w-3.5 h-3.5 text-sky-500" />
-        Works on 2G
-      </div>
-      <div className="absolute -bottom-3 -left-3 bg-emerald-500 rounded-xl shadow-xl px-3 py-2 flex items-center gap-2 text-xs font-bold text-white">
-        <CheckCircle className="w-3.5 h-3.5" />
-        Auto-reconnect active
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ stat, index, trigger }: { stat: StatItem; index: number; trigger: boolean }) {
-  const num = parseInt(stat.value.replace(/\D/g, "")) || 0;
-  const suffix = stat.value.replace(/[\d]/g, "");
-  const count = useCountUp(num, 2000 + index * 200, trigger);
-
-  return (
-    <div
-      className="text-center"
-      style={{ animationDelay: `${index * 100}ms` }}
-    >
-      <div className="text-3xl md:text-4xl font-bold text-white mb-1 tabular-nums">
-        {trigger ? `${count}${suffix}` : stat.value}
-      </div>
-      <div className="text-slate-400 text-sm">{stat.label}</div>
-    </div>
-  );
-}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function HomePage() {
@@ -267,231 +393,134 @@ export default function HomePage() {
       <Navbar />
 
       <main>
-        {/* ─── HERO ───────────────────────────────────────────────────────── */}
-        <section className="hero-grain" style={{
-          position: 'relative', paddingTop: 100, paddingBottom: 80, overflow: 'hidden',
-          background: 'linear-gradient(160deg, #f0f9ff 0%, #f8fafc 50%, #e0f2fe 100%)',
-        }}>
-          {/* Decorative circles */}
-          <div style={{
-            position: 'absolute', top: -100, right: -100, width: 500, height: 500,
-            borderRadius: '50%', background: 'radial-gradient(circle, rgba(14,165,233,0.12) 0%, transparent 70%)',
-            pointerEvents: 'none',
-          }} />
-          <div style={{
-            position: 'absolute', bottom: -80, left: -80, width: 400, height: 400,
-            borderRadius: '50%', background: 'radial-gradient(circle, rgba(56,189,248,0.08) 0%, transparent 70%)',
-            pointerEvents: 'none',
-          }} />
-
-          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 48, alignItems: 'center' }}>
-
-              {/* Left: Content */}
-              <div style={{ animation: 'slide-up 0.7s ease forwards', maxWidth: 580 }}>
-                {/* Trust badge */}
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.25)',
-                  color: '#0369a1', padding: '6px 16px', borderRadius: 100,
-                  fontSize: '0.82rem', fontWeight: 600, marginBottom: 24,
-                }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#0ea5e9', boxShadow: '0 0 0 3px rgba(14,165,233,0.25)' }} />
-                  Trusted by audio creators across Africa
-                </div>
-
-                <h1 style={{
-                  fontFamily: 'Bricolage Grotesque', fontWeight: 800,
-                  fontSize: 'clamp(2.4rem, 5vw, 3.8rem)', lineHeight: 1.1,
-                  color: '#0f172a', marginBottom: 24,
-                }}>
-                  Audio Streaming That Works —{' '}
-                  <span style={{
-                    background: 'linear-gradient(135deg, #0ea5e9, #0369a1)',
-                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                  }}>
-                    Even on Poor Connections
-                  </span>
-                </h1>
-
-                <p style={{ fontSize: '1.15rem', color: '#475569', lineHeight: 1.7, marginBottom: 36, maxWidth: 480 }}>
-                  Volantislive uses ultra-low bandwidth audio streaming so your audience never misses a moment — no matter their network, no matter their data plan.
-                </p>
-
-                {/* CTAs */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 36 }}>
-                  <a
-                    href="/signup"
-                    className="cta-btn"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
-                      color: 'white', padding: '14px 28px', borderRadius: 12,
-                      fontWeight: 700, fontSize: '1rem', textDecoration: 'none',
-                      boxShadow: '0 4px 20px rgba(14,165,233,0.3)',
-                    }}
-                  >
-                    Start Streaming Free <ArrowRight size={18} />
-                  </a>
-                  <a
-                    href="/listen"
-                    className="cta-btn"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      background: 'linear-gradient(135deg, #10b981, #059669)',
-                      color: 'white', padding: '14px 28px', borderRadius: 12,
-                      fontWeight: 700, fontSize: '1rem', textDecoration: 'none',
-                      boxShadow: '0 4px 20px rgba(16,185,129,0.3)',
-                    }}
-                  >
-                    <Headphones size={18} />
-                    Listen Live Now
-                  </a>
-                  <a
-                    href="/how-it-works"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      background: 'white', color: '#0f172a',
-                      padding: '14px 28px', borderRadius: 12,
-                      fontWeight: 600, fontSize: '1rem', textDecoration: 'none',
-                      border: '1.5px solid #e2e8f0',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    <Play size={16} fill="#0ea5e9" color="#0ea5e9" />
-                    See How It Works
-                  </a>
-                </div>
-
-                {/* Trust signals */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20 }}>
-                  {['No credit card required', 'Free plan available', 'Setup in 5 minutes'].map(s => (
-                    <span key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: '#64748b' }}>
-                      <CheckCircle size={15} color="#22c55e" fill="none" />
-                      {s}
-                    </span>
-                  ))}
-                </div>
-                {/* App download banner */}
-                <div style={{
-                  marginTop: 32,
-                  background: 'rgba(14,165,233,0.06)',
-                  border: '1px solid rgba(14,165,233,0.18)',
-                  borderRadius: 14,
-                  padding: '14px 18px',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                  gap: 14,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 200 }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                    background: 'rgba(14,165,233,0.12)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    📱
-                  </div>
-                  <div>
-                    <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem', margin: 0 }}>
-                    Get the Volantislive app
-                    </p>
-                    <p style={{ color: '#64748b', fontSize: '0.78rem', margin: 0 }}>
-                    Android APK available now &middot; iOS &amp; Play Store coming soon
-                    </p>
-                  </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  {/* Active — APK download */}
-                  <a href="https://pub-5103cbf5e90e49189df8feb43623fd78.r2.dev/app-arm64-v8a-release.apk"
-                    style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
-                    color: 'white', padding: '8px 16px', borderRadius: 10,
-                    fontWeight: 700, fontSize: '0.82rem', textDecoration: 'none',
-                    boxShadow: '0 2px 10px rgba(14,165,233,0.25)',
-                    }}
-                  >
-                    ⬇ Download Android APK
-                  </a>
-
-                  {/* Disabled — Play Store */}
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    border: '1px solid #e2e8f0', borderRadius: 10,
-                    padding: '8px 14px', fontSize: '0.8rem', color: '#94a3b8',
-                    cursor: 'not-allowed',
-                    opacity: 0.6,
-                  }}>
-                    <img src="/play.png" alt="Play Store" style={{ width: 18, height: 18 }} />
-                    Play Store
-                    <span style={{
-                    background: '#fef9c3', color: '#92400e',
-                    fontSize: '0.68rem', fontWeight: 700,
-                    padding: '1px 6px', borderRadius: 5,
-                    }}>Soon</span>
-                  </span>
-
-                  {/* Disabled — App Store */}
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    border: '1px solid #e2e8f0', borderRadius: 10,
-                    padding: '8px 14px', fontSize: '0.8rem', color: '#94a3b8',
-                    cursor: 'not-allowed',
-                    opacity: 0.6,
-                  }}>
-                    <img src="/apple.png" alt="App Store" style={{ width: 18, height: 18 }} />
-                    App Store
-                    <span style={{
-                    background: '#fef9c3', color: '#92400e',
-                    fontSize: '0.68rem', fontWeight: 700,
-                    padding: '1px 6px', borderRadius: 5,
-                    }}>Soon</span>
-                  </span>
-                  </div>
-
-                  <p style={{ width: '100%', margin: 0, fontSize: '0.72rem', color: '#94a3b8' }}>
-                  APK is in active testing — your feedback helps us improve before the full store launch.
-                  </p>
-                </div>
+        <style>{styles}</style>
+ 
+      <section className="vl-hero mt-10">
+        <div className="vl-orb1" />
+        <div className="vl-orb2" />
+ 
+        <div className="vl-inner">
+ 
+          {/* Trust badge */}
+          <div className="vl-badge">
+            <span className="vl-pulse" />
+            Now available on iOS &amp; Android
+          </div>
+ 
+          {/* Headline */}
+          <h1 className="vl-h1">
+            Stream Live Audio to Africa —{' '}
+            <span className="vl-h1-grad">Get the App Today</span>
+          </h1>
+ 
+          {/* Subheading */}
+          <p className="vl-sub">
+            Volantislive delivers ultra-low bandwidth audio streaming built for African networks.
+            Your audience can tune in from anywhere — download the app and never miss a broadcast.
+          </p>
+ 
+          {/* ─── App Download Card ─── */}
+          <div className="app-card">
+            <div className="app-card-bar" />
+ 
+            {/* Card header */}
+            <div className="app-card-header">
+              <div className="app-icon">
+                 <img src="/logo.png" alt="Volantislive" className="h-8 w-auto" />
               </div>
-
-              {/* Right: Live Card */}
-              {/* <div style={{ animation: 'slide-up 0.9s ease forwards', paddingTop: 20 }}>
-                <LiveBroadcastCard />
-              </div> */}
+              <div className="app-name-block">
+                <p className="app-title">Volantislive</p>
+                <p className="app-desc">Live audio streaming for African audiences</p>
+              </div>
+              <div className="live-chip">
+                <span className="live-chip-dot" />
+                Live now
+              </div>
+            </div>
+ 
+            {/* Store buttons */}
+            <div className="store-grid">
+              <a
+                href="https://play.google.com/store/apps/details?id=com.volantislive.volantislive"
+                className="store-btn android"
+              >
+                <div className="store-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24">
+                    <path d="M3.18 23.76c.33.18.7.22 1.06.1l11.34-6.55-2.53-2.53-9.87 8.98z" fill="#34A853"/>
+                    <path d="M.5 1.35A1.5 1.5 0 000 2.5v19a1.5 1.5 0 00.5 1.15l.06.05L13.12 12v-.3L.56 1.3l-.06.05z" fill="#4285F4"/>
+                    <path d="M19.8 10.05l-3.22-1.86-2.84 2.84 2.84 2.84 3.23-1.87a1.44 1.44 0 000-1.95z" fill="#FBBC04"/>
+                    <path d="M4.24.14L15.58 6.7l-2.53 2.53L3.18.27c.36-.12.74-.08 1.06.1z" fill="#EA4335"/>
+                  </svg>
+                </div>
+                <div className="store-label">
+                  <span className="store-eyebrow">Get it on</span>
+                  <span className="store-name">Google Play</span>
+                </div>
+              </a>
+ 
+              <a
+                href="https://apps.apple.com/us/app/volantislive/id6762115839"
+                className="store-btn ios"
+              >
+                <div className="store-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+                  </svg>
+                </div>
+                <div className="store-label">
+                  <span className="store-eyebrow">Download on the</span>
+                  <span className="store-name">App Store</span>
+                </div>
+              </a>
+            </div>
+ 
+           
+ 
+            {/* Rating / platform row */}
+            <div className="rating-row">
+              <span className="stars">★★★★★</span>
+              <span className="rating-label">Available on both stores</span>
+              <div className="platform-pills">
+                <span className="platform-pill">
+                  <span className="pdot" style={{ background: '#34a853' }} /> Android
+                </span>
+                <span className="platform-pill">
+                  <span className="pdot" style={{ background: '#007aff' }} /> iOS
+                </span>
+              </div>
             </div>
           </div>
-
-          {/* Scroll indicator */}
-          <div
-            className="scroll-indicator"
-            style={{
-              position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-              color: '#94a3b8', fontSize: '0.75rem',
-            }}
-          >
-            <div style={{ width: 1, height: 30, background: 'linear-gradient(to bottom, transparent, #94a3b8)' }} />
+ 
+          {/* Secondary CTAs */}
+          <div className="cta-row">
+            <a href="/signup" className="sec-btn primary">
+              Start Streaming Free <ArrowRight size={15} />
+            </a>
+            <a href="/listen" className="sec-btn ghost">
+              <Headphones size={15} color="#0ea5e9" /> Listen Live
+            </a>
+            <a href="/how-it-works" className="sec-btn ghost">
+              <Play size={14} fill="#0ea5e9" color="#0ea5e9" /> How It Works
+            </a>
           </div>
-        </section>
-
-        {/* ─── STATS BAR ──────────────────────────────────────────────────── */}
-        {/* <div
-          ref={statsSection.ref}
-          style={{
-            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-            padding: '40px 24px',
-          }}
-        >
-          <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }}>
-            {stats.map((stat, i) => (
-              <StatCard key={i} stat={stat} index={i} trigger={statsSection.visible} />
+ 
+          {/* Trust signals */}
+          <div className="trust-row">
+            {['Free to listen', 'Works on slow networks', 'Trusted by African creators'].map(s => (
+              <span key={s} className="trust-item">
+                <span className="trust-check">
+                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                    <path d="M1 3.5L3.5 6L8 1" stroke="#22c55e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                {s}
+              </span>
             ))}
           </div>
-        </div> */}
+ 
+        </div>
+      </section>
+    
 
         {/* ─── PROBLEM FRAMING ────────────────────────────────────────────── */}
         <section style={{ padding: '96px 24px', background: 'white' }}>
