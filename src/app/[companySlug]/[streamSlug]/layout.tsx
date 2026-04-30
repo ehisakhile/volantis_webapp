@@ -50,8 +50,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     if (isLive) {
       title = `${streamData.title} 🔴 LIVE | ${companyName} | Volantislive`;
       description = streamData.description 
-        ? `${streamData.description} - Listen now! ${streamData.viewer_count ? `${streamData.viewer_count.toLocaleString()} listeners` : ''} - Live on Volantislive source- ${source} `
-        : `Listen to the live stream "${streamData.title}" from ${companyName}. Streamed live on Volantislive - Africa's leading audio streaming platform. source- ${source}`;
+        ? `${streamData.description} - Listen now! ${streamData.viewer_count ? `${streamData.viewer_count.toLocaleString()} listeners` : ''} - Live on Volantislive `
+        : `Listen to the live stream "${streamData.title}" from ${companyName}. Streamed live on Volantislive - Africa's leading audio streaming platform.`;
     } else {
       title = `${streamData.title} | ${companyName} | Volantislive`;
       description = streamData.description 
