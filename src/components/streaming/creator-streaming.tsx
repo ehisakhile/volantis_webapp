@@ -1072,32 +1072,59 @@ export function CreatorStreaming({
 
         {/* Stream Ended Success Modal (when no recording was used) */}
         {showStreamEndedModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl text-center"
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-8 max-w-sm w-full mx-4 shadow-xl text-center"
             >
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-8 h-8 text-green-600" />
+              {/* Icon */}
+              <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-5">
+                <CheckCircle className="w-7 h-7 text-emerald-500" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">
-                Stream Ended Successfully
-              </h2>
-              <p className="text-slate-300 mb-6">
-                Your live stream has ended. Thank you for broadcasting!
+
+              {/* Eyebrow label */}
+              <p className="text-xs font-semibold tracking-widest uppercase text-slate-400 mb-1">
+                Stream complete
               </p>
-              <div className="flex gap-4 justify-center">
-                <button
-                  onClick={() => {
-                    setShowStreamEndedModal(false);
-                    router.push("/dashboard");
-                  }}
-                  className="px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl transition-colors"
-                >
-                  Go to Dashboard
-                </button>
+
+              {/* Headline */}
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+                That's a wrap!
+              </h2>
+
+              {/* Subtext */}
+              <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-5">
+                Your stream ended smoothly. Here's a quick look at how it went.
+              </p>
+
+              {/* Stat card */}
+              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 mb-5">
+                <div className="text-left">
+                  <p className="text-xs text-slate-400 mb-0.5">Peak listeners</p>
+                  <p className="text-2xl font-semibold text-slate-900 dark:text-white">
+                    {currentStream?.peak_viewers?.toLocaleString() ?? "0"}
+                  </p>
+                </div>
+                <Users className="w-8 h-8 text-sky-400 opacity-70 shrink-0" />
               </div>
+
+              {/* CTA */}
+              <button
+                onClick={() => {
+                  setShowStreamEndedModal(false);
+                  router.push("/dashboard");
+                }}
+                className="w-full py-2.5 px-5 bg-sky-500 hover:bg-sky-600 active:scale-[0.98] text-white text-sm font-semibold rounded-xl transition-all"
+              >
+                Go to dashboard
+              </button>
+
+              {/* Footer note */}
+              <p className="text-xs text-slate-400 mt-4 leading-relaxed">
+                Thank you for streaming with us!
+              </p>
             </motion.div>
           </div>
         )}
@@ -1146,8 +1173,8 @@ export function CreatorStreaming({
                       <Settings className="w-3 h-3" />
                       {selectedMicDevice
                         ? micDevices.find(
-                            (d) => d.deviceId === selectedMicDevice,
-                          )?.label || "Select microphone"
+                          (d) => d.deviceId === selectedMicDevice,
+                        )?.label || "Select microphone"
                         : "Select microphone"}
                     </button>
 
@@ -1172,7 +1199,7 @@ export function CreatorStreaming({
                               className={cn(
                                 "w-full text-left text-xs px-2 py-1.5 rounded hover:bg-slate-700",
                                 selectedMicDevice === device.deviceId &&
-                                  "bg-sky-500/20 text-sky-400",
+                                "bg-sky-500/20 text-sky-400",
                               )}
                             >
                               {device.label ||
@@ -1331,7 +1358,7 @@ export function CreatorStreaming({
                           className={cn(
                             "flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-slate-600 rounded-lg cursor-pointer hover:border-sky-500 transition-colors",
                             (isStreaming || isStarting) &&
-                              "opacity-50 cursor-not-allowed",
+                            "opacity-50 cursor-not-allowed",
                           )}
                         >
                           <Upload className="w-8 h-8 text-slate-400 mb-2" />
@@ -1386,7 +1413,7 @@ export function CreatorStreaming({
                           Resume:{" "}
                           {existingActiveStream?.title?.length > 20
                             ? existingActiveStream?.title.substring(0, 20) +
-                              "..."
+                            "..."
                             : existingActiveStream?.title}
                         </>
                       )}
@@ -1571,7 +1598,7 @@ export function CreatorStreaming({
               </div>
             </div>
 
-            
+
             {/* Chat Panel */}
             {isStreaming && (
               <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
