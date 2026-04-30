@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // Get stream data
     let streamData;
     try {
-      streamData = await livestreamApi.getLivestream(streamSlug);
+      streamData = await livestreamApi.getPUBLICLivestream(streamSlug);
     } catch {
       // Fallback: fetch from company streams
       const companyStreams = await livestreamApi.getCompanyStreams(companySlug, 50, 0, true);

@@ -173,9 +173,9 @@ function StreamPlayer({
             }}
             transition={{ duration: 2, repeat: Infinity }}
           >
-            {company?.logo_url
-              ? <img src={company.logo_url} alt={company.name} className="w-full h-full object-cover" />
-              : company?.name?.[0]?.toUpperCase() || '?'
+            {stream?.thumbnail_url
+              ? <img src={stream.thumbnail_url} alt={stream.title} className="w-full h-full object-cover" />
+              : stream?.title?.[0]?.toUpperCase() || '?'
             }
           </motion.div>
           <div className="flex-1 min-w-0">

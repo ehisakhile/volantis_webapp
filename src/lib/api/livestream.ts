@@ -131,6 +131,17 @@ export const livestreamApi = {
     return response;
   },
 
+    /**
+   * Get a specific PUBLIC livestream by slug
+   */
+  async getPUBLICLivestream(slug: string): Promise<VolLivestreamOut> {
+    const response = await apiClient.request<VolLivestreamOut>(
+      `/stream/${encodeURIComponent(slug)}`,
+      { method: 'GET' }
+    );
+    return response;
+  },
+
   /**
    * Upload a recording for an existing livestream
    * @param slug - The stream slug

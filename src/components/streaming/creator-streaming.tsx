@@ -28,11 +28,14 @@ import {
   MessageCircle,
   Send,
   Reply,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { livestreamApi } from "@/lib/api/livestream";
 import { chatApi } from "@/lib/api/chat";
+import { companyApi } from "@/lib/api/company";
 import {
   ICE_CONFIG,
   startVisualizer,
@@ -106,6 +109,20 @@ export function CreatorStreaming({
   const [currentStream, setCurrentStream] = useState<VolLivestreamOut | null>(
     null,
   );
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [companySlug, setCompanySlug] = useState<string | null>(null);
+
+  // Fetch company slug on mount
+  useEffect(() => {
+    companyApi.getMyCompany().then((company) => {
+      setCompanySlug(company.slug);
+    }).catch(() => {
+      // Fall back to stream's company_slug if available
+      if (currentStream?.company_slug) {
+        setCompanySlug(currentStream.company_slug);
+      }
+    });
+  }, [currentStream?.company_slug]);
 
   // Audio source selection (like test_webrtc.html)
   const [useMic, setUseMic] = useState(true);
@@ -1423,7 +1440,32 @@ export function CreatorStreaming({
           <div className="lg:col-span-2 space-y-6">
             {/* Live Preview */}
             <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-              <h2 className="text-lg font-semibold mb-4">Live Preview</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Live Preview</h2>
+                {companySlug && currentStream?.slug && (
+                  <button
+                    onClick={() => {
+                      const streamUrl = `${window.location.origin}/${companySlug}/${currentStream.slug}`;
+                      navigator.clipboard.writeText(streamUrl);
+                      setCopiedLink(true);
+                      setTimeout(() => setCopiedLink(false), 2000);
+                    }}
+                    className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+                  >
+                    {copiedLink ? (
+                      <>
+                        <Check className="w-4 h-4 text-green-400" />
+                        <span className="text-green-400">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copy Link</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
 
               {/* Canvas Visualizer (like test_webrtc.html) */}
               <div className="bg-slate-950 rounded-xl h-32 mb-4 overflow-hidden border border-slate-800 relative">
