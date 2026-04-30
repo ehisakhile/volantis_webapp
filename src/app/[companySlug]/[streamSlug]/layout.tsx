@@ -13,12 +13,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     // Get stream data
     let streamData;
+    let source;
     try {
       streamData = await livestreamApi.getPUBLICLivestream(streamSlug);
+      source = 'direct';
     } catch {
       // Fallback: fetch from company streams
       const companyStreams = await livestreamApi.getCompanyStreams(companySlug, 50, 0, true);
       streamData = companyStreams.find(s => s.slug === streamSlug);
+      source = 'company';
     }
     
     if (!streamData) {
@@ -45,7 +48,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     let description = '';
     
     if (isLive) {
-      title = `${streamData.title} 🔴 LIVE | ${companyName} | Volantislive`;
+      title = `${streamData.title} ${source} gave us ${streamData.thumbnail_url} 🔴 LIVE | ${companyName} | Volantislive`;
       description = streamData.description 
         ? `${streamData.description} - Listen now! ${streamData.viewer_count ? `${streamData.viewer_count.toLocaleString()} listeners` : ''} - Live on Volantislive`
         : `Listen to the live stream "${streamData.title}" from ${companyName}. Streamed live on Volantislive - Africa's leading audio streaming platform.`;
