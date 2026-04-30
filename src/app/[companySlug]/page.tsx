@@ -212,6 +212,13 @@ function StreamTile({
                 {stream.viewer_count.toLocaleString()}
               </span>
             )}
+            {variant === 'recording' && (
+              <span className="flex items-center gap-1">
+                <Eye className="w-3 h-3 text-sky-500" />
+                {stream.peak_viewers ? `Tuned In: ${stream.peak_viewers.toLocaleString()}` : 'Tuned In: 0'}
+              </span>
+            )}
+
           </div>
           <motion.button
             whileHover={{ scale: 1.1 }}

@@ -5,28 +5,28 @@ import { Container } from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
 import { CTASection } from "@/components/ui/cta-section";
 import Link from "next/link";
-import { Church, Users, Radio, Clock, Share2, BarChart3, Zap, Shield, ArrowRight, CheckCircle, Star } from "lucide-react";
+import { Music, Users, Radio, Clock, Share2, BarChart3, Zap, Headphones, ArrowRight, CheckCircle } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Live Streaming for Churches - Volantislive",
-  description: "Stream your church services live to your congregation. Works on any connection across Nigeria.",
+  title: "Live Streaming for Musicians - Volantislive",
+  description: "Stream your live sessions, album launches, and performances. Works on any connection across Nigeria.",
 };
 
 const features = [
   {
-    icon: Radio,
-    title: "Live Broadcast",
+    icon: Music,
+    title: "Live Performances",
     description: "Go live in seconds from any browser. No technical setup required.",
   },
   {
     icon: Zap,
     title: "Low Data Mode",
-    description: "Your members listen on just 1MB per minute — works on 2G networks.",
+    description: "Your fans tune in on just 1MB per minute — works on 2G networks.",
   },
   {
     icon: Clock,
     title: "Auto Replay",
-    description: "Every service saved automatically. Members can catch up anytime.",
+    description: "Every performance saved automatically. Fans can watch anytime.",
   },
   {
     icon: Share2,
@@ -36,40 +36,40 @@ const features = [
   {
     icon: BarChart3,
     title: "Analytics",
-    description: "See who's listening and when. Understand your online congregation.",
+    description: "See who's watching and when. Understand your fan base better.",
   },
   {
-    icon: Users,
+    icon: Headphones,
     title: "Channel Pages",
-    description: "Your own streaming hub. One link for everything.",
+    description: "Your own streaming hub. One link for all your performances.",
   },
 ];
 
-const churchBenefits = [
+const musicianBenefits = [
   "Works on High-grade connections",
-  "Setup before Sunday takes 10 minutes",
-  "Congregation listens from anywhere — phone, laptop, tablet",
-  "Replay lets members who missed service catch up",
+  "Start streaming in 5 minutes",
+  "Fans watch from anywhere — phone, laptop, tablet",
+  "Perfect for album launches and live sessions",
   "No ads on your stream",
   "WhatsApp support for quick help",
 ];
 
 const testimonials = [
   {
-    name: "Pastor Emmanuel Okonkwo",
-    church: "Grace Assembly, Lagos",
-    quote: "Our online congregation grew by 300% in 3 months. Volantislive helped us reach members who couldn't attend physically.",
-    listeners: "847",
+    name: "David Chukwuma",
+    artist: "Nigerian Afrobeat Artist",
+    quote: "My album launch stream reached 15,000 fans across Nigeria. The low data mode meant even fans in remote areas could tune in.",
+    listeners: "15,234",
   },
   {
-    name: "Rev. Sarah Johnson",
-    church: "Faith Community Church, Abuja",
-    quote: "The low data mode is a game-changer. Our members in rural areas can now listen without worrying about data.",
-    listeners: "523",
+    name: "Funke Adeyemi",
+    artist: "Gospel Singer",
+    quote: "Volantislive helped me build a national following. My live worship sessions now reach thousands who couldn't attend in person.",
+    listeners: "8,921",
   },
 ];
 
-export default function ChurchesPage() {
+export default function MusiciansPage() {
   return (
     <>
       <Navbar />
@@ -77,29 +77,29 @@ export default function ChurchesPage() {
       <main className="pt-24 md:pt-32">
         {/* Hero */}
         <section className="relative py-16 md:py-24 overflow-hidden">
-          <div className="absolute inset-0 -z-10 bg-gradient-to-b from-sky-50 to-white" />
+          <div className="absolute inset-0 -z-10 bg-gradient-to-b from-rose-50 to-white" />
           
           <Container>
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div>
-                <div className="inline-flex items-center gap-2 bg-sky-100 text-sky-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
-                  <Church className="w-4 h-4" />
-                  Built for Churches
+                <div className="inline-flex items-center gap-2 bg-rose-100 text-rose-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
+                  <Music className="w-4 h-4" />
+                  Built for Musicians
                 </div>
                 
                 <h1 className="text-4xl md:text-5xl font-bold text-navy-900 mb-6">
-                  Never lose a congregant to a dropped connection again
+                  Never lose a fan to a dropped connection again
                 </h1>
                 
                 <p className="text-lg text-navy-600 mb-8">
-                  Stream your Sunday services, midweek meetings, and special events live. 
-                  Your congregation can listen from anywhere, even on slow connections.
+                  Stream your live sessions, album launches, and performances. 
+                  Your fans can watch from anywhere, even on slow connections.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
                   <Link href="/signup">
                     <Button size="lg" className="w-full sm:w-auto">
-                      Start Streaming Your Services Free
+                      Start Streaming Your Music Free
                       <ArrowRight className="ml-2 w-5 h-5" />
                     </Button>
                   </Link>
@@ -123,8 +123,8 @@ export default function ChurchesPage() {
               </div>
 
               <div className="relative">
-                <div className="bg-gradient-to-br from-navy-800 to-navy-900 rounded-2xl p-6 shadow-2xl">
-                  <div className="bg-navy-950 rounded-xl p-6">
+                <div className="bg-gradient-to-br from-rose-700 to-rose-900 rounded-2xl p-6 shadow-2xl">
+                  <div className="bg-rose-950 rounded-xl p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <span className="relative flex h-3 w-3">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -135,18 +135,18 @@ export default function ChurchesPage() {
                     
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-sky-600 rounded-full flex items-center justify-center">
-                          <Church className="w-5 h-5 text-white" />
+                        <div className="w-10 h-10 bg-rose-600 rounded-full flex items-center justify-center">
+                          <Music className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                          <h4 className="text-white font-medium">Sunday Service</h4>
-                          <p className="text-navy-400 text-xs">Grace Assembly Lagos</p>
+                          <h4 className="text-white font-medium">Live Session</h4>
+                          <p className="text-rose-400 text-xs">David Chukwuma</p>
                         </div>
                       </div>
                       
-                      <div className="flex items-center justify-between bg-navy-900/50 rounded-lg p-3">
-                        <span className="text-navy-400 text-sm">Listening now</span>
-                        <span className="text-white font-bold">847</span>
+                      <div className="flex items-center justify-between bg-rose-900/50 rounded-lg p-3">
+                        <span className="text-rose-400 text-sm">Watching now</span>
+                        <span className="text-white font-bold">15,234</span>
                       </div>
                     </div>
                   </div>
@@ -156,17 +156,17 @@ export default function ChurchesPage() {
           </Container>
         </section>
 
-        {/* Why Churches Choose */}
+        {/* Why Musicians Choose */}
         <section className="py-16 md:py-24 bg-navy-50">
           <Container>
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-navy-900 mb-4">
-                Why churches choose Volantislive
+                Why musicians choose Volantislive
               </h2>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
-              {churchBenefits.map((benefit, index) => (
+              {musicianBenefits.map((benefit, index) => (
                 <div key={index} className="flex items-start gap-3 bg-white rounded-lg p-4">
                   <CheckCircle className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
                   <span className="text-navy-700">{benefit}</span>
@@ -181,18 +181,18 @@ export default function ChurchesPage() {
           <Container>
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-navy-900 mb-4">
-                Everything your church needs
+                Everything you need as a musician
               </h2>
               <p className="text-lg text-navy-600 max-w-2xl mx-auto">
-                Powerful features designed specifically for church broadcasting.
+                Powerful features designed specifically for live music streaming.
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
               {features.map((feature, index) => (
                 <div key={index} className="bg-white rounded-xl p-6 border border-navy-100">
-                  <div className="w-12 h-12 bg-sky-100 rounded-lg flex items-center justify-center mb-4">
-                    <feature.icon className="w-6 h-6 text-sky-600" />
+                  <div className="w-12 h-12 bg-rose-100 rounded-lg flex items-center justify-center mb-4">
+                    <feature.icon className="w-6 h-6 text-rose-600" />
                   </div>
                   <h3 className="text-lg font-semibold text-navy-900 mb-2">{feature.title}</h3>
                   <p className="text-navy-600">{feature.description}</p>
@@ -207,7 +207,7 @@ export default function ChurchesPage() {
           <Container>
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-white mb-4">
-                Trusted by churches across Nigeria
+                Trusted by musicians across Nigeria
               </h2>
             </div>
 
@@ -218,11 +218,11 @@ export default function ChurchesPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-white">{testimonial.name}</p>
-                      <p className="text-navy-400 text-sm">{testimonial.church}</p>
+                      <p className="text-navy-400 text-sm">{testimonial.artist}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-sky-400">{testimonial.listeners}</p>
-                      <p className="text-navy-400 text-sm">listeners</p>
+                      <p className="text-2xl font-bold text-rose-400">{testimonial.listeners}</p>
+                      <p className="text-navy-400 text-sm">viewers</p>
                     </div>
                   </div>
                 </div>
@@ -233,8 +233,8 @@ export default function ChurchesPage() {
 
         {/* CTA */}
         <CTASection
-          title="Ready to stream your services?"
-          description="Join 500+ churches already reaching their congregation with Volantislive."
+          title="Ready to stream your music?"
+          description="Join 500+ musicians already reaching their fans with Volantislive."
           primaryCTA={{
             text: "Start Free Trial",
             href: "/signup",
@@ -246,10 +246,9 @@ export default function ChurchesPage() {
           trustSignals={[
             "60-day free trial",
             "No credit card required",
-            "Setup in 10 minutes",
+            "Setup in 5 minutes",
             "WhatsApp support",
           ]}
-          variant="sky"
         />
       </main>
 

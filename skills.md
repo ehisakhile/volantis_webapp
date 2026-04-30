@@ -371,7 +371,7 @@ Never use technical language as a headline.
 **CTA:** "Start Streaming Your Services Free"
 
 **Unique section:** "Why churches choose Volantislive"
-- Works on DSTV-grade connections
+- Works on High-grade connections
 - Setup before Sunday takes 10 minutes
 - Congregation listens from anywhere — phone, laptop, tablet
 - Replay lets members who missed service catch up
