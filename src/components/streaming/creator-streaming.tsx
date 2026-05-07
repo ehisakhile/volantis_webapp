@@ -1576,7 +1576,7 @@ export function CreatorStreaming({
                     <span className="text-xs">Viewers</span>
                   </div>
                   <span className="font-semibold">
-                    {realtimeViewerCount || currentStream?.viewer_count || 0}
+                    {creatorTotalViews || currentStream?.viewer_count || 0}
                   </span>
                 </div>
 
