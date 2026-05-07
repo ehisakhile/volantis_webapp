@@ -23,6 +23,7 @@ export interface VolLivestreamOut {
   thumbnail_url?: string | null;
   viewer_count: number;
   peak_viewers: number;
+  total_views: number;
   created_by_username: string;
   created_at: string;
 }

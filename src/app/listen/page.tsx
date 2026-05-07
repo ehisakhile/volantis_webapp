@@ -131,7 +131,7 @@ function StreamCard({ stream, index }: { stream: ActiveStreamItem; index: number
           <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
             style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <Eye className="w-3 h-3" />
-            {formatViewerCount(stream.viewer_count)}
+            {formatViewerCount(stream.total_views)}
           </div>
 
           <div className="p-5 pt-10">
@@ -162,7 +162,7 @@ function StreamCard({ stream, index }: { stream: ActiveStreamItem; index: number
               </span>
               <span className="flex items-center gap-1">
                 <Users className="w-3 h-3" />
-                {formatViewerCount(stream.viewer_count)}
+                {formatViewerCount(stream.total_views)}
               </span>
             </div>
           </div>
@@ -406,9 +406,7 @@ export default function ListenPage() {
       setFilteredStreams(streamsArray);
     } catch (err) {
       const demoStreams: ActiveStreamItem[] = [
-        { id: 1, title: 'Morning Worship Service', slug: 'morning-worship', company_id: 14, company_slug: 'stalbert', company_name: 'St Albert Parish', company_logo_url: 'https://api.dicebear.com/7.x/initials/svg?seed=SA', is_live: true, viewer_count: 1250, thumbnail_url: null, started_at: new Date(Date.now() - 3600000).toISOString() },
-        { id: 2, title: 'Praise & Worship Live', slug: 'praise-worship', company_id: 14, company_slug: 'stalbert', company_name: 'Grace Community', company_logo_url: 'https://api.dicebear.com/7.x/initials/svg?seed=GC', is_live: true, viewer_count: 890, thumbnail_url: null, started_at: new Date(Date.now() - 1800000).toISOString() },
-      ];
+           ];
       setStreams(demoStreams);
       setFilteredStreams(demoStreams);
     } finally {
@@ -625,7 +623,7 @@ export default function ListenPage() {
     }
   }, [currentStream]);
 
-  const totalListeners = filteredStreams?.reduce?.((acc, s) => acc + (s?.viewer_count || 0), 0) || 0;
+  const totalListeners = filteredStreams?.reduce?.((acc, s) => acc + (s?.total_views || 0), 0) || 0;
   const playerColors = currentStream ? getGradientForCompany(currentStream.company_name) : ['#6366F1', '#8B5CF6'];
 
   return (
@@ -900,7 +898,7 @@ export default function ListenPage() {
                 <div className="hidden md:flex items-center gap-1.5 text-xs font-medium"
                   style={{ color: 'rgba(255,255,255,0.4)' }}>
                   <Eye className="w-3.5 h-3.5" />
-                  {formatViewerCount(currentStream.viewer_count)}
+                  {formatViewerCount(currentStream.total_views)}
                 </div>
 
                 {/* Close */}

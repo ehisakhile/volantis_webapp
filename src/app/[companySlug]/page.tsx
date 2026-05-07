@@ -207,15 +207,15 @@ function StreamTile({
         <div className="flex items-center justify-between mt-3">
           <div className="flex items-center gap-3 text-xs text-slate-500">
             {variant === 'live' && (
-              <span className="flex items-center gap-1">
-                <Eye className="w-3 h-3 text-sky-500" />
-                {stream.viewer_count.toLocaleString()}
+              <span className="flex items-center text-base gap-1">
+                <Eye className="w-6 h-6 text-sky-500 " />
+                {stream.total_views.toLocaleString()}
               </span>
             )}
             {variant === 'recording' && (
-              <span className="flex items-center gap-1">
-                <Eye className="w-3 h-3 text-sky-500" />
-                {stream.peak_viewers ? `Tuned In: ${stream.peak_viewers.toLocaleString()}` : 'Tuned In: 0'}
+              <span className="flex items-center text-base gap-1">
+                <Eye className="w-6 h-6 text-sky-500 t" />
+                {stream.total_views ? `Tuned In: ${stream.total_views.toLocaleString()}` : 'Tuned In: 0'}
               </span>
             )}
 
@@ -777,6 +777,7 @@ export default function CompanyPage() {
             recording_url: null,
             viewer_count: livePageData.livestream.viewer_count,
             peak_viewers: livePageData.livestream.peak_viewers,
+            total_views: livePageData.livestream.total_views,
             created_by_username: livePageData.company.name,
             created_at: livePageData.livestream.started_at,
           };

@@ -309,6 +309,7 @@ export interface ActiveStreamItem {
   viewer_count: number;
   thumbnail_url: string | null;
   started_at: string;
+  total_views: number;
 }
 
 // For backward compatibility, keep the old type but map to it

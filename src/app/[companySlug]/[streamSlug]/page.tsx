@@ -387,7 +387,7 @@ export default function StreamPage() {
   const [creatorNotStreamingInfo, setCreatorNotStreamingInfo] = useState<{ creatorName: string; streamTitle?: string } | null>(null);
 
   const { remoteStream, connectionState, startPlayback, stop: stopPlayback, retryConnection, audioStats } = useWebRTC();
-  const { viewerCount: realtimeViewerCount, peakViewers } = useViewerCount({
+  const { viewerCount: realtimeViewerCount, totalViews, peakViewers } = useViewerCount({
     slug: streamSlug || '',
     companyId: company?.id || 0,
     enabled: !!streamSlug && !!company?.id,
@@ -395,7 +395,7 @@ export default function StreamPage() {
   });
 
   console.log('fetched peak viewers', peakViewers);
-  
+  console.log('fetched total views', totalViews);
   // Use the global AudioProvider for background audio playback
   // This creates a persistent audio element at the app root level
   // which helps mobile browsers continue playback when minimized
@@ -607,7 +607,7 @@ export default function StreamPage() {
                   connectionState={connectionState} remoteStream={remoteStream}
                   audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
                   onRetry={handleRetry} onVolumeChange={updateVolume}
-                  viewerCount={realtimeViewerCount}
+                  viewerCount={totalViews}
                   peakViewers={peakViewers}
                 />
               </div>
@@ -627,7 +627,7 @@ export default function StreamPage() {
                 connectionState={connectionState} remoteStream={remoteStream}
                 audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
                 onRetry={handleRetry} onVolumeChange={updateVolume}
-                viewerCount={realtimeViewerCount}
+                viewerCount={totalViews}
                 peakViewers={peakViewers}
               />
               <MobileChatSection streamSlug={streamSlug} companyName={company?.name} />
