@@ -150,7 +150,7 @@ export default function DashboardPage() {
       fetchStats(user.company_slug);
     }
     // Fetch subscription details
-    // fetchSubscription();
+    fetchSubscription();
   }, [user]);
 
   // Check user preferences on load (non-blocking async)

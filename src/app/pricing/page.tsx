@@ -36,7 +36,7 @@ const plans = [
       { name: "1 hour stream/day", included: true },
       { name: "10 uploads/month", included: true },
       { name: "Basic analytics", included: true },
-      { name: "Volantislive subdomain", included: true },
+      { name: "Volantislive subdomain", included: false },
       { name: "No integrations", included: false },
       { name: "Custom channel page", included: false },
       { name: "Embeddable player", included: false },
@@ -244,7 +244,7 @@ export default function PricingPage() {
                   },
                   {
                     q: "What payment methods do you accept?",
-                    a: "We accept bank transfers, Paystack, Flutterwave, and credit/debit cards.",
+                    a: "We accept bank transfers, Paystack, and Flutterwave.",
                   },
                   {
                     q: "Do you offer refunds?",

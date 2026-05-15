@@ -193,6 +193,15 @@ export function Navbar() {
               >
                 How It Works
               </Link>
+                <Link
+                href="/how-it-works"
+                className={cn(
+                  "font-medium transition-colors text-sm",
+                  pathname === "/pricing" ? "text-sky-600" : "text-slate-600 hover:text-sky-600"
+                )}
+              >
+                Pricing
+              </Link>
             </div>
 
             {/* Desktop CTA */}
@@ -432,6 +441,14 @@ export function Navbar() {
                   onClick={() => setIsOpen(false)}
                 >
                   How It Works
+                </Link>
+
+                                <Link
+                  href="/pricing"
+                  className="block py-3 text-slate-700 font-semibold"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Pricing
                 </Link>
 
                 <div className="h-px bg-slate-100 my-1" />
