@@ -20,8 +20,8 @@ export default function SignupPage() {
   const { signup, error: authError, clearError, isLoading } = useAuth();
   
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
+    // firstName: '',
+    // lastName: '',
     email: '',
     organization: '',
     organizationSlug: '',
@@ -66,11 +66,11 @@ export default function SignupPage() {
     setLocalError('');
     clearError();
 
-    // Validation
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.organization || !formData.password) {
-      setLocalError('Please fill in all required fields');
-      return;
-    }
+    // // Validation
+    // if (!formData.firstName || !formData.lastName || !formData.email || !formData.organization || !formData.password) {
+    //   setLocalError('Please fill in all required fields');
+    //   return;
+    // }
 
     if (formData.password !== formData.confirmPassword) {
       setLocalError('Passwords do not match');
@@ -93,7 +93,7 @@ export default function SignupPage() {
         company_slug: formData.organizationSlug || null,
         company_description: formData.organizationDescription || null,
         email: formData.email,
-        user_username: `${formData.firstName.toLowerCase()}_${formData.lastName.toLowerCase()}`,
+        // user_username: `${formData.firstName.toLowerCase()}_${formData.lastName.toLowerCase()}`,
         password: formData.password,
         logo: logoFile,
       });
@@ -201,7 +201,7 @@ export default function SignupPage() {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                   {/* Name Fields */}
-                  <div className="grid sm:grid-cols-2 gap-4">
+                  {/* <div className="grid sm:grid-cols-2 gap-4">
                     <div>
                       <label htmlFor="firstName" className="block text-sm font-medium text-navy-700 mb-2">
                         First Name *
@@ -233,7 +233,7 @@ export default function SignupPage() {
                         required
                       />
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* Email */}
                   <div>
