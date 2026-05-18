@@ -83,6 +83,29 @@ export interface PermissionCheckResponse {
   reason: string;
 }
 
+export interface UserCoupon {
+  code: string;
+  discount_percentage: number;
+  discount_amount_kobo: number | null;
+  is_100_percent: boolean;
+  monthly_usage_limit: number;
+  current_month_uses: number;
+  valid_until: string;
+  applicable_plans: string;
+}
+
+export interface CouponValidationResponse {
+  valid: boolean;
+  coupon_type: string;
+  discount_type: string;
+  discount_percentage: number;
+  discount_amount_kobo: number | null;
+  new_price_kobo: number;
+  is_100_percent: boolean;
+  monthly_uses_remaining: number | null;
+  message: string;
+}
+
 export const subscriptionsApi = {
   /**
    * Subscribe to a company channel
@@ -243,6 +266,30 @@ export const subscriptionsApi = {
   async canUpload(): Promise<PermissionCheckResponse> {
     const response = await apiClient.requestWithAuth<PermissionCheckResponse>(
       '/api/subscriptions/can-upload',
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
+   * Get user's available coupons
+   * Requires authentication
+   */
+  async getMyCoupons(): Promise<UserCoupon[]> {
+    const response = await apiClient.requestWithAuth<UserCoupon[]>(
+      '/api/coupons/my-coupons',
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
+   * Validate a coupon code for a specific plan
+   * Requires authentication
+   */
+  async validateCoupon(code: string, planId: number): Promise<CouponValidationResponse> {
+    const response = await apiClient.requestWithAuth<CouponValidationResponse>(
+      `/api/coupons/validate?code=${encodeURIComponent(code)}&plan_id=${planId}`,
       { method: 'GET' }
     );
     return response;
