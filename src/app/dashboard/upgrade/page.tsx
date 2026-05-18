@@ -640,7 +640,7 @@ function UpgradePageContent() {
           </div>
 
           {/* Billing Cycle Toggle */}
-          <div className="flex justify-center mb-8">
+          {/* <div className="flex justify-center mb-8">
             <div className="bg-white rounded-xl p-1.5 border border-slate-200 inline-flex">
               <button
                 onClick={() => setBillingCycle('monthly')}
@@ -666,7 +666,7 @@ function UpgradePageContent() {
                 </span>
               </button>
             </div>
-          </div>
+          </div> */}
 
           {/* Manual Coupon Input Section */}
           {!manualCouponCode && (
