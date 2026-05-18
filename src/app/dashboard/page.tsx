@@ -463,12 +463,12 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Monthly Uploads</p>
                       <p className="text-sm font-medium text-slate-900">
-                        {subscription.monthly_uploads_used} / {subscription.monthly_uploads_limit}
+                        {subscription.monthly_uploads_used} / {subscription.monthly_uploads_limit === -1 ? '∞' : subscription.monthly_uploads_limit}
                       </p>
                       <div className="mt-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-purple-500 rounded-full"
-                          style={{ width: `${Math.min((subscription.monthly_uploads_used / subscription.monthly_uploads_limit) * 100, 100)}%` }}
+                          style={{ width: `${subscription.monthly_uploads_limit === -1 ? 0 : Math.min((subscription.monthly_uploads_used / subscription.monthly_uploads_limit) * 100, 100)}%` }}
                         />
                       </div>
                     </div>
