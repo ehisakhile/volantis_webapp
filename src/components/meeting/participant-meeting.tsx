@@ -43,6 +43,10 @@ interface ParticipantMeetingProps {
   onError?: (error: string) => void;
 }
 
+interface ParticipantWithMute extends VolMeetingParticipantOut {
+  isMuted: boolean;
+}
+
 export function ParticipantMeeting({
   meeting,
   onLeft,
@@ -59,6 +63,8 @@ export function ParticipantMeeting({
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
+  const [isLocallyMuted, setIsLocallyMuted] = useState(false);
+  const [isHostMuted, setIsHostMuted] = useState(false);
   const [meetingDuration, setMeetingDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showParticipants, setShowParticipants] = useState(true);
@@ -324,6 +330,26 @@ export function ParticipantMeeting({
           );
         } else if (data.type === "meeting_ended") {
           handleLeaveMeeting();
+        } else if (data.type === "mute_all" || data.type === "mute_participant") {
+          if (data.type === "mute_all" || data.participant_id === meeting.id) {
+            setIsHostMuted(true);
+            setIsMuted(true);
+            if (localStreamRef.current) {
+              localStreamRef.current.getAudioTracks().forEach((track) => {
+                track.enabled = false;
+              });
+            }
+          }
+        } else if (data.type === "unmute_all" || data.type === "unmute_participant") {
+          if (data.type === "unmute_all" || data.participant_id === meeting.id) {
+            setIsHostMuted(false);
+            if (!isLocallyMuted && localStreamRef.current) {
+              localStreamRef.current.getAudioTracks().forEach((track) => {
+                track.enabled = true;
+              });
+            }
+            setIsMuted(isLocallyMuted);
+          }
         }
       } catch (err) {
         console.error("WebSocket message error:", err);
@@ -434,14 +460,26 @@ export function ParticipantMeeting({
 
   // Toggle mute
   const toggleMute = useCallback(() => {
+    if (isHostMuted) return;
+
     if (localStreamRef.current) {
       const audioTracks = localStreamRef.current.getAudioTracks();
       audioTracks.forEach((track) => {
         track.enabled = !track.enabled;
       });
-      setIsMuted(!isMuted);
+      const newMuted = !isLocallyMuted;
+      setIsLocallyMuted(newMuted);
+      setIsMuted(isHostMuted ? true : newMuted);
+
+      if (socketRef.current) {
+        socketRef.current.send(
+          JSON.stringify({
+            type: newMuted ? "participant_muted" : "participant_unmuted",
+          })
+        );
+      }
     }
-  }, [isMuted]);
+  }, [isLocallyMuted, isHostMuted]);
 
   // Toggle video
   const toggleVideo = useCallback(() => {
@@ -645,8 +683,11 @@ export function ParticipantMeeting({
 
                 {/* Self Label */}
                 <div className="absolute bottom-2 left-2 bg-black/60 rounded-lg px-2 py-1 flex items-center gap-2">
-                  <span className="text-xs text-white">Host</span>
-                  <Mic className="w-3 h-3 text-green-400" />
+                  <span className="text-xs text-white">You</span>
+                  <Mic className={cn("w-3 h-3", !isMuted ? "text-green-400" : "text-red-400")} />
+                  {isHostMuted && (
+                    <span className="text-xs text-yellow-400 ml-1">(Host muted)</span>
+                  )}
                 </div>
 
                 {/* Host Name Tag */}
@@ -678,7 +719,7 @@ export function ParticipantMeeting({
                       <span className="text-xs text-white">
                         {participant.user_username || "Participant"}
                       </span>
-                      <Mic className="w-3 h-3 text-slate-400" />
+                      <Mic className={cn("w-3 h-3", isMuted ? "text-slate-500" : "text-green-400")} />
                     </div>
                   </div>
                 ))}
@@ -781,9 +822,12 @@ export function ParticipantMeeting({
                     <div className="text-xs text-slate-400 capitalize">
                       {participant.role}
                     </div>
+                    {isHostMuted && participant.role === "participant" && (
+                      <span className="text-xs text-yellow-400">Muted by host</span>
+                    )}
                   </div>
                   {participant.status === "joined" && (
-                    <Mic className="w-4 h-4 text-slate-400" />
+                    <Mic className={cn("w-4 h-4", isHostMuted && participant.role === "participant" ? "text-red-400" : "text-slate-400")} />
                   )}
                 </div>
               ))}
@@ -812,11 +856,18 @@ export function ParticipantMeeting({
               ? "bg-red-500 hover:bg-red-600"
               : "bg-slate-700 hover:bg-slate-600"
           )}
+          title={isHostMuted ? "Muted by host" : isMuted ? "Unmute yourself" : "Mute yourself"}
+          disabled={isHostMuted}
         >
           {isMuted ? (
             <MicOff className="w-6 h-6 text-white" />
           ) : (
             <Mic className="w-6 h-6 text-white" />
+          )}
+          {isHostMuted && (
+            <span className="absolute bottom-0 right-0 w-4 h-4 bg-yellow-500 rounded-full border-2 border-slate-800 flex items-center justify-center">
+              <span className="text-[8px] font-bold text-white">H</span>
+            </span>
           )}
         </button>
 

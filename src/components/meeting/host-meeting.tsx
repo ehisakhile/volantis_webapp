@@ -46,6 +46,10 @@ interface HostMeetingProps {
   onError?: (error: string) => void;
 }
 
+interface ParticipantWithMute extends VolMeetingParticipantOut {
+  isMuted: boolean;
+}
+
 export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingProps) {
   const router = useRouter();
   const [isConnected, setIsConnected] = useState(false);
@@ -68,16 +72,79 @@ export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingPro
   const [selectedMicDevice, setSelectedMicDevice] = useState<string>("");
   const [showMicPicker, setShowMicPicker] = useState(false);
   const [viewMode, setViewMode] = useState<"gallery" | "speaker">("gallery");
+  const [mutedParticipants, setMutedParticipants] = useState<Set<number>>(new Set());
 
   // WebRTC refs
   const pcRef = useRef<RTCPeerConnection | null>(null);
+  const subscribePcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream>(new MediaStream());
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const stopVizRef = useRef<(() => void) | null>(null);
   const statsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const participantsPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Attach remote track
+  const attachRemoteTrack = useCallback((track: MediaStreamTrack) => {
+    const remoteStream = remoteStreamRef.current;
+    if (!remoteStream.getTracks().some((existing) => existing.id === track.id)) {
+      remoteStream.addTrack(track);
+    }
+
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current
+        .play()
+        .catch((err) => console.warn("Remote audio autoplay blocked:", err));
+    }
+  }, []);
+
+  // Start WebRTC subscribe connection (receive participants)
+  const startSubscribeConnection = useCallback(async () => {
+    if (!meeting.cf_webrtc_playback_url) return;
+
+    try {
+      const pc = new RTCPeerConnection(ICE_CONFIG);
+      subscribePcRef.current = pc;
+
+      pc.oniceconnectionstatechange = () => {
+        console.log(`Subscribe ICE → ${pc.iceConnectionState}`);
+      };
+
+      pc.ontrack = (event) => {
+        console.log("Received participant track:", event.track.kind);
+        if (event.track.kind === "audio") {
+          attachRemoteTrack(event.track);
+        }
+      };
+
+      pc.addTransceiver("audio", { direction: "sendrecv" });
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      await waitForIce(pc, 2000);
+
+      const res = await fetch(meeting.cf_webrtc_playback_url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/sdp",
+          Accept: "application/sdp",
+        },
+        body: pc.localDescription!.sdp,
+      });
+
+      if (res.ok) {
+        const answerSdp = await res.text();
+        await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+      }
+    } catch (err) {
+      console.error("Subscribe connection error:", err);
+    }
+  }, [meeting.cf_webrtc_playback_url, attachRemoteTrack]);
 
   // Load microphone devices
   useEffect(() => {
@@ -222,6 +289,9 @@ export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingPro
       const detectedCodec = detectAudioCodec(answerSdp);
       setCodec(detectedCodec);
 
+      // Start subscribe connection to receive participants' audio
+      startSubscribeConnection();
+
       // Start duration counter
       durationIntervalRef.current = setInterval(() => {
         setMeetingDuration((prev) => prev + 1);
@@ -247,6 +317,7 @@ export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingPro
     selectedMicDevice,
     isMuted,
     onError,
+    startSubscribeConnection,
   ]);
 
   // Connect WebSocket for real-time updates
@@ -337,6 +408,18 @@ export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingPro
       pcRef.current = null;
     }
 
+    if (subscribePcRef.current) {
+      subscribePcRef.current.close();
+      subscribePcRef.current = null;
+    }
+
+    remoteStreamRef.current.getTracks().forEach((track) => track.stop());
+    remoteStreamRef.current = new MediaStream();
+
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
+    }
+
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
@@ -403,6 +486,45 @@ export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingPro
     onMeetingEnded?.();
   }, [meeting.id, cleanup, onMeetingEnded]);
 
+  // Mute a specific participant (request from server/WS)
+  const muteParticipant = useCallback((participantId: number) => {
+    setMutedParticipants((prev) => {
+      const next = new Set(prev);
+      if (next.has(participantId)) {
+        next.delete(participantId);
+      } else {
+        next.add(participantId);
+      }
+      return next;
+    });
+
+    if (socketRef.current) {
+      socketRef.current.send(
+        JSON.stringify({
+          type: mutedParticipants.has(participantId) ? "unmute_participant" : "mute_participant",
+          participant_id: participantId,
+        })
+      );
+    }
+  }, [mutedParticipants]);
+
+  // Mute all participants
+  const muteAllParticipants = useCallback(() => {
+    const allMuted = participants.length > 0 && participants.every((p) => mutedParticipants.has(p.id));
+    if (allMuted) {
+      setMutedParticipants(new Set());
+      if (socketRef.current) {
+        socketRef.current.send(JSON.stringify({ type: "unmute_all" }));
+      }
+    } else {
+      const allIds = new Set(participants.map((p) => p.id));
+      setMutedParticipants(allIds);
+      if (socketRef.current) {
+        socketRef.current.send(JSON.stringify({ type: "mute_all" }));
+      }
+    }
+  }, [participants, mutedParticipants]);
+
   // Leave meeting (as host, this ends it)
   const handleLeaveMeeting = useCallback(() => {
     const confirmed = window.confirm(
@@ -456,10 +578,12 @@ export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingPro
   const isHost = true; // Since this is the HostMeeting component
 
   return (
-    <div className={cn(
-      "fixed inset-0 bg-slate-950 flex flex-col",
-      showFullscreen && "z-50"
-    )}>
+<div className={cn(
+        "fixed inset-0 bg-slate-950 flex flex-col",
+        showFullscreen && "z-50"
+      )}>
+      <audio ref={remoteAudioRef} autoPlay playsInline />
+
       {/* Network Status Banner */}
       {networkStatus === "offline" && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
@@ -717,9 +841,22 @@ export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingPro
                       {participant.role}
                     </div>
                   </div>
-                  {participant.status === "joined" && (
-                    <Mic className="w-4 h-4 text-slate-400" />
-                  )}
+                  <button
+                    onClick={() => muteParticipant(participant.id)}
+                    className={cn(
+                      "p-1.5 rounded-full transition-colors",
+                      mutedParticipants.has(participant.id)
+                        ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                        : "hover:bg-slate-700 text-slate-400"
+                    )}
+                    title={mutedParticipants.has(participant.id) ? "Unmute participant" : "Mute participant"}
+                  >
+                    {mutedParticipants.has(participant.id) ? (
+                      <MicOff className="w-4 h-4" />
+                    ) : (
+                      <Mic className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               ))}
 
@@ -745,6 +882,7 @@ export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingPro
               ? "bg-red-500 hover:bg-red-600"
               : "bg-slate-700 hover:bg-slate-600"
           )}
+          title={isMuted ? "Unmute yourself" : "Mute yourself"}
         >
           {isMuted ? (
             <MicOff className="w-6 h-6 text-white" />
@@ -753,24 +891,30 @@ export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingPro
           )}
         </button>
 
-        {/* Video Toggle */}
+        {/* Mute All Participants */}
         <button
-          onClick={toggleVideo}
+          onClick={muteAllParticipants}
           className={cn(
             "w-14 h-14 rounded-full flex items-center justify-center transition-colors",
-            isVideoOff
+            participants.length > 0 && participants.every((p) => mutedParticipants.has(p.id))
               ? "bg-red-500 hover:bg-red-600"
               : "bg-slate-700 hover:bg-slate-600"
           )}
+          title={
+            participants.length > 0 && participants.every((p) => mutedParticipants.has(p.id))
+              ? "Unmute all participants"
+              : "Mute all participants"
+          }
         >
-          {isVideoOff ? (
-            <VideoOff className="w-6 h-6 text-white" />
-          ) : (
-            <Video className="w-6 h-6 text-white" />
-          )}
+          <Users className="w-6 h-6 text-white" />
+          <span className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center">
+            <span className="text-xs font-bold text-white">
+              {participants.length > 0 && participants.every((p) => mutedParticipants.has(p.id)) ? "X" : participants.length}
+            </span>
+          </span>
         </button>
 
-        {/* End Meeting */}
+        {/* Video Toggle */}
         <button
           onClick={handleLeaveMeeting}
           className="w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors"
@@ -780,7 +924,11 @@ export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingPro
 
         {/* More Options */}
         <button
-          className="w-14 h-14 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center transition-colors"
+          onClick={() => setShowControls(!showControls)}
+          className={cn(
+            "w-14 h-14 rounded-full flex items-center justify-center transition-colors",
+            showControls ? "bg-slate-600" : "bg-slate-700 hover:bg-slate-600"
+          )}
         >
           <MoreVertical className="w-6 h-6 text-white" />
         </button>
