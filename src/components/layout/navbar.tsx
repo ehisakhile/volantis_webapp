@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ChevronDown, User, LogOut, Settings, Headphones, Radio, Zap, BarChart2, Globe, Archive, Code } from "lucide-react";
+import { Menu, X, ChevronDown, User, LogOut, Settings, Headphones, Radio, Zap, BarChart2, Globe, Archive, Code, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -183,6 +183,16 @@ export function Navbar() {
                 <Headphones className="w-4 h-4" />
                 Listen
               </Link>
+
+              {isAuthenticated && user?.company_id && (
+                <Link
+                  href="/meeting/create"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-purple-500 text-white rounded-full font-medium hover:bg-purple-600 transition-colors shadow-md shadow-purple-500/20 text-sm"
+                >
+                  <Video className="w-4 h-4" />
+                  Meet
+                </Link>
+              )}
 
               <Link
                 href="/how-it-works"
