@@ -101,7 +101,7 @@ export const meetingsApi = {
   },
 
   async joinMeeting(
-    meetingId: number,
+    meetingId: number | string,
     role: 'host' | 'co_host' | 'participant' = 'participant'
   ): Promise<VolMeetingOut> {
     const formData = new URLSearchParams();
@@ -120,7 +120,7 @@ export const meetingsApi = {
     return response;
   },
 
-  async leaveMeeting(meetingId: number): Promise<void> {
+  async leaveMeeting(meetingId: number | string): Promise<void> {
     await apiClient.request(`/meetings/${meetingId}/leave`, {
       method: 'POST',
     });

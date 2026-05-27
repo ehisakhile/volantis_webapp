@@ -38,6 +38,7 @@ export interface VolMeetingOut {
   created_by_email?: string | null;
   playback?: VolMeetingPlaybackOut;
   participants?: VolMeetingParticipantOut[];
+  nice_id?: string | null;
 }
 
 export interface VolMeetingPlaybackOut {

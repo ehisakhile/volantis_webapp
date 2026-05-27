@@ -537,7 +537,7 @@ export function HostMeeting({ meeting, onMeetingEnded, onError }: HostMeetingPro
 
   // Copy meeting link
   const copyMeetingLink = useCallback(() => {
-    const link = `${window.location.origin}/meeting/${meeting.id}`;
+    const link = `${window.location.origin}/meeting/${meeting.nice_id}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);

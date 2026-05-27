@@ -20,11 +20,12 @@ import { useAuth } from "@/lib/auth-context";
 import { HostMeeting } from "@/components/meeting/host-meeting";
 import { ParticipantMeeting } from "@/components/meeting/participant-meeting";
 import type { VolMeetingOut } from "@/types/meeting";
+import { parse } from "path";
 
 function MeetingPageContent() {
   const router = useRouter();
   const params = useParams();
-  const meetingId = parseInt(params.id as string);
+  const meetingId = (params.id as string);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [meeting, setMeeting] = useState<VolMeetingOut | null>(null);
@@ -60,11 +61,7 @@ function MeetingPageContent() {
   // Auth check and meeting fetch
   useEffect(() => {
     const fetchMeeting = async () => {
-      if (isNaN(meetingId)) {
-        setError("Invalid meeting ID");
-        setIsLoading(false);
-        return;
-      }
+     
 
       setIsLoading(true);
       try {
