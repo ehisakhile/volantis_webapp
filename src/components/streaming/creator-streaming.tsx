@@ -163,7 +163,7 @@ export function CreatorStreaming({
   const [iceState, setIceState] = useState<string>("—");
 
   // Real-time viewer count
-  const { viewerCount: realtimeViewerCount, totalViews: creatorTotalViews } = useViewerCount({
+  const { viewerCount: realtimeViewerCount, totalViews: creatorTotalViews, peakViewers: creatorPeakViewers } = useViewerCount({
     slug: currentStream?.slug || '',
     companyId: currentStream?.company_id || 0,
     enabled: isStreaming && !!currentStream?.slug && !!currentStream?.company_id,
@@ -1104,7 +1104,7 @@ export function CreatorStreaming({
                 <div className="text-left">
                   <p className="text-xs text-slate-400 mb-0.5">Peak listeners</p>
                   <p className="text-2xl font-semibold text-slate-900 dark:text-white">
-                    {currentStream?.peak_viewers?.toLocaleString() ?? "0"}
+                    {creatorPeakViewers?.toLocaleString() ?? "0"}
                   </p>
                 </div>
                 <Users className="w-8 h-8 text-sky-400 opacity-70 shrink-0" />
