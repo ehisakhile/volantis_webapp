@@ -12,33 +12,30 @@ import {
   Video,
   Clock,
   Radio,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { meetingsApi } from "@/lib/api/meetings";
 import { useAuth } from "@/lib/auth-context";
-import { HostMeeting } from "@/components/meeting/host-meeting";
-import { ParticipantMeeting } from "@/components/meeting/participant-meeting";
+import { MeetingRoom } from "@/components/meeting/meeting-room";
 import type { VolMeetingOut } from "@/types/meeting";
-import { parse } from "path";
 
 function MeetingPageContent() {
   const router = useRouter();
   const params = useParams();
-  const meetingId = (params.id as string);
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const meetingId = params.id as string;
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [meeting, setMeeting] = useState<VolMeetingOut | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
-  const [joinedRole, setJoinedRole] = useState<
-    "host" | "co_host" | "participant"
-  >("participant");
-  const [selectedRole, setSelectedRole] = useState<
-    "host" | "co_host" | "participant"
-  >("participant");
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const isHost = user?.id === meeting?.created_by_id;
 
   const errorToMessage = (err: unknown, fallback: string) => {
     if (err instanceof Error) return err.message;
@@ -58,15 +55,25 @@ function MeetingPageContent() {
     return fallback;
   };
 
-  // Auth check and meeting fetch
   useEffect(() => {
     const fetchMeeting = async () => {
-     
-
       setIsLoading(true);
       try {
-        const meetingData = await meetingsApi.joinMeeting(meetingId);
+        const meetingData = await meetingsApi.getMeeting(meetingId);
         setMeeting(meetingData);
+
+        if (meetingData.status === "active" || meetingData.status === "pending") {
+          setIsJoining(true);
+          try {
+            await meetingsApi.joinMeeting(meetingData.id, isHost ? "host" : "participant");
+            setHasJoined(true);
+          } catch (err) {
+            console.error("Failed to join meeting:", err);
+            setError(errorToMessage(err, "Failed to join meeting. Please try again."));
+          } finally {
+            setIsJoining(false);
+          }
+        }
       } catch (err) {
         console.error("Failed to fetch meeting:", err);
         setError(
@@ -80,10 +87,11 @@ function MeetingPageContent() {
       }
     };
 
-    fetchMeeting();
-  }, [meetingId, isAuthenticated]);
+    if (meetingId) {
+      fetchMeeting();
+    }
+  }, [meetingId]);
 
-  // Handle join as participant
   const handleJoinAsParticipant = useCallback(async () => {
     if (!meeting) return;
 
@@ -91,49 +99,48 @@ function MeetingPageContent() {
     setError(null);
 
     try {
-      const updatedMeeting = await meetingsApi.joinMeeting(
-        meeting.id,
-        selectedRole
-      );
-      setMeeting(updatedMeeting);
-      setJoinedRole(selectedRole);
+      await meetingsApi.joinMeeting(meeting.id, "participant");
       setHasJoined(true);
     } catch (err) {
       console.error("Failed to join meeting:", err);
-      setError(
-        errorToMessage(err, "Failed to join meeting. Please try again.")
-      );
+      setError(errorToMessage(err, "Failed to join meeting. Please try again."));
     } finally {
       setIsJoining(false);
     }
-  }, [meeting, selectedRole]);
+  }, [meeting]);
 
-  // Handle meeting ended (for hosts)
   const handleMeetingEnded = useCallback(() => {
     router.push("/dashboard");
   }, [router]);
 
-  // Handle left meeting (for participants)
   const handleLeftMeeting = useCallback(() => {
     router.push("/");
   }, [router]);
 
-  // Loading state
-  if (isLoading) {
+  const handleCopyLink = useCallback(() => {
+    if (!meeting) return;
+    const link = `${window.location.origin}/meeting/${meeting.nice_id || meetingId}`;
+    navigator.clipboard.writeText(link);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  }, [meetingId, meeting]);
+
+  if (isLoading || isJoining) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-sky-500 animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg">Loading meeting...</p>
+          <p className="text-white text-lg">
+            {isJoining ? "Joining meeting..." : "Loading meeting..."}
+          </p>
           <p className="text-slate-400 text-sm mt-2">
-            Please wait while we connect you
+            {isJoining ? "Please wait while we connect you" : "Please wait"}
           </p>
         </div>
       </div>
     );
   }
 
-  // Error state
   if (error && !meeting) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -156,7 +163,6 @@ function MeetingPageContent() {
     );
   }
 
-  // Meeting not found
   if (!meeting) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -181,25 +187,15 @@ function MeetingPageContent() {
     );
   }
 
-  // Render meeting views once the user has explicitly joined.
-  if (meeting.status === "active" && hasJoined) {
-    if (joinedRole === "host" || joinedRole === "co_host") {
-      return (
-        <HostMeeting
-          meeting={meeting}
-          onMeetingEnded={handleMeetingEnded}
-          onError={setError}
-        />
-      );
-    } else {
-      return (
-        <ParticipantMeeting
-          meeting={meeting}
-          onLeft={handleLeftMeeting}
-          onError={setError}
-        />
-      );
-    }
+  if (hasJoined) {
+    return (
+      <MeetingRoom
+        meeting={meeting}
+        onMeetingEnded={handleMeetingEnded}
+        onLeft={handleLeftMeeting}
+        onError={setError}
+      />
+    );
   }
 
   const canJoin = meeting.status === "active" || meeting.status === "pending";
@@ -207,7 +203,6 @@ function MeetingPageContent() {
   const meetingTypeLabel =
     meeting.stream_type === "audio_only" ? "Audio room" : "Video room";
 
-  // Pre-join screen.
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 sm:p-6">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.16),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.12),transparent_30%)]" />
@@ -236,6 +231,11 @@ function MeetingPageContent() {
                 <span className="rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
                   {meetingTypeLabel}
                 </span>
+                {isHost && (
+                  <span className="rounded-full bg-sky-500/15 text-sky-300 px-3 py-1 text-xs font-medium">
+                    You&apos;re the host
+                  </span>
+                )}
               </div>
 
               <h1 className="text-3xl font-bold tracking-normal text-white sm:text-4xl">
@@ -265,43 +265,12 @@ function MeetingPageContent() {
                   <p className="truncate text-sm font-semibold text-white">
                     {meeting.company_name || "Meeting Host"}
                   </p>
-                  <p className="text-xs text-slate-400">Host</p>
+                  <p className="text-xs text-slate-400">Hosted by</p>
                 </div>
               </div>
             </div>
 
             <div className="border-t border-white/10 bg-slate-950/50 p-6 sm:p-8 lg:border-l lg:border-t-0">
-              {isAuthenticated && (
-                <div className="mb-6">
-                  <p className="mb-3 text-sm font-medium text-slate-300">
-                    Join as
-                  </p>
-                  <div className="grid gap-2">
-                    {(["participant", "host"] as const).map((role) => (
-                      <button
-                        key={role}
-                        onClick={() => setSelectedRole(role)}
-                        className={cn(
-                          "flex min-h-14 items-center gap-3 rounded-xl border px-4 text-left transition",
-                          selectedRole === role
-                            ? "border-sky-400 bg-sky-500/10 text-white"
-                            : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20"
-                        )}
-                      >
-                        {role === "host" ? (
-                          <Crown className="h-5 w-5" />
-                        ) : (
-                          <Users className="h-5 w-5" />
-                        )}
-                        <span className="font-medium">
-                          {role === "host" ? "Host / Co-host" : "Participant"}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {error && (
                 <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3">
                   <AlertCircle className="h-4 w-4 text-red-300" />
@@ -339,8 +308,21 @@ function MeetingPageContent() {
                 </div>
               )}
 
+              <Button
+                onClick={handleCopyLink}
+                variant="ghost"
+                className="w-full mt-3 text-slate-400 hover:text-white"
+              >
+                {copiedLink ? (
+                  <Check className="mr-2 h-4 w-4" />
+                ) : (
+                  <Copy className="mr-2 h-4 w-4" />
+                )}
+                {copiedLink ? "Link copied!" : "Copy meeting link"}
+              </Button>
+
               <p className="mt-4 text-center text-xs text-slate-500">
-                Meeting ID: {meeting.id}
+                Meeting ID: {meeting.nice_id || meeting.id}
               </p>
             </div>
           </div>
@@ -350,7 +332,6 @@ function MeetingPageContent() {
   );
 }
 
-// Wrap with Suspense since useParams might be async in some Next.js versions
 export default function MeetingPage() {
   return (
     <Suspense

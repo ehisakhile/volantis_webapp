@@ -19,12 +19,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { meetingsApi } from "@/lib/api/meetings";
 import { useAuth } from "@/lib/auth-context";
-import { HostMeeting } from "@/components/meeting/host-meeting";
-import type { VolMeetingOut, StreamTypeInput } from "@/types/meeting";
+import type { StreamTypeInput } from "@/types/meeting";
 
 export default function CreateMeetingPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [meetingTitle, setMeetingTitle] = useState("");
   const [meetingDescription, setMeetingDescription] = useState("");
@@ -34,7 +33,6 @@ export default function CreateMeetingPage() {
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [createdMeeting, setCreatedMeeting] = useState<VolMeetingOut | null>(null);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -83,7 +81,8 @@ export default function CreateMeetingPage() {
         thumbnail: thumbnail || undefined,
       });
 
-      setCreatedMeeting(meeting);
+      const meetingUrl = `/meeting/${meeting.nice_id || meeting.id}`;
+      router.push(meetingUrl);
     } catch (err) {
       console.error("Failed to create meeting:", err);
       setError(
@@ -91,7 +90,6 @@ export default function CreateMeetingPage() {
           ? err.message
           : "Failed to create meeting. Please try again."
       );
-    } finally {
       setIsCreating(false);
     }
   }, [
@@ -100,12 +98,8 @@ export default function CreateMeetingPage() {
     streamType,
     maxParticipants,
     thumbnail,
+    router,
   ]);
-
-  // Handle meeting ended
-  const handleMeetingEnded = useCallback(() => {
-    router.push("/dashboard");
-  }, [router]);
 
   // Loading state
   if (authLoading) {
@@ -113,17 +107,6 @@ export default function CreateMeetingPage() {
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="animate-pulse text-sky-500">Loading...</div>
       </div>
-    );
-  }
-
-  // Show meeting view if meeting was created
-  if (createdMeeting) {
-    return (
-      <HostMeeting
-        meeting={createdMeeting}
-        onMeetingEnded={handleMeetingEnded}
-        onError={(err) => setError(err)}
-      />
     );
   }
 

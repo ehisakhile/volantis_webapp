@@ -1,4 +1,5 @@
 // API Client configuration
+import { getAccessTokenFromCookie } from './cookies';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-dev.volantislive.com';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
@@ -35,14 +36,12 @@ export const apiClient = {
     };
 
     // Add auth token if available
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('access_token');
-      if (token) {
-        config.headers = {
-          ...config.headers,
-          'Authorization': `Bearer ${token}`,
-        };
-      }
+    const token = getAccessTokenFromCookie();
+    if (token) {
+      config.headers = {
+        ...config.headers,
+        'Authorization': `Bearer ${token}`,
+      };
     }
 
     const response = await fetch(url, config);
@@ -69,7 +68,7 @@ export const apiClient = {
     
     debugLog(`POST (FormData) ${endpoint}`);
     
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    const token = getAccessTokenFromCookie();
     
     const config: RequestInit = {
       ...options,

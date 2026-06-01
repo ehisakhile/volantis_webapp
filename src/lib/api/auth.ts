@@ -1,5 +1,6 @@
 // Auth API Service
 import { apiClient } from './client';
+import { setAuthCookies, clearAuthCookies, setUserCookie } from './cookies';
 import type {
   LoginRequest,
   SignupRequest,
@@ -9,6 +10,10 @@ import type {
   VolUserResponse,
   Subscription
 } from '@/types/auth';
+
+function storeTokens(response: VolTokenResponse | VolSignupResponse) {
+  setAuthCookies(response.access_token, response.refresh_token, response.expires_in || 3600);
+}
 
 export const authApi = {
   /**
@@ -27,14 +32,7 @@ export const authApi = {
       body: formData,
     });
 
-    // Store tokens
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('access_token', response.access_token);
-      localStorage.setItem('refresh_token', response.refresh_token);
-      localStorage.setItem('token_expires_in', String(response.expires_in));
-      localStorage.setItem('token_timestamp', String(Date.now()));
-    }
-
+    storeTokens(response);
     return response;
   },
 
@@ -54,14 +52,7 @@ export const authApi = {
       body: formData,
     });
 
-    // Store tokens
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('access_token', response.access_token);
-      localStorage.setItem('refresh_token', response.refresh_token);
-      localStorage.setItem('token_expires_in', String(response.expires_in));
-      localStorage.setItem('token_timestamp', String(Date.now()));
-    }
-
+    storeTokens(response);
     return response;
   },
 
@@ -89,14 +80,8 @@ export const authApi = {
 
     const response = await apiClient.requestFormData<VolSignupResponse>('/auth/signup', formData);
 
-    // If signup returns tokens directly, store them
     if (response.access_token && response.refresh_token) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('access_token', response.access_token);
-        localStorage.setItem('refresh_token', response.refresh_token);
-        localStorage.setItem('token_expires_in', String(response.expires_in || 3600));
-        localStorage.setItem('token_timestamp', String(Date.now()));
-      }
+      storeTokens(response);
     }
 
     return response;
@@ -120,14 +105,8 @@ export const authApi = {
       body: formData,
     });
 
-    // If signup returns tokens directly, store them
     if (response.access_token && response.refresh_token) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('access_token', response.access_token);
-        localStorage.setItem('refresh_token', response.refresh_token);
-        localStorage.setItem('token_expires_in', String(response.expires_in || 3600));
-        localStorage.setItem('token_timestamp', String(Date.now()));
-      }
+      storeTokens(response);
     }
 
     return response;
@@ -207,14 +186,7 @@ export const authApi = {
         method: 'POST',
       });
     } finally {
-      // Clear tokens regardless of API response
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('token_expires_in');
-        localStorage.removeItem('token_timestamp');
-        localStorage.removeItem('user');
-      }
+      clearAuthCookies();
     }
   },
 
@@ -226,31 +198,16 @@ export const authApi = {
       method: 'GET',
     });
 
-    // Cache user data
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('user', JSON.stringify(response));
-    }
-
+    setUserCookie(response);
     return response;
   },
 
   /**
-   * Check if user is authenticated
+   * Check if user is authenticated (client-side check)
    */
   isAuthenticated(): boolean {
-    if (typeof window === 'undefined') return false;
-    
-    const token = localStorage.getItem('access_token');
-    const timestamp = localStorage.getItem('token_timestamp');
-    const expiresIn = localStorage.getItem('token_expires_in');
-
-    if (!token || !timestamp || !expiresIn) return false;
-
-    // Check if token is expired
-    const elapsed = Date.now() - parseInt(timestamp);
-    const expiresInMs = parseInt(expiresIn) * 1000;
-    
-    return elapsed < expiresInMs;
+    if (typeof document === 'undefined') return false;
+    return !!document.cookie.includes('vol_access_token=');
   },
 
   /**
@@ -258,12 +215,13 @@ export const authApi = {
    */
   getStoredUser(): VolUserResponse | null {
     if (typeof window === 'undefined') return null;
+    if (typeof document === 'undefined') return null;
     
-    const userStr = localStorage.getItem('user');
-    if (!userStr) return null;
+    const match = document.cookie.match(/vol_user=([^;]+)/);
+    if (!match) return null;
     
     try {
-      return JSON.parse(userStr);
+      return JSON.parse(decodeURIComponent(match[1]));
     } catch {
       return null;
     }
@@ -273,13 +231,7 @@ export const authApi = {
    * Clear auth data
    */
   clearAuth(): void {
-    if (typeof window === 'undefined') return;
-    
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('token_expires_in');
-    localStorage.removeItem('token_timestamp');
-    localStorage.removeItem('user');
+    clearAuthCookies();
   },
 
   /**
@@ -312,14 +264,7 @@ export const authApi = {
       }),
     });
 
-    // Store tokens on successful password reset
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('access_token', response.access_token);
-      localStorage.setItem('refresh_token', response.refresh_token);
-      localStorage.setItem('token_expires_in', String(response.expires_in));
-      localStorage.setItem('token_timestamp', String(Date.now()));
-    }
-
+    storeTokens(response);
     return response;
   },
 };

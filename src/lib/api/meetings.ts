@@ -182,7 +182,7 @@ export const meetingsApi = {
     return response;
   },
 
-  async getMeeting(meetingId: number): Promise<VolMeetingOut> {
+  async getMeeting(meetingId: number | string): Promise<VolMeetingOut> {
     const response = await apiClient.request<VolMeetingOut>(
       `/meetings/${meetingId}`,
       { method: 'GET' }
@@ -191,7 +191,7 @@ export const meetingsApi = {
   },
 
   async updateMeeting(
-    meetingId: number,
+    meetingId: number | string,
     data: Partial<{
       title: string;
       description: string;

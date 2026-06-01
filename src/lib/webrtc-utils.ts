@@ -166,14 +166,49 @@ export function preferOpus(sdp: string): string {
 
   const opusFmtp = `a=fmtp:${pt} minptime=10;useinbandfec=1;stereo=0;maxaveragebitrate=96000`;
 
+  let newSdp = sdp;
+
   if (sdp.includes(`a=fmtp:${pt} `)) {
-    return sdp.replace(new RegExp(`a=fmtp:${pt} [^\r\n]+`), opusFmtp);
+    newSdp = sdp.replace(new RegExp(`a=fmtp:${pt} [^\r\n]+`), opusFmtp);
   } else {
-    return sdp.replace(
+    newSdp = sdp.replace(
       new RegExp(`(a=rtpmap:${pt} opus[^\r\n]+\r?\n)`),
       `$1${opusFmtp}\r\n`
     );
   }
+
+  // Add BUNDLE group if not present (required for max-bundle policy)
+  if (!newSdp.includes('a=group:BUNDLE')) {
+    // Find all mid values from the SDP
+    const midMatches = newSdp.matchAll(/a=mid:(\S+)/g);
+    const mids = [...midMatches].map(m => m[1]);
+
+    if (mids.length > 0) {
+      const bundleLine = `a=group:BUNDLE ${mids.join(' ')}\r\n`;
+      // Find the position right after session description (after o= line)
+      // The session description typically ends with a media line (m=) or c= line
+      const lines = newSdp.split(/\r?\n/);
+      let insertIndex = -1;
+      
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('m=')) {
+          insertIndex = i;
+          break;
+        }
+      }
+      
+      if (insertIndex > 0) {
+        // Not the cleanest but add before first m= line
+        const bundleWithNewline = bundleLine.trimEnd() + '\r\n';
+        // Add at line before first m=
+        lines.splice(insertIndex, 0, '');
+        lines.splice(insertIndex, 0, bundleWithNewline.trim());
+        newSdp = lines.join('\r\n');
+      }
+    }
+  }
+
+  return newSdp;
 }
 
 // ─────────────────────────────────────────────
