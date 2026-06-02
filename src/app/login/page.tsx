@@ -1,22 +1,30 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, FormEvent, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Container } from '@/components/ui/container';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth-context';
 import { ArrowRight, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, user, error: authError, clearError, isLoading, checkEmailVerification, isEmailVerified } = useAuth();
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [localError, setLocalError] = useState('');
+
+  useEffect(() => {
+    const callbackUrl = searchParams?.get('callbackUrl');
+    if (callbackUrl) {
+      sessionStorage.setItem('login_callback_url', callbackUrl);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -30,18 +38,19 @@ export default function LoginPage() {
 
     try {
       await login({ email, password });
-      
-      // Check if email is verified
+
+      const callbackUrl = sessionStorage.getItem('login_callback_url');
+      sessionStorage.removeItem('login_callback_url');
+
       const isVerified = await checkEmailVerification();
-      
+
       if (!isVerified) {
-        // Redirect to email verification if not verified
         router.push('/verify-email');
+      } else if (callbackUrl) {
+        router.push(callbackUrl);
       } else if (user?.company_id) {
-        // User is a creator/admin - redirect to creator dashboard
         router.push('/dashboard');
       } else {
-        // User is a viewer - redirect to user dashboard
         router.push('/user/dashboard');
       }
     } catch {
@@ -167,5 +176,17 @@ export default function LoginPage() {
         </Container>
       </main>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-navy-50 flex items-center justify-center">
+        <div className="animate-pulse text-navy-600">Loading...</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

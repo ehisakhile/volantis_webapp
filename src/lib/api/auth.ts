@@ -12,7 +12,9 @@ import type {
 } from '@/types/auth';
 
 function storeTokens(response: VolTokenResponse | VolSignupResponse) {
-  setAuthCookies(response.access_token, response.refresh_token, response.expires_in || 3600);
+  const accessToken = response.access_token || '';
+  const refreshToken = response.refresh_token || '';
+  setAuthCookies(accessToken, refreshToken, response.expires_in || 3600);
 }
 
 export const authApi = {
