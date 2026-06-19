@@ -34,7 +34,7 @@ export default function ContactPage() {
         {/* Contact Options */}
         <section className="py-16">
           <Container>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
+            <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-8 mb-16">
               {/* WhatsApp */}
               <div className="bg-white rounded-xl p-6 border border-navy-100 text-center">
                 <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -45,7 +45,7 @@ export default function ContactPage() {
                   Quickest way to reach us
                 </p>
                 <a
-                  href="https://wa.me/2348000000000"
+                  href="https://wa.me/+2348162596865"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-green-600 font-medium hover:underline"
@@ -71,36 +71,7 @@ export default function ContactPage() {
                 </a>
               </div>
 
-              {/* Phone */}
-              <div className="bg-white rounded-xl p-6 border border-navy-100 text-center">
-                <div className="w-14 h-14 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Phone className="w-7 h-7 text-purple-600" />
-                </div>
-                <h3 className="font-semibold text-navy-900 mb-2">Phone</h3>
-                <p className="text-navy-600 text-sm mb-4">
-                  Mon-Fri, 9am-6pm WAT
-                </p>
-                <a
-                  href="tel:+2348000000000"
-                  className="inline-flex items-center gap-2 text-purple-600 font-medium hover:underline"
-                >
-                  +234 800 000 0000
-                </a>
-              </div>
-
-              {/* Office */}
-              <div className="bg-white rounded-xl p-6 border border-navy-100 text-center">
-                <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <MapPin className="w-7 h-7 text-orange-600" />
-                </div>
-                <h3 className="font-semibold text-navy-900 mb-2">Office</h3>
-                <p className="text-navy-600 text-sm mb-4">
-                  Lagos, Nigeria
-                </p>
-                <span className="text-orange-600 font-medium">
-                  Visit by appointment
-                </span>
-              </div>
+           
             </div>
 
             {/* Contact Form */}

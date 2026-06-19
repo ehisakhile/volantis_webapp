@@ -186,7 +186,7 @@ export function Navbar() {
 
               {isAuthenticated && user?.company_id && (
                 <Link
-                  href="/meeting/create"
+                  href="https://meet.volantislive.com"
                   className="flex items-center gap-1.5 px-4 py-2 bg-purple-500 text-white rounded-full font-medium hover:bg-purple-600 transition-colors shadow-md shadow-purple-500/20 text-sm"
                 >
                   <Video className="w-4 h-4" />
