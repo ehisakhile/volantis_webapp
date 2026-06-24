@@ -372,26 +372,46 @@ export function CreatorStreaming({
 
       // Capture audio based on user selection and add to mixer
       let micStream: MediaStream | null = null;
+      let systemStream: MediaStream | null = null;
 
       if (useMic) {
-        // Capture microphone
-        micStream = await captureMicSource(selectedMicDevice || undefined);
-        engine.addChannel(
-          "mic",
-          "MIC",
-          "mic",
-          micStream,
-          selectedMicDevice || undefined,
-        );
+        try {
+          micStream = await captureMicSource(selectedMicDevice || undefined);
+          engine.addChannel(
+            "mic",
+            "MIC",
+            "mic",
+            micStream,
+            selectedMicDevice || undefined,
+          );
+        } catch (e) {
+          console.error("MIC CAPTURE ERROR:", e);
+          if (e instanceof Error) {
+            if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
+              throw new Error("Microphone permission denied. Please allow microphone access and try again.");
+            }
+            throw new Error(`Microphone capture failed: ${e.message}`);
+          }
+          throw new Error("Microphone capture failed");
+        }
       }
 
       if (useSystemAudio) {
-        // Capture system audio
-        const systemStream = await captureSystemSource();
-        engine.addChannel("system", "ANY INPUT", "system", systemStream);
+        try {
+          systemStream = await captureSystemSource();
+          engine.addChannel("system", "ANY INPUT", "system", systemStream);
+        } catch (e) {
+          console.error("SYSTEM AUDIO CAPTURE ERROR:", e);
+          if (e instanceof Error) {
+            if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
+              throw new Error("System audio permission denied. Please allow screen/audio capture and try again.");
+            }
+            throw new Error(`System audio capture failed: ${e.message}`);
+          }
+          throw new Error("System audio capture failed");
+        }
       }
 
-      // Get the mixed output stream for WebRTC
       const outputStream = engine.outputStream;
 
       // Store reference for cleanup
@@ -606,22 +626,47 @@ export function CreatorStreaming({
       mixerEngineRef.current = engine;
 
       // Capture audio based on user selection and add to mixer
+      let micStream: MediaStream | null = null;
+      let systemStream: MediaStream | null = null;
+
       if (useMic) {
-        const micStream = await captureMicSource(
-          selectedMicDevice || undefined,
-        );
-        engine.addChannel(
-          "mic",
-          "MIC",
-          "mic",
-          micStream,
-          selectedMicDevice || undefined,
-        );
+        try {
+          micStream = await captureMicSource(
+            selectedMicDevice || undefined,
+          );
+          engine.addChannel(
+            "mic",
+            "MIC",
+            "mic",
+            micStream,
+            selectedMicDevice || undefined,
+          );
+        } catch (e) {
+          console.error("MIC CAPTURE ERROR:", e);
+          if (e instanceof Error) {
+            if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
+              throw new Error("Microphone permission denied. Please allow microphone access and try again.");
+            }
+            throw new Error(`Microphone capture failed: ${e.message}`);
+          }
+          throw new Error("Microphone capture failed");
+        }
       }
 
       if (useSystemAudio) {
-        const systemStream = await captureSystemSource();
-        engine.addChannel("system", "ANY INPUT", "system", systemStream);
+        try {
+          systemStream = await captureSystemSource();
+          engine.addChannel("system", "ANY INPUT", "system", systemStream);
+        } catch (e) {
+          console.error("SYSTEM AUDIO CAPTURE ERROR:", e);
+          if (e instanceof Error) {
+            if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
+              throw new Error("System audio permission denied. Please allow screen/audio capture and try again.");
+            }
+            throw new Error(`System audio capture failed: ${e.message}`);
+          }
+          throw new Error("System audio capture failed");
+        }
       }
 
       // Get the mixed output stream for WebRTC
@@ -731,6 +776,8 @@ export function CreatorStreaming({
     onStreamStarted,
     teardownPublish,
     startPubStats,
+    useMic,
+    useSystemAudio,
   ]);
 
   // Handle starting a new stream (dismiss reconnect prompt)
@@ -881,7 +928,7 @@ export function CreatorStreaming({
     }
   }, []);
 
-  // Handle network recovery - check for active stream and auto-reconnect
+  // Handle network recovery - check for active stream and show reconnect option
   useEffect(() => {
     if (networkRecovered && isStreaming) {
       const handleNetworkRecovery = async () => {
@@ -893,18 +940,14 @@ export function CreatorStreaming({
           );
 
           if (myStream) {
-            // Our stream is still active - trigger reconnection
             console.log(
-              "Our stream is still active, attempting reconnection...",
+              "Our stream is still active, showing reconnect option...",
             );
             setExistingActiveStream(myStream);
             setNetworkRecovered(false);
-            // Auto-reconnect after a brief delay
-            setTimeout(() => {
-              handleReconnectToStream();
-            }, 1000);
+            setShowReconnectPrompt(true);
+            setConnectionState("idle");
           } else {
-            // Stream may have ended while offline
             console.log("Stream may have ended while offline");
             setIsStreaming(false);
             setCurrentStream(null);
@@ -930,22 +973,22 @@ export function CreatorStreaming({
     // 3. We have a current stream
     if (isStreaming && connectionState === "failed" && currentStream) {
       console.log(
-        "Connection failed during streaming, attempting auto-reconnection...",
+        "Connection failed during streaming, showing reconnect option...",
       );
 
-      // Attempt reconnection after a short delay to allow network to stabilize
-      const reconnectTimeout = setTimeout(async () => {
+      // Don't auto-reconnect WebRTC with media capture - due to browser security
+      // requiring user gesture for media permissions. Instead, show the reconnect prompt.
+      const checkStreamAndPrompt = async () => {
         try {
-          // Check if the stream is still active on the server
           const activeStreams = await livestreamApi.getActiveStreams(50, 0);
           const myStream = activeStreams.find(
             (s) => s.id === currentStream?.id,
           );
 
           if (myStream) {
-            console.log("Stream still active on server, reconnecting...");
+            console.log("Stream still active on server, showing reconnect prompt...");
             setExistingActiveStream(myStream);
-            handleReconnectToStream();
+            setShowReconnectPrompt(true);
           } else {
             console.log("Stream no longer active on server, stopping");
             setIsStreaming(false);
@@ -956,14 +999,15 @@ export function CreatorStreaming({
           }
         } catch (err) {
           console.error("Failed to check stream status for reconnection:", err);
-          // Try to reconnect anyway - the server might still have the stream
-          handleReconnectToStream();
         }
-      }, 2000); // Wait 2 seconds before attempting reconnection
+      };
+
+      // Wait before showing reconnect prompt
+      const reconnectTimeout = setTimeout(checkStreamAndPrompt, 2000);
 
       return () => clearTimeout(reconnectTimeout);
     }
-  }, [connectionState, isStreaming, currentStream]);
+  }, [connectionState, isStreaming, currentStream, handleReconnectToStream]);
 
   // Cleanup on unmount
   useEffect(() => {
