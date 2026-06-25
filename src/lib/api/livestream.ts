@@ -1,11 +1,12 @@
 // Livestream API Service
 import { apiClient } from './client';
-import type { 
-  VolLivestreamOut, 
+import type {
+  VolLivestreamOut,
   VolLivestreamPlaybackOut,
   StartAudioStreamRequest,
   StartVideoStreamRequest
 } from '@/types/livestream';
+import type { StreamUsage } from '@/types/usage';
 
 export const livestreamApi = {
   /**
@@ -85,6 +86,22 @@ export const livestreamApi = {
     const response = await apiClient.request<VolLivestreamOut>(
       `/livestreams/${encodeURIComponent(slug)}/stop`,
       { method: 'POST' }
+    );
+    return response;
+  },
+
+  /**
+   * Get the current plan-usage status for a livestream.
+   * Acts as the REST fallback when the usage WebSocket is unavailable.
+   * The backend is the source of truth for limits.
+   */
+  async getUsageStatus(
+    slug: string,
+    warningThreshold: number = 90
+  ): Promise<StreamUsage> {
+    const response = await apiClient.request<StreamUsage>(
+      `/livestreams/${encodeURIComponent(slug)}/usage-status?warning_threshold=${warningThreshold}`,
+      { method: 'GET' }
     );
     return response;
   },

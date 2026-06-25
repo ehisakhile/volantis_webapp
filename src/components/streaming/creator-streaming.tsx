@@ -63,6 +63,9 @@ import { useStreamRecorder } from "@/hooks/useStreamRecorder";
 import { RecordingPrompt, RecordingStatus } from "./recording-prompt";
 import { CreatorNotStreamingModal } from "./creator-not-streaming-modal";
 import { useViewerCount } from "@/lib/api/useViewerCount";
+import { useStreamUsage } from "@/hooks/useStreamUsage";
+import { StreamUsageBanner } from "./stream-usage-banner";
+import { StreamLimitModal } from "./stream-limit-modal";
 
 // Audio visualizer component using canvas (like test_webrtc.html)
 interface AudioVisualizerProps {
@@ -170,6 +173,25 @@ export function CreatorStreaming({
     pollingInterval: 5000,
   });
 
+  // Plan usage monitoring — only active while streaming
+  const { usage: streamUsage } = useStreamUsage({
+    slug: currentStream?.slug ?? '',
+    enabled: isStreaming && !!currentStream?.slug,
+    onWarning: () => {
+      setShowUsageBanner(true);
+      setUsageBannerDismissed(false);
+    },
+    onLimitReached: () => {
+      setShowUsageBanner(false);
+      setShowLimitModal(true);
+      // Give the modal a beat to render, then tear down
+      setTimeout(() => handleStopStream(), 400);
+    },
+    onStreamStopped: () => {
+      handleStopStream();
+    },
+  });
+
   // Chat state
   const [chatMessages, setChatMessages] = useState<VolChatMessageOut[]>([]);
   const [chatMessageInput, setChatMessageInput] = useState("");
@@ -231,6 +253,11 @@ export function CreatorStreaming({
 
   // State for stream ended success modal (when no recording was used)
   const [showStreamEndedModal, setShowStreamEndedModal] = useState(false);
+
+  // Usage / plan-limit state
+  const [showUsageBanner, setShowUsageBanner] = useState(false);
+  const [usageBannerDismissed, setUsageBannerDismissed] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
 
   // Load microphone devices on mount and when showing picker
   useEffect(() => {
@@ -336,6 +363,7 @@ export function CreatorStreaming({
     setIsStarting(true);
     setError(null);
     setConnectionState("connecting");
+    setShowLimitModal(false);
 
     try {
       // Step 1: Call API to start audio stream
@@ -516,12 +544,18 @@ export function CreatorStreaming({
 
       setIsStreaming(true);
       onStreamStarted?.(streamData);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Publish error:", err);
-      console.log("", err instanceof Error ? err.stack : "");
-      const errorMsg =
-        err instanceof Error ? err.message : "Failed to start stream";
-      setError(errorMsg);
+      const is403WithLimit = (err as { status?: number; detail?: string }).status === 403 &&
+        typeof (err as { detail?: string }).detail === 'string' &&
+        (err as { detail: string }).detail.toLowerCase().includes('daily stream limit');
+      if (is403WithLimit) {
+        setShowLimitModal(true);
+      } else {
+        const errorMsg =
+          err instanceof Error ? err.message : "Failed to start stream";
+        setError(errorMsg);
+      }
       setConnectionState("failed");
       teardownPublish();
     } finally {
@@ -822,6 +856,8 @@ export function CreatorStreaming({
     setCurrentStream(null);
     setCodec("—");
     setConnectionState("idle");
+    setShowUsageBanner(false);
+    setUsageBannerDismissed(false);
 
     // If no recording was used, show success modal and redirect to dashboard
     // No need to check for active streams or show resume option
@@ -1055,6 +1091,9 @@ export function CreatorStreaming({
           onDecline={recorder.declineRecording}
         />
 
+        {/* Stream Limit Modal — fixed overlay, shown when plan limit is hit */}
+        <StreamLimitModal isOpen={showLimitModal} usage={streamUsage} />
+
         {/* Network Status Banner */}
         {!isOnline && (
           <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
@@ -1115,7 +1154,7 @@ export function CreatorStreaming({
         )}
 
         {/* Stream Ended Success Modal (when no recording was used) */}
-        {showStreamEndedModal && (
+        {(showStreamEndedModal && !showLimitModal) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -1171,6 +1210,15 @@ export function CreatorStreaming({
               </p>
             </motion.div>
           </div>
+        )}
+
+        {/* Usage warning banner — shown when approaching plan limit */}
+        {isStreaming && showUsageBanner && streamUsage && (
+          <StreamUsageBanner
+            usage={streamUsage}
+            dismissed={usageBannerDismissed}
+            onDismiss={() => setUsageBannerDismissed(true)}
+          />
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
