@@ -77,18 +77,18 @@ export default function CreatorStreamPage() {
   }, [authLoading, isAuthenticated, currentStream, checkEmailVerification, router]);
 
   // Check streaming permission on mount
-  // useEffect(() => {
-  //   if (isAuthenticated && isVerified) {
-  //     subscriptionsApi.canStream()
-  //       .then((result) => {
-  //         setStreamPermission({ allowed: result.allowed, reason: result.reason });
-  //       })
-  //       .catch(() => {
-  //         // Default to allowed if API fails
-  //         setStreamPermission({ allowed: true, reason: '' });
-  //       });
-  //   }
-  // }, [isAuthenticated, isVerified]);
+  useEffect(() => {
+    if (isAuthenticated && isVerified) {
+      subscriptionsApi.canStream()
+        .then((result) => {
+          setStreamPermission({ allowed: result.allowed, reason: result.reason });
+        })
+        .catch(() => {
+          // Default to allowed if API fails
+          setStreamPermission({ allowed: true, reason: '' });
+        });
+    }
+  }, [isAuthenticated, isVerified]);
 
   // ─── FIX #4: Only redirect when NOT actively streaming ───────────────────
   // Prevents auth state flicker from navigating away mid-stream
