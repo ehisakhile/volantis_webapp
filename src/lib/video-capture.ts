@@ -97,7 +97,6 @@ export async function captureScreen(options: VideoCaptureOptions = {}): Promise<
       width: { ideal: width },
       height: { ideal: height },
       frameRate: { ideal: frameRate },
-      cursor: 'always' as const,
     },
     audio: {
       echoCancellation: false,
@@ -131,7 +130,6 @@ export async function getDisplayMediaWithSystemAudio(): Promise<MediaStream> {
       width: { ideal: 1920 },
       height: { ideal: 1080 },
       frameRate: { ideal: 30 },
-      cursor: 'always' as const,
     },
     audio: {
       echoCancellation: false,
