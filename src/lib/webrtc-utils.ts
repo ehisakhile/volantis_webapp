@@ -218,7 +218,7 @@ export async function getAudioStats(
   isOutbound: boolean
 ): Promise<{ bitrate?: number; jitter?: number }> {
   const stats = await pc.getStats();
-  let result: { bitrate?: number; jitter?: number } = {};
+  const result: { bitrate?: number; jitter?: number } = {};
   
   stats.forEach((r) => {
     if (isOutbound && r.type === 'outbound-rtp' && r.kind === 'audio') {

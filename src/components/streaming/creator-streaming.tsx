@@ -1075,7 +1075,7 @@ export function CreatorStreaming({
             className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
           >
             <Video className="w-4 h-4" />
-            Switch to Video Stream
+            Switch to Video Stream (Beta)
           </Link>
 
           {/* Connection status */}

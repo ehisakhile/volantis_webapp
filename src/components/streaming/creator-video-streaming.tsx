@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Video,
   Radio,
@@ -29,6 +29,18 @@ import {
   RadioIcon,
   MessageCircle,
   Send,
+  Sun,
+  Moon,
+  ChevronLeft,
+  ChevronRight,
+  PanelLeft,
+  PanelRight,
+  LayoutPanelTop,
+  SlidersHorizontal,
+  MoreVertical,
+  Clock,
+  Headphones,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -59,6 +71,7 @@ import { useStreamUsage } from "@/hooks/useStreamUsage";
 import { StreamUsageBanner } from "./stream-usage-banner";
 import { StreamLimitModal } from "./stream-limit-modal";
 import { useViewerCount } from "@/lib/api/useViewerCount";
+import "./creator-video-studio.css";
 
 interface AudioVisualizerProps {
   isActive: boolean;
@@ -129,6 +142,7 @@ export function CreatorVideoStreaming({
   const [existingActiveStream, setExistingActiveStream] = useState<VolLivestreamOut | null>(null);
   const [networkRecovered, setNetworkRecovered] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   const [codec, setCodec] = useState<string>("—");
   const [bitrate, setBitrate] = useState<string>("—");
@@ -181,6 +195,41 @@ export function CreatorVideoStreaming({
   const [isSendingChat, setIsSendingChat] = useState(false);
   const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
   const chatPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // DESIGN: Theme state with localStorage persistence
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("creator-studio-theme") as "dark" | "light") || "dark";
+    }
+    return "dark";
+  });
+
+  // DESIGN: Panel visibility state with localStorage persistence
+  const [leftDockCollapsed, setLeftDockCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("studio-left-dock-collapsed") === "true";
+    }
+    return false;
+  });
+
+  const [rightDockCollapsed, setRightDockCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("studio-right-dock-collapsed") === "true";
+    }
+    return false;
+  });
+
+  const [showStats, setShowStats] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
+
+  // Viewers sparkline data (UI-only state, no API calls)
+  const viewerHistoryRef = useRef<number[]>([]);
+  const [viewerSparkline, setViewerSparkline] = useState<number[]>([]);
+
+  // End stream confirmation state
+  const [stopConfirmPending, setStopConfirmPending] = useState(false);
+  const stopConfirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [realtimeViewerCount, setRealtimeViewerCount] = useState(0);
   const [peakViewerCount, setPeakViewerCount] = useState(0);
@@ -269,6 +318,28 @@ export function CreatorVideoStreaming({
     }
   }, [showCameraPicker, showMicPicker, loadCameraDevices, loadMicDevices]);
 
+  // DESIGN: Apply theme to document and persist to localStorage
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme", theme);
+      localStorage.setItem("creator-studio-theme", theme);
+    }
+  }, [theme]);
+
+  // DESIGN: Persist dock collapse state to localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("studio-left-dock-collapsed", String(leftDockCollapsed));
+    }
+  }, [leftDockCollapsed]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("studio-right-dock-collapsed", String(rightDockCollapsed));
+    }
+  }, [rightDockCollapsed]);
+
+  // DESIGN: Update sparkline data when viewer count changes
   const startPreview = useCallback(async () => {
     if (isStreaming) return;
     if (previewOpRef.current) {
@@ -546,12 +617,7 @@ export function CreatorVideoStreaming({
     };
   }, [isStreaming, currentStream?.slug, fetchChatMessages]);
 
-  useEffect(() => {
-    if (chatMessagesEndRef.current) {
-      chatMessagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [chatMessages]);
-
+ 
   const { usage: streamUsage } = useStreamUsage({
     slug: currentStream?.slug ?? '',
     enabled: isStreaming && !!currentStream?.slug,
@@ -859,38 +925,50 @@ export function CreatorVideoStreaming({
   }, []);
 
   const handleStopStream = useCallback(async () => {
-    teardownPublish();
-
-    if (durationIntervalRef.current) {
-      clearInterval(durationIntervalRef.current);
-      durationIntervalRef.current = null;
-    }
-
-    if (currentStream?.slug) {
-      try {
-        await livestreamApi.stopStream(currentStream.slug);
-      } catch (err) {
-        console.error("Failed to stop stream via API:", err);
+    if (stopConfirmPending) {
+      if (stopConfirmTimeoutRef.current) {
+        clearTimeout(stopConfirmTimeoutRef.current);
+        stopConfirmTimeoutRef.current = null;
       }
+      setStopConfirmPending(false);
+      teardownPublish();
+
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+        durationIntervalRef.current = null;
+      }
+
+      if (currentStream?.slug) {
+        try {
+          await livestreamApi.stopStream(currentStream.slug);
+        } catch (err) {
+          console.error("Failed to stop stream via API:", err);
+        }
+      }
+
+      setIsStreaming(false);
+      setStreamDuration(0);
+      setCurrentStream(null);
+      setCodec("—");
+      setConnectionState("idle");
+      setShowUsageBanner(false);
+      setUsageBannerDismissed(false);
+      setShowStreamEndedModal(true);
+      setRealtimeViewerCount(0);
+      setPeakViewerCount(0);
+
+      if (videoSourceType === "screen") {
+        setScreenSelectionDone(false);
+      }
+
+      onStreamStopped?.();
+    } else {
+      setStopConfirmPending(true);
+      stopConfirmTimeoutRef.current = setTimeout(() => {
+        setStopConfirmPending(false);
+      }, 3000);
     }
-
-    setIsStreaming(false);
-    setStreamDuration(0);
-    setCurrentStream(null);
-    setCodec("—");
-    setConnectionState("idle");
-    setShowUsageBanner(false);
-    setUsageBannerDismissed(false);
-    setShowStreamEndedModal(true);
-    setRealtimeViewerCount(0);
-    setPeakViewerCount(0);
-
-    if (videoSourceType === "screen") {
-      setScreenSelectionDone(false);
-    }
-
-    onStreamStopped?.();
-  }, [currentStream, teardownPublish, onStreamStopped, videoSourceType]);
+  }, [currentStream, teardownPublish, onStreamStopped, videoSourceType, stopConfirmPending]);
 
   const toggleVideo = useCallback(() => {
     const newState = !isVideoEnabled;
@@ -913,6 +991,19 @@ export function CreatorVideoStreaming({
       });
     }
   }, [isAudioEnabled]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => prev === "dark" ? "light" : "dark");
+  }, []);
+
+  // Cleanup stop confirm timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (stopConfirmTimeoutRef.current) {
+        clearTimeout(stopConfirmTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const formatDuration = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -950,353 +1041,417 @@ export function CreatorVideoStreaming({
     };
   }, [teardownPublish, stopPreview]);
 
+  // DESIGN: Compute sparkline path for viewers
+  const getSparklinePath = () => {
+    if (viewerSparkline.length < 2) return "";
+    const max = Math.max(...viewerSparkline, 1);
+    const width = 40;
+    const height = 16;
+    const points = viewerSparkline.map((v, i) => {
+      const x = (i / (viewerSparkline.length - 1)) * width;
+      const y = height - (v / max) * height;
+      return `${x},${y}`;
+    });
+    return `M${points.join(" L")}`;
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold">Video Creator Studio</h1>
-            <p className="text-slate-400">WHIP Video Streaming</p>
+    <div className="creator-studio" data-theme={theme}>
+      {/* DESIGN: Network status banner */}
+      <AnimatePresence>
+        {!isOnline && (
+          <motion.div
+            initial={{ y: -56, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -56, opacity: 0 }}
+            className="network-banner offline"
+          >
+            <WifiOff className="w-4 h-4" />
+            <span>Network connection lost</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* DESIGN: Header Bar */}
+      <header className="studio-header">
+        <div className="flex items-center justify-between h-full px-4 lg:px-6">
+          {/* Left: Logo + Breadcrumb */}
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-200 to-white flex items-center justify-center">
+                 <img src="/logo.png" alt="Volantislive" className="h-8 w-auto" />
+              </div>
+            </Link>
+            <nav className="flex items-center gap-2 text-sm">
+              <span className="text-[var(--text-muted)]">Creator Studio</span>
+              <span className="text-[var(--text-muted)]">›</span>
+              <Link href="/creator/stream" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                Audio
+              </Link>
+              <span className="text-[var(--text-muted)]">›</span>
+              <span className="text-[var(--accent)] font-medium">Video</span>
+            </nav>
           </div>
 
-          <Link
-            href="/creator/stream"
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
-          >
-            <Radio className="w-4 h-4" />
-            Switch to Audio Stream
-          </Link>
-
-          <div className="flex items-center gap-4">
-            {isStreaming && (
-              <>
-                <connectionQuality.icon
-                  className={cn("w-5 h-5", connectionQuality.color)}
-                />
-                <span className={cn("text-sm", connectionQuality.color)}>
-                  {connectionQuality.label}
-                </span>
-                <div className="text-sky-400 font-mono">
-                  {formatDuration(streamDuration)}
+          {/* Center: Live badge (only when streaming) */}
+          <div className="hidden md:flex items-center gap-3">
+            {isStreaming ? (
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="flex items-center gap-3"
+              >
+                <div className="live-badge">
+                  <motion.span
+                    className="live-dot"
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                  LIVE
                 </div>
-              </>
+                <span className="text-[var(--text-primary)] font-medium truncate max-w-32">
+                  {streamTitle.slice(0, 32)}
+                </span>
+                <span className="font-mono text-[var(--accent)]">
+                  {formatDuration(streamDuration)}
+                </span>
+              </motion.div>
+            ) : (
+              <span className="text-[var(--text-muted)] text-sm">Ready to go live</span>
             )}
           </div>
-        </div>
 
-        {!isOnline && (
-          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
-            <WifiOff className="w-4 h-4" />
-            <span className="text-sm font-medium">Network connection lost</span>
+          {/* Right: Panel toggles + Stats chip + Theme toggle + Avatar */}
+          <div className="flex items-center gap-2">
+            
+
+{isStreaming && currentStream && (
+  <button
+    onClick={async () => {
+      if (!companySlug || !currentStream) return;
+
+      const link = `${window.location.origin}/${companySlug}/${currentStream.slug}`;
+
+      try {
+        await navigator.clipboard.writeText(link);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error("Copy failed", err);
+      }
+    }}
+    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+    style={{
+      backgroundColor: copied ? "#22c55e" : "var(--accent)",
+      color: copied ? "#fff" : theme === "dark" ? "#000" : "#fff",
+    }}
+  >
+    {copied ? "Copied!" : "Copy Streaming Link"}
+  </button>
+)}
+            {/* DESIGN: Panel visibility toggles (desktop) */}
+            <div className="hidden lg:flex items-center gap-1 panel-toolbar">
+              <button
+                onClick={() => setLeftDockCollapsed(!leftDockCollapsed)}
+                className={cn("panel-toggle touch-target", !leftDockCollapsed && "active")}
+                aria-label={leftDockCollapsed ? "Show controls" : "Hide controls"}
+                title={leftDockCollapsed ? "Show Controls" : "Hide Controls"}
+              >
+                <PanelLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setShowStats(!showStats)}
+                className={cn("panel-toggle touch-target", showStats && "active")}
+                aria-label={showStats ? "Hide stats" : "Show stats"}
+                title={showStats ? "Hide Stats" : "Show Stats"}
+              >
+                <LayoutPanelTop className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setRightDockCollapsed(!rightDockCollapsed)}
+                className={cn("panel-toggle touch-target", !rightDockCollapsed && "active")}
+                aria-label={rightDockCollapsed ? "Show chat" : "Hide chat"}
+                title={rightDockCollapsed ? "Show Chat" : "Hide Chat"}
+              >
+                <PanelRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Viewer count chip (only when streaming) */}
+            {isStreaming && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--bg-elevated)] border border-[var(--border)]"
+              >
+                <Users className="w-4 h-4 text-[var(--accent)]" />
+                <span className="text-sm font-medium">{realtimeViewerCount}</span>
+              </motion.div>
+            )}
+
+            {/* Theme toggle */}
+            <button
+              onClick={toggleTheme}
+              className="panel-toggle touch-target theme-toggle-icon"
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              <AnimatePresence mode="wait">
+                {theme === "dark" ? (
+                  <motion.div
+                    key="moon"
+                    initial={{ rotate: -90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: 90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Moon className="w-4 h-4" />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="sun"
+                    initial={{ rotate: 90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: -90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Sun className="w-4 h-4" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </button>
+
+            {/* Mobile menu button */}
+
+            <div className="lg:hidden">
+                <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="panel-toggle touch-target"
+              aria-label="Open menu"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+            </div>
+            
           </div>
-        )}
+        </div>
+      </header>
 
-        <StreamLimitModal isOpen={showLimitModal} usage={streamUsage} />
+      {/* Stream Limit Modal */}
+      <StreamLimitModal isOpen={showLimitModal} usage={streamUsage} />
 
+      {/* Stream Ended Modal */}
+      <AnimatePresence>
         {showStreamEndedModal && !showLimitModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="studio-modal-backdrop"
+          >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-8 max-w-sm w-full mx-4 shadow-xl text-center"
+              className="studio-modal"
             >
-              <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-5">
-                <CheckCircle className="w-7 h-7 text-emerald-500" />
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5" style={{ backgroundColor: "var(--live)", opacity: 0.2 }}>
+                <CheckCircle className="w-8 h-8" style={{ color: "var(--live)" }} />
               </div>
-              <p className="text-xs font-semibold tracking-widest uppercase text-slate-400 mb-1">
+              <p className="text-xs font-semibold tracking-widest uppercase mb-1" style={{ color: "var(--text-muted)" }}>
                 Stream complete
               </p>
-              <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-                That's a wrap!
-              </h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-5">
+              <h2 className="text-2xl font-semibold mb-2">That&apos;s a wrap!</h2>
+              <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
                 Your video stream ended successfully.
               </p>
-<div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 mb-5">
-                    <div className="text-left">
-                      <p className="text-xs text-slate-400 mb-0.5">Peak viewers</p>
-                      <p className="text-2xl font-semibold text-slate-900 dark:text-white">
-                        {peakViewerCount > 0 ? peakViewerCount.toLocaleString() : "0"}
-                      </p>
-                    </div>
-                    <Users className="w-8 h-8 text-sky-400 opacity-70 shrink-0" />
-                  </div>
+              <div className="flex items-center justify-between rounded-xl px-4 py-3 mb-6" style={{ backgroundColor: "var(--bg-base)" }}>
+                <div className="text-left">
+                  <p className="text-xs mb-0.5" style={{ color: "var(--text-muted)" }}>Peak viewers</p>
+                  <p className="text-2xl font-semibold">{peakViewerCount > 0 ? peakViewerCount.toLocaleString() : "0"}</p>
+                </div>
+                <div className="text-left">
+                  <p className="text-xs mb-0.5" style={{ color: "var(--text-muted)" }}>Duration</p>
+                  <p className="text-2xl font-semibold font-mono">{formatDuration(streamDuration)}</p>
+                </div>
+                <Users className="w-8 h-8 opacity-50" style={{ color: "var(--accent)" }} />
+              </div>
               <button
                 onClick={() => {
                   setShowStreamEndedModal(false);
                   router.push("/dashboard");
                 }}
-                className="w-full py-2.5 px-5 bg-sky-500 hover:bg-sky-600 active:scale-[0.98] text-white text-sm font-semibold rounded-xl transition-all"
+                className="w-full py-3 px-5 rounded-xl font-semibold transition-all active:scale-[0.98]"
+                style={{ backgroundColor: "var(--accent)", color: theme === "dark" ? "#000" : "#fff" }}
               >
                 Go to dashboard
               </button>
+              {currentStream?.slug && (
+                <button
+                  onClick={() => {
+                    const link = `${window.location.origin}/${companySlug}/${currentStream.slug}`;
+                    navigator.clipboard.writeText(link);
+                  }}
+                  className="mt-3 w-full py-2 px-5 rounded-xl font-medium transition-all border"
+                  style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+                >
+                  Copy Replay Link
+                </button>
+              )}
             </motion.div>
-          </div>
+          </motion.div>
         )}
+      </AnimatePresence>
 
-        {isStreaming && showUsageBanner && streamUsage && (
+      {/* Usage Warning Banner */}
+      {isStreaming && showUsageBanner && streamUsage && (
+        <div className="fixed top-56 left-1/2 -translate-x-1/2 z-40 max-w-lg w-full px-4">
           <StreamUsageBanner
             usage={streamUsage}
             dismissed={usageBannerDismissed}
             onDismiss={() => setUsageBannerDismissed(true)}
           />
-        )}
+        </div>
+      )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <VideoIcon className="w-5 h-5 text-sky-500" />
-                Video Preview
-              </h2>
-
-              <div className="relative aspect-video bg-black rounded-lg overflow-hidden mb-4">
-                {isStreaming ? (
-                  <video
-                    ref={(el) => { streamingVideoRef.current = el; streamPreviewRef.current = el; }}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <video
-                    ref={videoPreviewRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-contain"
-                  />
-                )}
-                {!isPreviewActive && !isStreaming && videoSourceType === "camera" && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-                    <div className="text-center text-slate-500">
-                      <Camera className="w-12 h-12 mx-auto mb-2" />
-                      <p>Starting preview...</p>
-                    </div>
-                  </div>
-                )}
-                {!isPreviewActive && !isStreaming && videoSourceType === "screen" && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-                    <div className="text-center text-slate-500">
-                      <Monitor className="w-12 h-12 mx-auto mb-2" />
-                      <p>Click "Start Video Stream" to select screen/window</p>
-                    </div>
-                  </div>
-                )}
-                {isStreaming && !streamForPreview && !hasStreamingVideo && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-                    <div className="text-center">
-                      <div className="relative">
-                        <PulseRings isActive={true} />
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sky-500 to-emerald-500 flex items-center justify-center">
-                          <RadioIcon className="w-8 h-8 text-white animate-pulse" />
-                        </div>
-                      </div>
-                      <p className="mt-4 text-sky-400 font-semibold">Streaming Live</p>
-                      <p className="text-slate-500 text-sm">{formatDuration(streamDuration)}</p>
-                    </div>
-                  </div>
-                )}
-                {!isVideoEnabled && isPreviewActive && !isStreaming && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-                    <div className="text-center text-slate-400">
-                      <CameraOff className="w-12 h-12 mx-auto mb-2" />
-                      <p>Video is off</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <AudioVisualizer
-                isActive={isStreaming && !!mixerEngineRef.current}
-                canvasRef={canvasRef}
-              />
-
-              <div className="flex gap-2">
-                <button
-                  onClick={toggleVideo}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg transition-colors",
-                    isVideoEnabled
-                      ? "bg-slate-700 hover:bg-slate-600"
-                      : "bg-red-500/20 text-red-400"
-                  )}
-                  disabled={isStreaming}
-                >
-                  {isVideoEnabled ? (
-                    <Camera className="w-4 h-4" />
-                  ) : (
-                    <CameraOff className="w-4 h-4" />
-                  )}
-                  {isVideoEnabled ? "Video On" : "Video Off"}
-                </button>
-
-                <button
-                  onClick={toggleAudio}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg transition-colors",
-                    isAudioEnabled
-                      ? "bg-slate-700 hover:bg-slate-600"
-                      : "bg-red-500/20 text-red-400"
-                  )}
-                  disabled={isStreaming}
-                >
-                  {isAudioEnabled ? (
-                    <Mic className="w-4 h-4" />
-                  ) : (
-                    <MicOff className="w-4 h-4" />
-                  )}
-                  {isAudioEnabled ? "Mic On" : "Mic Off"}
-                </button>
-              </div>
-            </div>
-
-            {isStreaming && (
-              <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-                <h2 className="text-lg font-semibold mb-4">Stream Stats</h2>
-                <div className="grid grid-cols-5 gap-4">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-sky-400">{formatDuration(streamDuration)}</p>
-                    <p className="text-xs text-slate-500">Duration</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-emerald-400">{bitrate}</p>
-                    <p className="text-xs text-slate-500">Bitrate</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-purple-400">{codec}</p>
-                    <p className="text-xs text-slate-500">Codec</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-yellow-400">{iceState}</p>
-                    <p className="text-xs text-slate-500">ICE State</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-pink-400">{realtimeViewerCount}</p>
-                    <p className="text-xs text-slate-500">Viewers</p>
-                  </div>
+      {/* Main Three-Region Layout */}
+      <div className="studio-layout">
+        {/* DESIGN: Left Dock - Controls */}
+        <aside className={cn("studio-left-dock", leftDockCollapsed && "collapsed")}>
+          <div className="p-4 space-y-4">
+            {/* Panel 1: Video Source */}
+            <div className="collapsible-section">
+              <div className="collapsible-header">
+                <div className="flex items-center gap-2">
+                  <Video className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                  <span className="text-sm font-medium">Video Source</span>
                 </div>
               </div>
-            )}
-          </div>
+              <div className="collapsible-content space-y-2">
+                <button
+                  type="button"
+                  onClick={() => !isStreaming && setVideoSourceType("camera")}
+                  disabled={isStreaming || isStarting}
+                  className={cn(
+                    "source-card w-full flex items-center gap-3",
+                    videoSourceType === "camera" && "selected",
+                    (isStreaming || isStarting) && "disabled"
+                  )}
+                >
+                  <Camera className="w-5 h-5" style={{ color: "var(--accent)" }} />
+                  <div className="flex-1 text-left">
+                    <p className="text-sm font-medium">Camera</p>
+                    {selectedCameraDevice && !isStreaming && (
+                      <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+                        {cameraDevices.find(d => d.deviceId === selectedCameraDevice)?.label || "Default"}
+                      </p>
+                    )}
+                  </div>
+                  {(isStreaming || isStarting) && <Settings className="w-4 h-4 opacity-50" />}
+                </button>
 
-          <div className="space-y-6">
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Video className="w-5 h-5 text-sky-500" />
-                Video Source
-              </h2>
+                <button
+                  type="button"
+                  onClick={() => !isStreaming && setVideoSourceType("screen")}
+                  disabled={isStreaming || isStarting}
+                  className={cn(
+                    "source-card w-full flex items-center gap-3",
+                    videoSourceType === "screen" && "selected",
+                    (isStreaming || isStarting) && "disabled"
+                  )}
+                >
+                  <Monitor className="w-5 h-5" style={{ color: "var(--live)" }} />
+                  <div className="flex-1 text-left">
+                    <p className="text-sm font-medium">Screen Capture</p>
+                    {videoSourceType === "screen" && !isStreaming && (
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        {screenSelectionDone ? "Selected" : "Not selected"}
+                      </p>
+                    )}
+                  </div>
+                </button>
 
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="videoSource"
-                    checked={videoSourceType === "camera"}
-                    onChange={() => setVideoSourceType("camera")}
-                    disabled={isStreaming || isStarting}
-                    className="w-4 h-4 accent-sky-500"
-                  />
-                  <Camera className="w-4 h-4 text-sky-400" />
-                  <span className="text-sm">Camera</span>
-                </label>
+                {/* Camera device picker inline */}
+                {videoSourceType === "camera" && !isStreaming && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCameraPicker(!showCameraPicker)}
+                    className="text-xs w-full text-left px-3 py-2 rounded-lg hover:bg-[var(--accent-muted)] transition-colors"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    <Settings className="w-3 h-3 inline mr-1" />
+                    {selectedCameraDevice
+                      ? cameraDevices.find(d => d.deviceId === selectedCameraDevice)?.label || "Select Camera"
+                      : "Select Camera"}
+                  </button>
+                )}
 
-                {videoSourceType === "camera" && (
-                  <div className="ml-7 mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowCameraPicker(!showCameraPicker)}
-                      disabled={isStreaming || isStarting}
-                      className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1"
-                    >
-                      <Settings className="w-3 h-3" />
-                      {selectedCameraDevice
-                        ? cameraDevices.find((d) => d.deviceId === selectedCameraDevice)?.label || "Select camera"
-                        : "Select camera"}
-                    </button>
-
-                    {showCameraPicker && (
-                      <div className="mt-2 bg-slate-800 rounded-lg p-2 max-h-32 overflow-y-auto">
-                        {cameraDevices.length === 0 ? (
-                          <span className="text-xs text-slate-500">No devices found</span>
-                        ) : (
-                          cameraDevices.map((device) => (
-                            <button
-                              key={device.deviceId}
-                              type="button"
-                              onClick={() => {
-                                setSelectedCameraDevice(device.deviceId);
-                                setShowCameraPicker(false);
-                              }}
-                              className={cn(
-                                "w-full text-left text-xs px-2 py-1.5 rounded hover:bg-slate-700",
-                                selectedCameraDevice === device.deviceId &&
-                                  "bg-sky-500/20 text-sky-400"
-                              )}
-                            >
-                              {device.label || `Camera ${device.deviceId.slice(0, 8)}`}
-                            </button>
-                          ))
-                        )}
-                      </div>
+                {showCameraPicker && (
+                  <div className="bg-[var(--bg-base)] rounded-lg p-2 max-h-32 overflow-y-auto">
+                    {cameraDevices.length === 0 ? (
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>No devices found</span>
+                    ) : (
+                      cameraDevices.map((device) => (
+                        <button
+                          key={device.deviceId}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCameraDevice(device.deviceId);
+                            setShowCameraPicker(false);
+                          }}
+                          className={cn(
+                            "w-full text-left text-xs px-2 py-1.5 rounded hover:bg-[var(--bg-surface)]",
+                            selectedCameraDevice === device.deviceId && "bg-[var(--accent-muted)]"
+                          )}
+                          style={selectedCameraDevice === device.deviceId ? { color: "var(--accent)" } : {}}
+                        >
+                          {device.label || `Camera ${device.deviceId.slice(0, 8)}`}
+                        </button>
+                      ))
                     )}
                   </div>
                 )}
-
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="videoSource"
-                    checked={videoSourceType === "screen"}
-                    onChange={() => setVideoSourceType("screen")}
-                    disabled={isStreaming || isStarting}
-                    className="w-4 h-4 accent-purple-500"
-                  />
-                  <Monitor className="w-4 h-4 text-purple-400" />
-                  <span className="text-sm">Screen Capture</span>
-                </label>
               </div>
             </div>
 
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Mic className="w-5 h-5 text-sky-500" />
-                Audio Source
-              </h2>
-
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer">
+            {/* Panel 2: Audio Source */}
+            <div className="collapsible-section">
+              <div className="collapsible-header">
+                <div className="flex items-center gap-2">
+                  <Mic className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                  <span className="text-sm font-medium">Audio Source</span>
+                </div>
+              </div>
+              <div className="collapsible-content space-y-2">
+                <label className={cn("source-card flex items-center gap-3", (isStreaming || isStarting) && "disabled")}>
                   <input
                     type="checkbox"
                     checked={useMic}
-                    onChange={(e) => setUseMic(e.target.checked)}
+                    onChange={(e) => !isStreaming && setUseMic(e.target.checked)}
                     disabled={isStreaming || isStarting}
-                    className="w-4 h-4 accent-sky-500"
+                    className="w-4 h-4 accent-[var(--accent)]"
                   />
-                  <Mic className="w-4 h-4 text-sky-400" />
+                  <Mic className="w-5 h-5" style={{ color: "var(--accent)" }} />
                   <span className="text-sm">Microphone</span>
                 </label>
 
-                {useMic && (
+                {useMic && !isStreaming && (
                   <div className="ml-7 mb-2">
                     <button
                       type="button"
                       onClick={() => setShowMicPicker(!showMicPicker)}
-                      disabled={isStreaming || isStarting}
-                      className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1"
+                      className="text-xs flex items-center gap-1"
+                      style={{ color: "var(--accent)" }}
                     >
                       <Settings className="w-3 h-3" />
                       {selectedMicDevice
-                        ? micDevices.find((d) => d.deviceId === selectedMicDevice)?.label || "Select microphone"
-                        : "Select microphone"}
+                        ? micDevices.find(d => d.deviceId === selectedMicDevice)?.label || "Select Microphone"
+                        : "Select Microphone"}
                     </button>
 
                     {showMicPicker && (
-                      <div className="mt-2 bg-slate-800 rounded-lg p-2 max-h-32 overflow-y-auto">
+                      <div className="mt-2 bg-[var(--bg-base)] rounded-lg p-2 max-h-32 overflow-y-auto">
                         {micDevices.length === 0 ? (
-                          <span className="text-xs text-slate-500">No devices found</span>
+                          <span className="text-xs" style={{ color: "var(--text-muted)" }}>No devices found</span>
                         ) : (
                           micDevices.map((device) => (
                             <button
@@ -1307,10 +1462,10 @@ export function CreatorVideoStreaming({
                                 setShowMicPicker(false);
                               }}
                               className={cn(
-                                "w-full text-left text-xs px-2 py-1.5 rounded hover:bg-slate-700",
-                                selectedMicDevice === device.deviceId &&
-                                  "bg-sky-500/20 text-sky-400"
+                                "w-full text-left text-xs px-2 py-1.5 rounded hover:bg-[var(--bg-surface)]",
+                                selectedMicDevice === device.deviceId && "bg-[var(--accent-muted)]"
                               )}
+                              style={selectedMicDevice === device.deviceId ? { color: "var(--accent)" } : {}}
                             >
                               {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
                             </button>
@@ -1322,187 +1477,653 @@ export function CreatorVideoStreaming({
                 )}
 
                 {videoSourceType === "screen" && (
-                  <label className="flex items-center gap-3 cursor-pointer">
+                  <label className={cn("source-card flex items-center gap-3", (isStreaming || isStarting) && "disabled")}>
                     <input
                       type="checkbox"
                       checked={useSystemAudio}
-                      onChange={(e) => setUseSystemAudio(e.target.checked)}
+                      onChange={(e) => !isStreaming && setUseSystemAudio(e.target.checked)}
                       disabled={isStreaming || isStarting}
-                      className="w-4 h-4 accent-purple-500"
+                      className="w-4 h-4"
+                      style={{ accentColor: "var(--live)" }}
                     />
-                    <Monitor className="w-4 h-4 text-purple-400" />
-                    <span className="text-sm">System Audio (from screen share)</span>
+                    <Monitor className="w-5 h-5" style={{ color: "var(--live)" }} />
+                    <span className="text-sm">System Audio</span>
                   </label>
                 )}
               </div>
             </div>
 
+            {/* Panel 3: Stream Setup (only when not streaming) */}
+            {!isStreaming && (
+              <div className="collapsible-section">
+                <div className="collapsible-header">
+                  <div className="flex items-center gap-2">
+                    <Radio className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                    <span className="text-sm font-medium">Broadcast</span>
+                  </div>
+                </div>
+                <div className="collapsible-content space-y-3">
+                  <div>
+                    <label className="block text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>Title</label>
+                    <div className="float-label-input">
+                      <input
+                        type="text"
+                        value={streamTitle}
+                        onChange={(e) => setStreamTitle(e.target.value)}
+                        placeholder="Stream title..."
+                        disabled={isStarting}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>Description</label>
+                    <div className="float-label-input">
+                      <textarea
+                        value={streamDescription}
+                        onChange={(e) => setStreamDescription(e.target.value)}
+                        placeholder="What's your stream about?"
+                        disabled={isStarting}
+                        rows={2}
+                        className="w-full resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Panel 4: Mixer (only when streaming) */}
             {isStreaming && mixerEngineRef.current && (
-              <CreatorMixer
-                mixerEngine={mixerEngineRef.current}
-                isStreaming={isStreaming}
-              />
-            )}
-
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Radio className="w-5 h-5 text-sky-500" />
-                Stream Settings
-              </h2>
-
-              <div className="mb-4">
-                <label className="block text-sm text-slate-400 mb-2">
-                  Stream Title
-                </label>
-                <input
-                  type="text"
-                  value={streamTitle}
-                  onChange={(e) => setStreamTitle(e.target.value)}
-                  placeholder="Enter stream title..."
-                  disabled={isStreaming || isStarting}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50"
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm text-slate-400 mb-2">
-                  Description (optional)
-                </label>
-                <textarea
-                  value={streamDescription}
-                  onChange={(e) => setStreamDescription(e.target.value)}
-                  placeholder="What's your stream about?"
-                  disabled={isStreaming || isStarting}
-                  rows={2}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 resize-none"
-                />
-              </div>
-
-              {error && (
-                <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                  <p className="text-red-400 text-sm flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
-                    {error}
-                  </p>
+              <div className="collapsible-section">
+                <div className="collapsible-header">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                    <span className="text-sm font-medium">Mixer</span>
+                  </div>
                 </div>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-3">
-              {!isStreaming ? (
-                <Button
-                  onClick={handleStartStream}
-                  disabled={isStarting || !streamTitle.trim() || (videoSourceType === "screen" && !screenSelectionDone)}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isStarting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Starting...
-                    </>
-                  ) : videoSourceType === "screen" && !screenSelectionDone ? (
-                    <>
-                      <Monitor className="w-4 h-4 mr-2" />
-                      Select Screen to Share
-                    </>
-                  ) : (
-                    <>
-                      <Video className="w-4 h-4 mr-2" />
-                      Start Video Stream
-                    </>
-                  )}
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleStopStream}
-                  className="w-full"
-                  size="lg"
-                >
-                  <Square className="w-4 h-4 mr-2" />
-                  Stop Stream
-                </Button>
-              )}
-            </div>
-
-            {isStreaming && currentStream && (
-              <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <MessageCircle className="w-5 h-5 text-sky-500" />
-                  Chat
-                </h2>
-                
-                <div className="space-y-2 max-h-64 overflow-y-auto mb-3">
-                  {chatMessages.length === 0 ? (
-                    <p className="text-xs text-slate-500 text-center py-4">No messages yet</p>
-                  ) : (
-                    chatMessages.map((msg) => (
-                      <div key={msg.id} className="bg-slate-800 rounded-lg p-2 text-xs">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sky-400">{msg.username || 'Anonymous'}</span>
-                          <span className="text-slate-500 text-[10px]">
-                            {new Date(msg.created_at).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <p className="text-slate-200">{msg.content}</p>
-                      </div>
-                    ))
-                  )}
-                  <div ref={chatMessagesEndRef} />
-                </div>
-
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={chatMessageInput}
-                    onChange={(e) => setChatMessageInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
-                    placeholder="Send a message..."
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={handleSendChatMessage}
-                    disabled={!chatMessageInput.trim() || isSendingChat}
-                  >
-                    <Send className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {isStreaming && currentStream && (
-              <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Share2 className="w-5 h-5 text-sky-500" />
-                  Share Stream
-                </h2>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/${companySlug}/${currentStream.slug}`}
-                    readOnly
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (companySlug && currentStream) {
-                        navigator.clipboard.writeText(
-                          `${window.location.origin}/${companySlug}/${currentStream.slug}`
-                        );
-                      }
-                    }}
-                  >
-                    Copy
-                  </Button>
+                <div className="collapsible-content">
+                  <CreatorMixer mixerEngine={mixerEngineRef.current} isStreaming={isStreaming} />
                 </div>
               </div>
             )}
           </div>
-        </div>
+        </aside>
+
+        {/* CENTER: Main Preview Area */}
+        <main className="studio-main-preview">
+          {/* No Signal placeholder when not streaming */}
+          {!isStreaming && !isPreviewActive && videoSourceType === "screen" && (
+            <div className="studio-surface p-8 text-center mb-4">
+              <Radio className="w-12 h-12 mx-auto mb-3" style={{ color: "var(--text-muted)" }} />
+              <h3 className="text-lg font-medium mb-1">No Signal</h3>
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Configure your source and hit Go Live
+              </p>
+            </div>
+          )}
+
+          {/* Usage banner (top of preview) */}
+          {isStreaming && showUsageBanner && streamUsage && (
+            <StreamUsageBanner
+              usage={streamUsage}
+              dismissed={usageBannerDismissed}
+              onDismiss={() => setUsageBannerDismissed(true)}
+            />
+          )}
+
+          {/* Error display */}
+          {error && (
+            <div className="mb-4 p-3 rounded-lg border" style={{ backgroundColor: "rgba(255, 71, 87, 0.1)", borderColor: "rgba(255, 71, 87, 0.3)" }}>
+              <p className="text-sm flex items-center gap-2" style={{ color: "#FF4757" }}>
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </p>
+            </div>
+          )}
+
+          {/* Visualizer Canvas + Live Preview */}
+          <div className="preview-container mb-4" style={{ aspectRatio: "16/9" }}>
+            {isStreaming ? (
+              <>
+                <video
+                  ref={(el) => { streamingVideoRef.current = el; streamPreviewRef.current = el; }}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-contain"
+                  aria-label="Live stream preview"
+                />
+                {/* Live overlay badge + Share button */}
+                <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+                  <div className="live-badge">
+                    <motion.span
+                      className="live-dot"
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
+                    LIVE
+                  </div>
+                  {currentStream && (
+                    <button
+                      onClick={() => {
+                        if (companySlug && currentStream) {
+                          navigator.clipboard.writeText(
+                            `${window.location.origin}/${companySlug}/${currentStream.slug}`
+                          );
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-opacity hover:opacity-80"
+                      style={{ backgroundColor: "var(--accent)", color: theme === "dark" ? "#000" : "#fff" }}
+                    >
+                      <Share2 className="w-3 h-3" />
+                      Copy Link
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <video
+                  ref={videoPreviewRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-contain"
+                  aria-label="Camera preview"
+                />
+                {!isPreviewActive && videoSourceType === "camera" && (
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "var(--bg-base)" }}>
+                    <div className="text-center" style={{ color: "var(--text-muted)" }}>
+                      <Camera className="w-12 h-12 mx-auto mb-2" />
+                      <p>Starting preview...</p>
+                    </div>
+                  </div>
+                )}
+                {!isPreviewActive && videoSourceType === "screen" && (
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "var(--bg-base)" }}>
+                    <div className="text-center" style={{ color: "var(--text-muted)" }}>
+                      <Monitor className="w-12 h-12 mx-auto mb-2" />
+                      <p>Click &ldquo;Go Live&rdquo; to select screen</p>
+                    </div>
+                  </div>
+                )}
+                {!isVideoEnabled && isPreviewActive && (
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "var(--bg-base)" }}>
+                    <div className="text-center" style={{ color: "var(--text-muted)" }}>
+                      <CameraOff className="w-12 h-12 mx-auto mb-2" />
+                      <p>Video is off</p>
+                    </div>
+                  </div>
+                )}
+                {isStreaming && !streamForPreview && !hasStreamingVideo && (
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "var(--bg-base)" }}>
+                    <div className="text-center">
+                      <PulseRings isActive={true} />
+                      <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, var(--accent), var(--live))" }}>
+                        <RadioIcon className="w-8 h-8 text-white" />
+                      </div>
+                      <p className="mt-4 font-semibold" style={{ color: "var(--accent)" }}>Streaming Live</p>
+                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>{formatDuration(streamDuration)}</p>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Audio Visualizer */}
+          <AudioVisualizer
+            isActive={isStreaming && !!mixerEngineRef.current}
+            canvasRef={canvasRef}
+            accentColor={theme === "dark" ? "#00E5A0" : "#00A86B"}
+          />
+
+          {/* Preview controls (toggle video/audio) */}
+          {/* <div className="flex gap-2 mt-4">
+            <button
+              onClick={toggleVideo}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg transition-colors",
+                isVideoEnabled ? "bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)]" : "bg-red-500/20"
+              )}
+              disabled={isStreaming}
+              style={!isVideoEnabled ? { color: "#FF4757" } : {}}
+            >
+              {isVideoEnabled ? <Camera className="w-4 h-4" /> : <CameraOff className="w-4 h-4" />}
+              {isVideoEnabled ? "Video On" : "Video Off"}
+            </button>
+            <button
+              onClick={toggleAudio}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg transition-colors",
+                isAudioEnabled ? "bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)]" : "bg-red-500/20"
+              )}
+              disabled={isStreaming}
+              style={!isAudioEnabled ? { color: "#FF4757" } : {}}
+            >
+              {isAudioEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+              {isAudioEnabled ? "Mic On" : "Mic Off"}
+            </button>
+          </div> */}
+{/* 
+                    {showStats && (
+            <div className="mt-4">
+              <AnimatePresence>
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="stats-pill"
+                >
+                  <div className="stats-pill-item">
+                    <Signal className="w-4 h-4" style={{ color: connectionQuality.color.includes("green") ? "var(--live)" : connectionQuality.color.includes("yellow") ? "var(--warning)" : "var(--danger)" }} />
+                    <span className="text-sm font-medium">{iceState || "—"}</span>
+                  </div>
+                  <div className="stats-pill-item">
+                    <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{codec}</span>
+                  </div>
+                  <div className="stats-pill-item">
+                    <span className="text-sm font-mono">{bitrate}</span>
+                  </div>
+                </motion.div>
+
+               
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                  <div className="ghost-card">
+                    <div className="ghost-card-label">Status</div>
+                    <div className="flex items-center gap-2">
+                      {isStreaming ? (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-red-500" />
+                          <span className="font-semibold" style={{ color: "var(--live)" }}>LIVE</span>
+                        </>
+                      ) : (
+                        <span className="text-sm" style={{ color: "var(--text-muted)" }}>Offline</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="ghost-card">
+                    <div className="ghost-card-label">Duration</div>
+                    <div className="font-mono font-semibold">{formatDuration(streamDuration)}</div>
+                  </div>
+
+                  <div className="ghost-card">
+                    <div className="ghost-card-label">Viewers</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{realtimeViewerCount}</span>
+                      {viewerSparkline.length > 1 && (
+                        <svg width="40" height="16" className="sparkline">
+                          <path d={getSparklinePath()} fill="none" stroke="var(--accent)" strokeWidth="1.5" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="ghost-card">
+                    <div className="ghost-card-label">Audio</div>
+                    <div className={cn("font-semibold", isStreaming ? "" : "")} style={{ color: isStreaming ? "var(--live)" : "var(--text-muted)" }}>
+                      {isStreaming ? "Active" : "Inactive"}
+                    </div>
+                  </div>
+                </div>
+              </AnimatePresence>
+            </div>
+          )} */}
+
+
+          {/* Go Live / End Stream CTA */}
+          <div className="mt-6">
+            {!isStreaming ? (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={handleStartStream}
+                disabled={isStarting || !streamTitle.trim() || (videoSourceType === "screen" && !screenSelectionDone)}
+                className="cta-button go-live"
+                aria-live="polite"
+                aria-label={isStarting ? "Connecting..." : "Go Live"}
+              >
+                {isStarting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Starting...
+                  </>
+                ) : videoSourceType === "screen" && !screenSelectionDone ? (
+                  <>
+                    <Monitor className="w-5 h-5" />
+                    Select Screen to Share
+                  </>
+                ) : (
+                  <>
+                    <Radio className="w-5 h-5" />
+                    Go Live
+                  </>
+                )}
+              </motion.button>
+            ) : (
+              <motion.button
+                whileHover={{ scale: stopConfirmPending ? 1 : 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={handleStopStream}
+                className={cn("cta-button", stopConfirmPending ? "bg-yellow-500" : "end-stream")}
+                aria-live="polite"
+                aria-label={stopConfirmPending ? "Tap again to confirm" : "End Stream"}
+              >
+                {stopConfirmPending ? (
+                  <>
+                    <AlertCircle className="w-5 h-5" />
+                    Tap again to confirm
+                  </>
+                ) : (
+                  <>
+                    <Square className="w-5 h-5" />
+                    End Stream
+                  </>
+                )}
+              </motion.button>
+            )}
+          </div>
+
+         
+        </main>
+
+        {/* DESIGN: Right Dock - Chat */}
+        <aside className={cn("studio-right-dock", rightDockCollapsed && "collapsed")}>
+          {isStreaming && currentStream && (
+            <div className="p-4 flex flex-col h-full">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-5 h-5" style={{ color: "var(--accent)" }} />
+                  <h3 className="text-sm font-semibold">Live Chat</h3>
+                </div>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>{chatMessages.length}</span>
+              </div>
+
+              {/* Messages */}
+              <div
+                className="flex-1 overflow-y-auto space-y-2 mb-3 chat-log"
+                role="log"
+                aria-live="polite"
+                style={{ scrollSnapType: "y proximity" }}
+              >
+                {chatMessages.length === 0 ? (
+                  <p className="text-center text-sm py-8" style={{ color: "var(--text-muted)" }}>
+                    No messages yet
+                  </p>
+                ) : (
+                  chatMessages.map((msg) => (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={cn("chat-message", msg.is_creator && "own")}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="chat-message-username">{msg.username || "Anonymous"}</span>
+                        <span className="chat-message-time">
+                          {new Date(msg.created_at).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <p className="text-sm">{msg.content}</p>
+                    </motion.div>
+                  ))
+                )}
+                <div ref={chatMessagesEndRef} />
+              </div>
+
+              {/* Input */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatMessageInput}
+                  onChange={(e) => setChatMessageInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendChatMessage()}
+                  placeholder="Send a message..."
+                  className="flex-1 px-4 py-3 rounded-xl text-sm"
+                  style={{ backgroundColor: "var(--bg-base)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                />
+                <button
+                  onClick={handleSendChatMessage}
+                  disabled={!chatMessageInput.trim() || isSendingChat}
+                  className="w-11 h-11 rounded-xl flex items-center justify-center transition-colors"
+                  style={{ backgroundColor: "var(--accent)", color: theme === "dark" ? "#000" : "#fff" }}
+                  aria-label="Send message"
+                >
+                  {isSendingChat ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* NOT streaming: placeholder */}
+          {!isStreaming && (
+            <div className="p-4 text-center" style={{ color: "var(--text-muted)" }}>
+              <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Chat will appear when you go live</p>
+            </div>
+          )}
+
+          {/* Collapsed rail on desktop */}
+          {!rightDockCollapsed && (
+            <div className="lg:hidden p-4 text-center border-t" style={{ borderColor: "var(--border)" }}>
+              <button
+                onClick={() => setRightDockCollapsed(true)}
+                className="text-xs flex items-center gap-1 mx-auto"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <ChevronRight className="w-4 h-4" />
+                Collapse
+              </button>
+            </div>
+          )}
+        </aside>
       </div>
+
+      {/* Mobile left dock sheet */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-50 lg:hidden"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed left-0 top-0 bottom-0 w-[80vw] max-w-80 z-50 p-4 overflow-y-auto lg:hidden"
+              style={{ backgroundColor: "var(--bg-surface)" }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-semibold">Controls</span>
+                <button onClick={() => setMobileMenuOpen(false)} className="panel-toggle">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              {/* Copy source panels here for mobile */}
+              <div className="space-y-4">
+                <div className="collapsible-section">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Video className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                    <span className="text-sm font-medium">Video Source</span>
+                  </div>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => !isStreaming && setVideoSourceType("camera")}
+                      disabled={isStreaming}
+                      className={cn("source-card w-full flex items-center gap-3", videoSourceType === "camera" && "selected", isStreaming && "disabled")}
+                    >
+                      <Camera className="w-5 h-5" style={{ color: "var(--accent)" }} />
+                      <span className="text-sm">Camera</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => !isStreaming && setVideoSourceType("screen")}
+                      disabled={isStreaming}
+                      className={cn("source-card w-full flex items-center gap-3", videoSourceType === "screen" && "selected", isStreaming && "disabled")}
+                    >
+                      <Monitor className="w-5 h-5" style={{ color: "var(--live)" }} />
+                      <span className="text-sm">Screen Capture</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="collapsible-section">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Mic className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                    <span className="text-sm font-medium">Audio Source</span>
+                  </div>
+                  <label className="source-card flex items-center gap-3">
+                    <input type="checkbox" checked={useMic} onChange={(e) => !isStreaming && setUseMic(e.target.checked)} disabled={isStreaming} className="w-4 h-4" />
+                    <span className="text-sm">Microphone</span>
+                  </label>
+                  <label className="source-card flex items-center gap-3 mt-2">
+                    <input type="checkbox" checked={useSystemAudio} onChange={(e) => !isStreaming && setUseSystemAudio(e.target.checked)} disabled={isStreaming} className="w-4 h-4" />
+                    <span className="text-sm">System Audio</span>
+                  </label>
+                </div>
+
+                {!isStreaming && (
+                  <div className="collapsible-section">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Radio className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                      <span className="text-sm font-medium">Broadcast</span>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="float-label-input">
+                        <input type="text" value={streamTitle} onChange={(e) => setStreamTitle(e.target.value)} placeholder="Stream title..." disabled={isStarting} className="w-full" />
+                      </div>
+                      <div className="float-label-input">
+                        <textarea value={streamDescription} onChange={(e) => setStreamDescription(e.target.value)} placeholder="Description..." disabled={isStarting} rows={2} className="w-full resize-none" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile sticky CTA bar */}
+      <div className="lg:hidden mobile-sticky-cta">
+        {!isStreaming ? (
+          <button
+            onClick={handleStartStream}
+            disabled={isStarting || !streamTitle.trim() || (videoSourceType === "screen" && !screenSelectionDone)}
+            className="cta-button go-live"
+            aria-live="polite"
+          >
+            {isStarting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Starting...
+              </>
+            ) : (
+              <>
+                <Radio className="w-5 h-5" />
+                Go Live
+              </>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={handleStopStream}
+            className={cn("cta-button", stopConfirmPending ? "bg-yellow-500" : "end-stream")}
+            aria-live="polite"
+          >
+            {stopConfirmPending ? "Tap again to confirm" : "End Stream"}
+          </button>
+        )}
+      </div>
+
+      {/* Mobile floating chat bubble */}
+      {isStreaming && (
+        <button
+          onClick={() => setMobileChatOpen(true)}
+          className="mobile-chat-bubble lg:hidden"
+          aria-label="Open chat"
+        >
+          <MessageCircle className="w-6 h-6" />
+          {chatMessages.length > 0 && (
+            <span className="mobile-chat-badge">{Math.min(chatMessages.length, 99)}</span>
+          )}
+        </button>
+      )}
+
+      {/* Mobile chat sheet */}
+      <AnimatePresence>
+        {mobileChatOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-50 lg:hidden"
+              onClick={() => setMobileChatOpen(false)}
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="mobile-sheet lg:hidden"
+            >
+              <div className="mobile-sheet-handle" />
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-5 h-5" style={{ color: "var(--accent)" }} />
+                  <h3 className="font-semibold">Live Chat</h3>
+                </div>
+                <button onClick={() => setMobileChatOpen(false)} className="panel-toggle">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-2 mb-4 max-h-[50vh] overflow-y-auto">
+                {chatMessages.map((msg) => (
+                  <div key={msg.id} className="chat-message">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="chat-message-username">{msg.username || "Anonymous"}</span>
+                      <span className="chat-message-time">{new Date(msg.created_at).toLocaleTimeString()}</span>
+                    </div>
+                    <p className="text-sm">{msg.content}</p>
+                  </div>
+                ))}
+                <div ref={chatMessagesEndRef} />
+              </div>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatMessageInput}
+                  onChange={(e) => setChatMessageInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendChatMessage()}
+                  placeholder="Send a message..."
+                  className="flex-1 px-4 py-3 rounded-xl text-sm"
+                  style={{ backgroundColor: "var(--bg-base)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                />
+                <button
+                  onClick={handleSendChatMessage}
+                  className="w-11 h-11 rounded-xl flex items-center justify-center"
+                  style={{ backgroundColor: "var(--accent)", color: theme === "dark" ? "#000" : "#fff" }}
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
+            
