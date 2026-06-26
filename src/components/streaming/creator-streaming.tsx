@@ -960,11 +960,11 @@ export function CreatorStreaming({
   }, [isStreaming, currentStream?.slug, fetchChatMessages]);
 
   // Auto-scroll to bottom of chat when messages change
-  useEffect(() => {
-    if (chatMessagesEndRef.current) {
-      chatMessagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, []);
+  // useEffect(() => {
+  //   if (chatMessagesEndRef.current) {
+  //     chatMessagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+  //   }
+  // }, []);
 
   // Handle network recovery - check for active stream and show reconnect option
   useEffect(() => {

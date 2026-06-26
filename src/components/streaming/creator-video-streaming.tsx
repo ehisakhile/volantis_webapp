@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Video,
@@ -26,10 +27,13 @@ import {
   WifiOff,
   CheckCircle,
   RadioIcon,
+  MessageCircle,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { livestreamApi } from "@/lib/api/livestream";
+import { chatApi } from "@/lib/api/chat";
 import { companyApi } from "@/lib/api/company";
 import {
   ICE_CONFIG,
@@ -37,13 +41,46 @@ import {
   preferVideoCodecs,
   detectAudioCodec,
   captureSystemAudio,
+  startVisualizer,
 } from "@/lib/webrtc-utils";
 import { captureCamera, captureScreen, getVideoInputDevices } from "@/lib/video-capture";
-import { captureMicSource, MixerEngine } from "@/lib/mixer-engine";
+import { 
+  MixerEngine, 
+  createMixerEngine, 
+  captureMicSource, 
+  captureSystemSource,
+  getAudioInputDevicesList,
+  type ChannelType 
+} from "@/lib/mixer-engine";
+import { CreatorMixer } from "./creator-mixer";
 import type { VolLivestreamOut } from "@/types/livestream";
+import type { VolChatMessageOut } from "@/types/chat";
 import { useStreamUsage } from "@/hooks/useStreamUsage";
 import { StreamUsageBanner } from "./stream-usage-banner";
 import { StreamLimitModal } from "./stream-limit-modal";
+import { useViewerCount } from "@/lib/api/useViewerCount";
+
+interface AudioVisualizerProps {
+  isActive: boolean;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  accentColor?: string;
+}
+
+function AudioVisualizer({
+  isActive,
+  canvasRef,
+  accentColor = "#38bdf8",
+}: AudioVisualizerProps) {
+  return (
+    <canvas
+      ref={canvasRef}
+      width={800}
+      height={64}
+      className="w-full h-16 rounded-lg bg-black/50"
+      style={{ display: isActive ? "block" : "none" }}
+    />
+  );
+}
 
 function PulseRings({ isActive }: { isActive: boolean }) {
   return (
@@ -71,7 +108,6 @@ interface CreatorVideoStreamingProps {
 }
 
 type VideoSourceType = "camera" | "screen";
-type AudioSourceType = "mic" | "system";
 
 export function CreatorVideoStreaming({
   onStreamStarted,
@@ -109,9 +145,14 @@ export function CreatorVideoStreaming({
   const [selectedCameraDevice, setSelectedCameraDevice] = useState<string>("");
   const [showCameraPicker, setShowCameraPicker] = useState(false);
 
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMicDevice, setSelectedMicDevice] = useState<string>("");
+  const [showMicPicker, setShowMicPicker] = useState(false);
+
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isPreviewActive, setIsPreviewActive] = useState(false);
+  const [screenSelectionDone, setScreenSelectionDone] = useState(false);
   
   const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
 
@@ -132,6 +173,17 @@ export function CreatorVideoStreaming({
   const mixerEngineRef = useRef<MixerEngine | null>(null);
   const previewAbortRef = useRef<(() => void) | null>(null);
   const previewOpRef = useRef<{ abort: () => void } | null>(null);
+  const stopVizRef = useRef<(() => void) | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const [chatMessages, setChatMessages] = useState<VolChatMessageOut[]>([]);
+  const [chatMessageInput, setChatMessageInput] = useState("");
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
+  const chatPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [realtimeViewerCount, setRealtimeViewerCount] = useState(0);
+  const [peakViewerCount, setPeakViewerCount] = useState(0);
 
   const checkForActiveStream = useCallback(async () => {
     try {
@@ -182,11 +234,18 @@ export function CreatorVideoStreaming({
     checkForActiveStream();
   }, [checkForActiveStream]);
 
-  useEffect(() => {
-    if (showCameraPicker) {
-      loadCameraDevices();
+  const loadMicDevices = useCallback(async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const devices = await getAudioInputDevicesList();
+      setMicDevices(devices);
+      if (devices.length > 0 && !selectedMicDevice) {
+        setSelectedMicDevice(devices[0].deviceId);
+      }
+    } catch (err) {
+      console.error("Failed to load mic devices:", err);
     }
-  }, [showCameraPicker]);
+  }, [selectedMicDevice]);
 
   const loadCameraDevices = useCallback(async () => {
     try {
@@ -201,9 +260,17 @@ export function CreatorVideoStreaming({
     }
   }, [selectedCameraDevice]);
 
+  useEffect(() => {
+    if (showCameraPicker) {
+      loadCameraDevices();
+    }
+    if (showMicPicker) {
+      loadMicDevices();
+    }
+  }, [showCameraPicker, showMicPicker, loadCameraDevices, loadMicDevices]);
+
   const startPreview = useCallback(async () => {
     if (isStreaming) return;
-    if (previewStreamRef.current && previewStreamRef.current.getVideoTracks().length > 0) return;
     if (previewOpRef.current) {
       previewOpRef.current.abort();
       previewOpRef.current = null;
@@ -211,6 +278,19 @@ export function CreatorVideoStreaming({
     }
 
     setError(null);
+
+    if (videoSourceType === "screen") {
+      if (screenSelectionDone) {
+        setIsPreviewActive(true);
+      } else {
+        setIsPreviewActive(false);
+      }
+      return;
+    }
+
+    if (previewStreamRef.current && previewStreamRef.current.getVideoTracks().length > 0) {
+      return;
+    }
 
     let abortFlag = false;
     let captureAborted = false;
@@ -236,10 +316,21 @@ export function CreatorVideoStreaming({
         if (result.deviceId && !selectedCameraDevice) {
           setSelectedCameraDevice(result.deviceId);
         }
+
+        if (useMic && !abortFlag) {
+          try {
+            const micStream = await captureMicSource(selectedMicDevice || undefined);
+            if (abortFlag) return;
+            micStream.getAudioTracks().forEach(track => stream.addTrack(track));
+          } catch (e) {
+            console.log("Mic capture failed:", e);
+          }
+        }
       } else {
         const result = await captureScreen();
         if (abortFlag) return;
         stream = result.stream;
+        setScreenSelectionDone(true);
         
         if (!result.audioEnabled && useSystemAudio) {
           console.warn("Screen capture started without audio. User may have unchecked 'Share audio'.");
@@ -249,35 +340,8 @@ export function CreatorVideoStreaming({
         stream.getVideoTracks()[0].onended = () => {
           console.log("Screen capture ended");
           setVideoSourceType("camera");
+          setScreenSelectionDone(false);
         };
-      }
-
-      if (useMic && !useSystemAudio && !abortFlag) {
-        const micStream = await captureMicSource();
-        if (abortFlag) return;
-        micStream.getAudioTracks().forEach(track => stream.addTrack(track));
-      } else if (useSystemAudio && !useMic && !abortFlag) {
-        try {
-          const systemStream = await captureSystemAudio();
-          if (abortFlag) return;
-          systemStream.getAudioTracks().forEach(track => stream.addTrack(track));
-        } catch (e) {
-          console.log("System audio not available:", e);
-          setError("Failed to capture system audio. Please ensure you have selected 'Share audio' in the browser picker.");
-        }
-      } else if (useMic && useSystemAudio && !abortFlag) {
-        try {
-          const [micStream, systemStream] = await Promise.all([
-            captureMicSource(),
-            captureSystemAudio(),
-          ]);
-          if (abortFlag) return;
-          micStream.getAudioTracks().forEach(track => stream.addTrack(track));
-          systemStream.getAudioTracks().forEach(track => stream.addTrack(track));
-        } catch (e) {
-          console.log("Some audio sources not available:", e);
-          setError("Unable to capture audio sources. Please check your audio sharing settings.");
-        }
       }
 
       if (abortFlag) return;
@@ -314,7 +378,7 @@ export function CreatorVideoStreaming({
       previewOpRef.current = null;
       previewAbortRef.current = null;
     }
-  }, [videoSourceType, selectedCameraDevice, useMic, useSystemAudio, isStreaming]);
+  }, [videoSourceType, selectedCameraDevice, selectedMicDevice, useMic, useSystemAudio, isStreaming, screenSelectionDone]);
 
   const stopPreview = useCallback((keepTracksAlive = false) => {
     if (previewStreamRef.current) {
@@ -360,7 +424,16 @@ export function CreatorVideoStreaming({
 
   useEffect(() => {
     if (!isStreaming) {
-      startPreview();
+      if (videoSourceType === "screen") {
+        setIsPreviewActive(false);
+        setPreviewStream(null);
+        previewStreamRef.current = null;
+        if (videoPreviewRef.current) {
+          videoPreviewRef.current.srcObject = null;
+        }
+      } else {
+        startPreview();
+      }
     } else {
       stopPreview();
     }
@@ -372,7 +445,17 @@ export function CreatorVideoStreaming({
 
   useEffect(() => {
     if (!isStreaming) {
-      restartPreview();
+      if (videoSourceType === "screen") {
+        setScreenSelectionDone(false);
+        setIsPreviewActive(false);
+        setPreviewStream(null);
+        previewStreamRef.current = null;
+        if (videoPreviewRef.current) {
+          videoPreviewRef.current.srcObject = null;
+        }
+      } else {
+        restartPreview();
+      }
     }
   }, [videoSourceType, selectedCameraDevice]);
 
@@ -403,12 +486,71 @@ export function CreatorVideoStreaming({
     }
   }, [isStreaming, streamForPreview]);
 
-  const viewerData = useViewerCount({
+  const { viewerCount, peakViewers } = useViewerCount({
     slug: currentStream?.slug || '',
     companyId: currentStream?.company_id || 0,
     enabled: isStreaming && !!currentStream?.slug && !!currentStream?.company_id,
     pollingInterval: 5000,
   });
+
+  useEffect(() => {
+    if (viewerCount > 0) {
+      setRealtimeViewerCount(viewerCount);
+    }
+    if (peakViewers > 0) {
+      setPeakViewerCount(prev => Math.max(prev, peakViewers));
+    }
+  }, [viewerCount, peakViewers]);
+
+  const fetchChatMessages = useCallback(async () => {
+    if (!currentStream?.slug) return;
+    try {
+      const messages = await chatApi.getMessages(currentStream.slug, 1, 50);
+      setChatMessages(messages);
+    } catch (err) {
+      console.error("Failed to fetch chat messages:", err);
+    }
+  }, [currentStream?.slug]);
+
+  const handleSendChatMessage = useCallback(async () => {
+    if (!chatMessageInput.trim() || !currentStream?.slug) return;
+
+    setIsSendingChat(true);
+    try {
+      await chatApi.sendMessage(currentStream.slug, chatMessageInput.trim());
+      setChatMessageInput("");
+      await fetchChatMessages();
+    } catch (err) {
+      console.error("Failed to send chat message:", err);
+    } finally {
+      setIsSendingChat(false);
+    }
+  }, [chatMessageInput, currentStream?.slug, fetchChatMessages]);
+
+  useEffect(() => {
+    if (isStreaming && currentStream?.slug) {
+      fetchChatMessages();
+      chatPollIntervalRef.current = setInterval(fetchChatMessages, 5000);
+    } else {
+      if (chatPollIntervalRef.current) {
+        clearInterval(chatPollIntervalRef.current);
+        chatPollIntervalRef.current = null;
+      }
+      setChatMessages([]);
+    }
+
+    return () => {
+      if (chatPollIntervalRef.current) {
+        clearInterval(chatPollIntervalRef.current);
+      }
+    };
+  }, [isStreaming, currentStream?.slug, fetchChatMessages]);
+
+  useEffect(() => {
+    if (chatMessagesEndRef.current) {
+      chatMessagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages]);
 
   const { usage: streamUsage } = useStreamUsage({
     slug: currentStream?.slug ?? '',
@@ -433,10 +575,12 @@ export function CreatorVideoStreaming({
       return;
     }
 
-    const streamToPublish = previewStreamRef.current;
-    if (!streamToPublish || streamToPublish.getVideoTracks().length === 0) {
-      setError("Please select a video source (camera or screen)");
-      return;
+    if (videoSourceType === "camera") {
+      const streamToPublish = previewStreamRef.current;
+      if (!streamToPublish || streamToPublish.getVideoTracks().length === 0) {
+        setError("Please select a video source (camera or screen)");
+        return;
+      }
     }
 
     setIsStarting(true);
@@ -444,8 +588,38 @@ export function CreatorVideoStreaming({
     setConnectionState("connecting");
     setShowLimitModal(false);
 
-    console.log('[handleStartStream] streamToPublish:', streamToPublish);
-    console.log('[handleStartStream] video tracks in streamToPublish:', streamToPublish?.getVideoTracks().length);
+    let videoStream: MediaStream;
+    let screenCaptureDone = false;
+
+    if (videoSourceType === "screen") {
+      try {
+        const result = await captureScreen();
+        videoStream = result.stream;
+        setScreenSelectionDone(true);
+        screenCaptureDone = true;
+
+        if (!result.audioEnabled && useSystemAudio) {
+          console.warn("Screen capture started without audio. User may have unchecked 'Share audio'.");
+          setError("System audio was not captured. Please ensure 'Share audio' is checked in the browser picker.");
+        }
+        
+        videoStream.getVideoTracks()[0].onended = () => {
+          console.log("Screen capture ended");
+          setVideoSourceType("camera");
+          setScreenSelectionDone(false);
+        };
+      } catch (err) {
+        console.error("Failed to capture screen:", err);
+        setError("Screen capture failed. Please try again.");
+        setIsStarting(false);
+        return;
+      }
+    } else {
+      videoStream = previewStreamRef.current!;
+    }
+
+    console.log('[handleStartStream] videoStream:', videoStream);
+    console.log('[handleStartStream] video tracks:', videoStream?.getVideoTracks().length);
 
     try {
       const streamData = await livestreamApi.startVideoStream({
@@ -460,67 +634,70 @@ export function CreatorVideoStreaming({
         throw new Error("No publish URL returned from API");
       }
 
-      mixerEngineRef.current = new MixerEngine();
-      pubStreamRef.current = streamToPublish;
-      
-      console.log('[handleStartStream] pubStreamRef.current set:', pubStreamRef.current);
-      console.log('[handleStartStream] Video tracks after setting pubStreamRef:', pubStreamRef.current?.getVideoTracks().length);
-      
-      previewStreamRef.current = null;
-      setPreviewStream(null);
-      setIsPreviewActive(false);
-      if (videoPreviewRef.current) {
-        videoPreviewRef.current.srcObject = null;
+      const engine = createMixerEngine();
+      mixerEngineRef.current = engine;
+
+      const videoTrack = videoStream.getVideoTracks()[0];
+      const existingAudioTracks = previewStreamRef.current?.getAudioTracks() || [];
+
+      if (useMic && existingAudioTracks.length > 0) {
+        console.log('[Publisher] Using audio tracks from preview stream:', existingAudioTracks.length);
+        existingAudioTracks.forEach((track, i) => {
+          engine.addChannel(`preview-mic-${i}`, 'MIC', 'mic', new MediaStream([track]), selectedMicDevice || undefined);
+        });
       }
 
-      const videoTrack = streamToPublish.getVideoTracks()[0];
-
-      // First, add the audio sources to the mixer BEFORE creating the combined stream
-      if (useMic && !useSystemAudio) {
-        const micStream = await captureMicSource();
-        mixerEngineRef.current.addChannel('mic', 'MIC', 'mic', micStream);
-      } else if (useSystemAudio && !useMic) {
+      if (useSystemAudio && screenCaptureDone) {
         try {
-          const systemStream = await captureSystemAudio();
-          mixerEngineRef.current.addChannel('system', 'SYSTEM', 'system', systemStream);
+          const systemStream = await captureSystemSource();
+          engine.addChannel('system', 'SYSTEM', 'system', systemStream);
         } catch (e) {
           console.log("System audio not available:", e);
           setError("System audio is not available. Please ensure you selected audio sharing in the browser picker.");
         }
-      } else if (useMic && useSystemAudio) {
+      } else if (useSystemAudio && videoSourceType === "screen") {
         try {
-          const [micStream, systemStream] = await Promise.all([
-            captureMicSource(),
-            captureSystemAudio(),
-          ]);
-          mixerEngineRef.current.addChannel('mic', 'MIC', 'mic', micStream);
-          mixerEngineRef.current.addChannel('system', 'SYSTEM', 'system', systemStream);
+          const audioTracks = videoStream.getAudioTracks();
+          if (audioTracks.length > 0) {
+            engine.addChannel('system', 'SYSTEM', 'system', new MediaStream(audioTracks));
+          }
         } catch (e) {
-          console.log("Some audio sources not available:", e);
-          setError("Unable to capture audio sources. Please ensure you have selected the correct audio sharing options.");
+          console.log("System audio from screen capture not available:", e);
         }
       }
 
-      // Now create combined stream with video track first, then all audio tracks
+      const mixerStream = engine.outputStream;
+
+      if (canvasRef.current) {
+        stopVizRef.current = startVisualizer(mixerStream, canvasRef.current, "#38bdf8");
+      }
+
       const combinedStream = new MediaStream();
       if (videoTrack) {
         console.log('[Publisher] Adding video track:', videoTrack.label, videoTrack.id);
         combinedStream.addTrack(videoTrack);
       }
 
-      const mixerStream = mixerEngineRef.current.outputStream;
       mixerStream.getAudioTracks().forEach((track) => {
-        console.log('[Publisher] Adding audio track:', track.label, track.id);
+        console.log('[Publisher] Adding audio track from mixer:', track.label, track.id);
         combinedStream.addTrack(track);
       });
 
       console.log('[Publisher] combinedStream has', combinedStream.getAudioTracks().length, 'audio tracks and', combinedStream.getVideoTracks().length, 'video tracks');
 
-      // Verify we have both tracks
       if (combinedStream.getVideoTracks().length === 0) {
         console.error('[Publisher] ERROR: No video tracks in combinedStream!');
         setError("No video track available for streaming");
         return;
+      }
+
+      pubStreamRef.current = videoStream;
+
+      previewStreamRef.current = null;
+      setPreviewStream(null);
+      setIsPreviewActive(false);
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = null;
       }
 
       const pc = new RTCPeerConnection(ICE_CONFIG);
@@ -547,8 +724,6 @@ export function CreatorVideoStreaming({
         console.log('[Publisher] addTrack:', track.kind, track.label, track.id);
         pc.addTrack(track, combinedStream);
       });
-
-      console.log('[Publisher] PC has', pc.getTransceivers().length, 'transceivers after addTrack');
 
       console.log('[Publisher] PC has', pc.getTransceivers().length, 'transceivers after addTrack');
 
@@ -608,7 +783,6 @@ export function CreatorVideoStreaming({
       setStreamForPreview(pubStreamRef.current);
       console.log('[handleStartStream] hasStreamingVideo:', hasVideo);
       console.log('[handleStartStream] streamForPreview set:', pubStreamRef.current);
-      console.log('[handleStartStream] streamPreviewRef.current:', streamPreviewRef.current);
       onStreamStarted?.(streamData);
     } catch (err: unknown) {
       console.error("Publish error:", err);
@@ -620,14 +794,16 @@ export function CreatorVideoStreaming({
       } else {
         const errorMsg = err instanceof Error ? err.message : "Failed to start stream";
         setError(errorMsg);
-        startPreview();
+        if (videoSourceType === "camera") {
+          startPreview();
+        }
       }
       setConnectionState("failed");
       teardownPublish();
     } finally {
       setIsStarting(false);
     }
-  }, [streamTitle, streamDescription, useMic, useSystemAudio, onStreamStarted, stopPreview, startPreview]);
+  }, [streamTitle, streamDescription, useMic, useSystemAudio, videoSourceType, selectedMicDevice, onStreamStarted, stopPreview, startPreview]);
 
   const startPubStats = useCallback(() => {
     let lastBytes = 0;
@@ -668,6 +844,11 @@ export function CreatorVideoStreaming({
       mixerEngineRef.current = null;
     }
 
+    if (stopVizRef.current) {
+      stopVizRef.current();
+      stopVizRef.current = null;
+    }
+
     if (statsTimerRef.current) {
       clearInterval(statsTimerRef.current);
       statsTimerRef.current = null;
@@ -701,9 +882,15 @@ export function CreatorVideoStreaming({
     setShowUsageBanner(false);
     setUsageBannerDismissed(false);
     setShowStreamEndedModal(true);
+    setRealtimeViewerCount(0);
+    setPeakViewerCount(0);
+
+    if (videoSourceType === "screen") {
+      setScreenSelectionDone(false);
+    }
 
     onStreamStopped?.();
-  }, [currentStream, teardownPublish, onStreamStopped]);
+  }, [currentStream, teardownPublish, onStreamStopped, videoSourceType]);
 
   const toggleVideo = useCallback(() => {
     const newState = !isVideoEnabled;
@@ -772,6 +959,14 @@ export function CreatorVideoStreaming({
             <p className="text-slate-400">WHIP Video Streaming</p>
           </div>
 
+          <Link
+            href="/creator/stream"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
+          >
+            <Radio className="w-4 h-4" />
+            Switch to Audio Stream
+          </Link>
+
           <div className="flex items-center gap-4">
             {isStreaming && (
               <>
@@ -818,15 +1013,15 @@ export function CreatorVideoStreaming({
               <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-5">
                 Your video stream ended successfully.
               </p>
-              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 mb-5">
-                <div className="text-left">
-                  <p className="text-xs text-slate-400 mb-0.5">Peak viewers</p>
-                  <p className="text-2xl font-semibold text-slate-900 dark:text-white">
-                    {viewerData.peakViewers?.toLocaleString() ?? "0"}
-                  </p>
-                </div>
-                <Users className="w-8 h-8 text-sky-400 opacity-70 shrink-0" />
-              </div>
+<div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 mb-5">
+                    <div className="text-left">
+                      <p className="text-xs text-slate-400 mb-0.5">Peak viewers</p>
+                      <p className="text-2xl font-semibold text-slate-900 dark:text-white">
+                        {peakViewerCount > 0 ? peakViewerCount.toLocaleString() : "0"}
+                      </p>
+                    </div>
+                    <Users className="w-8 h-8 text-sky-400 opacity-70 shrink-0" />
+                  </div>
               <button
                 onClick={() => {
                   setShowStreamEndedModal(false);
@@ -846,18 +1041,6 @@ export function CreatorVideoStreaming({
             dismissed={usageBannerDismissed}
             onDismiss={() => setUsageBannerDismissed(true)}
           />
-        )}
-
-        {!isStreaming && (
-          <div className="mb-6 flex gap-3">
-            <button
-              onClick={() => router.push("/creator/stream")}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
-            >
-              <Radio className="w-4 h-4" />
-              Switch to Audio Stream
-            </button>
-          </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -886,11 +1069,19 @@ export function CreatorVideoStreaming({
                     className="w-full h-full object-contain"
                   />
                 )}
-                {!isPreviewActive && !isStreaming && (
+                {!isPreviewActive && !isStreaming && videoSourceType === "camera" && (
                   <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
                     <div className="text-center text-slate-500">
                       <Camera className="w-12 h-12 mx-auto mb-2" />
                       <p>Starting preview...</p>
+                    </div>
+                  </div>
+                )}
+                {!isPreviewActive && !isStreaming && videoSourceType === "screen" && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+                    <div className="text-center text-slate-500">
+                      <Monitor className="w-12 h-12 mx-auto mb-2" />
+                      <p>Click "Start Video Stream" to select screen/window</p>
                     </div>
                   </div>
                 )}
@@ -917,6 +1108,11 @@ export function CreatorVideoStreaming({
                   </div>
                 )}
               </div>
+
+              <AudioVisualizer
+                isActive={isStreaming && !!mixerEngineRef.current}
+                canvasRef={canvasRef}
+              />
 
               <div className="flex gap-2">
                 <button
@@ -960,7 +1156,7 @@ export function CreatorVideoStreaming({
             {isStreaming && (
               <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
                 <h2 className="text-lg font-semibold mb-4">Stream Stats</h2>
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-5 gap-4">
                   <div className="text-center">
                     <p className="text-2xl font-bold text-sky-400">{formatDuration(streamDuration)}</p>
                     <p className="text-xs text-slate-500">Duration</p>
@@ -976,6 +1172,10 @@ export function CreatorVideoStreaming({
                   <div className="text-center">
                     <p className="text-2xl font-bold text-yellow-400">{iceState}</p>
                     <p className="text-xs text-slate-500">ICE State</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-pink-400">{realtimeViewerCount}</p>
+                    <p className="text-xs text-slate-500">Viewers</p>
                   </div>
                 </div>
               </div>
@@ -1079,6 +1279,48 @@ export function CreatorVideoStreaming({
                   <span className="text-sm">Microphone</span>
                 </label>
 
+                {useMic && (
+                  <div className="ml-7 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowMicPicker(!showMicPicker)}
+                      disabled={isStreaming || isStarting}
+                      className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1"
+                    >
+                      <Settings className="w-3 h-3" />
+                      {selectedMicDevice
+                        ? micDevices.find((d) => d.deviceId === selectedMicDevice)?.label || "Select microphone"
+                        : "Select microphone"}
+                    </button>
+
+                    {showMicPicker && (
+                      <div className="mt-2 bg-slate-800 rounded-lg p-2 max-h-32 overflow-y-auto">
+                        {micDevices.length === 0 ? (
+                          <span className="text-xs text-slate-500">No devices found</span>
+                        ) : (
+                          micDevices.map((device) => (
+                            <button
+                              key={device.deviceId}
+                              type="button"
+                              onClick={() => {
+                                setSelectedMicDevice(device.deviceId);
+                                setShowMicPicker(false);
+                              }}
+                              className={cn(
+                                "w-full text-left text-xs px-2 py-1.5 rounded hover:bg-slate-700",
+                                selectedMicDevice === device.deviceId &&
+                                  "bg-sky-500/20 text-sky-400"
+                              )}
+                            >
+                              {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {videoSourceType === "screen" && (
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
@@ -1089,11 +1331,18 @@ export function CreatorVideoStreaming({
                       className="w-4 h-4 accent-purple-500"
                     />
                     <Monitor className="w-4 h-4 text-purple-400" />
-                    <span className="text-sm">System Audio</span>
+                    <span className="text-sm">System Audio (from screen share)</span>
                   </label>
                 )}
               </div>
             </div>
+
+            {isStreaming && mixerEngineRef.current && (
+              <CreatorMixer
+                mixerEngine={mixerEngineRef.current}
+                isStreaming={isStreaming}
+              />
+            )}
 
             <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -1143,7 +1392,7 @@ export function CreatorVideoStreaming({
               {!isStreaming ? (
                 <Button
                   onClick={handleStartStream}
-                  disabled={isStarting || !streamTitle.trim()}
+                  disabled={isStarting || !streamTitle.trim() || (videoSourceType === "screen" && !screenSelectionDone)}
                   className="w-full"
                   size="lg"
                 >
@@ -1151,6 +1400,11 @@ export function CreatorVideoStreaming({
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Starting...
+                    </>
+                  ) : videoSourceType === "screen" && !screenSelectionDone ? (
+                    <>
+                      <Monitor className="w-4 h-4 mr-2" />
+                      Select Screen to Share
                     </>
                   ) : (
                     <>
@@ -1170,6 +1424,52 @@ export function CreatorVideoStreaming({
                 </Button>
               )}
             </div>
+
+            {isStreaming && currentStream && (
+              <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <MessageCircle className="w-5 h-5 text-sky-500" />
+                  Chat
+                </h2>
+                
+                <div className="space-y-2 max-h-64 overflow-y-auto mb-3">
+                  {chatMessages.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-4">No messages yet</p>
+                  ) : (
+                    chatMessages.map((msg) => (
+                      <div key={msg.id} className="bg-slate-800 rounded-lg p-2 text-xs">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sky-400">{msg.username || 'Anonymous'}</span>
+                          <span className="text-slate-500 text-[10px]">
+                            {new Date(msg.created_at).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <p className="text-slate-200">{msg.content}</p>
+                      </div>
+                    ))
+                  )}
+                  <div ref={chatMessagesEndRef} />
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={chatMessageInput}
+                    onChange={(e) => setChatMessageInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
+                    placeholder="Send a message..."
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSendChatMessage}
+                    disabled={!chatMessageInput.trim() || isSendingChat}
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {isStreaming && currentStream && (
               <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
@@ -1205,39 +1505,4 @@ export function CreatorVideoStreaming({
       </div>
     </div>
   );
-}
-
-function useViewerCount({
-  slug,
-  companyId,
-  enabled,
-  pollingInterval,
-}: {
-  slug: string;
-  companyId: number;
-  enabled: boolean;
-  pollingInterval: number;
-}) {
-  const [viewerCount, setViewerCount] = useState(0);
-  const [peakViewers, setPeakViewers] = useState(0);
-
-  useEffect(() => {
-    if (!enabled || !slug || !companyId) return;
-
-    const fetchViewerCount = async () => {
-      try {
-        const data = await livestreamApi.getViewerCount(slug, companyId);
-        setViewerCount(data.viewer_count);
-        setPeakViewers((prev) => Math.max(prev, data.peak_viewers));
-      } catch (err) {
-        console.error("Failed to fetch viewer count:", err);
-      }
-    };
-
-    fetchViewerCount();
-    const interval = setInterval(fetchViewerCount, pollingInterval);
-    return () => clearInterval(interval);
-  }, [slug, companyId, enabled, pollingInterval]);
-
-  return { viewerCount, peakViewers };
 }
