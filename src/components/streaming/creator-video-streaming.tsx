@@ -340,6 +340,53 @@ export function CreatorVideoStreaming({
   }, [rightDockCollapsed]);
 
   // DESIGN: Update sparkline data when viewer count changes
+  const triggerScreenCapture = useCallback(async () => {
+    try {
+      const result = await captureScreen();
+      previewStreamRef.current = result.stream;
+      setPreviewStream(result.stream);
+      setScreenSelectionDone(true);
+      setIsPreviewActive(true);
+
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = result.stream;
+        videoPreviewRef.current.play().catch(console.error);
+      }
+
+      if (!result.audioEnabled && useSystemAudio) {
+        console.warn("Screen capture started without audio.");
+        setError("System audio was not captured. Please ensure 'Share audio' is checked in the browser picker.");
+      }
+
+      result.stream.getVideoTracks()[0].onended = () => {
+        console.log("Screen capture ended");
+        setVideoSourceType("camera");
+        setScreenSelectionDone(false);
+        if (previewStreamRef.current) {
+          previewStreamRef.current.getTracks().forEach(track => track.stop());
+          previewStreamRef.current = null;
+        }
+        setPreviewStream(null);
+        setIsPreviewActive(false);
+        if (videoPreviewRef.current) {
+          videoPreviewRef.current.srcObject = null;
+        }
+      };
+    } catch (err) {
+      console.error("Failed to capture screen:", err);
+      setError("Screen capture failed. Please try again.");
+      setVideoSourceType("camera");
+    }
+  }, [useSystemAudio]);
+
+  const handleScreenSourceClick = useCallback(async () => {
+    if (isStreaming || isStarting) return;
+    setVideoSourceType("screen");
+    setUseMic(false);
+    setUseSystemAudio(true);
+    await triggerScreenCapture();
+  }, [isStreaming, isStarting, triggerScreenCapture]);
+
   const startPreview = useCallback(async () => {
     if (isStreaming) return;
     if (previewOpRef.current) {
@@ -351,9 +398,9 @@ export function CreatorVideoStreaming({
     setError(null);
 
     if (videoSourceType === "screen") {
-      if (screenSelectionDone) {
+      if (screenSelectionDone && previewStreamRef.current) {
         setIsPreviewActive(true);
-      } else {
+      } else if (!screenSelectionDone) {
         setIsPreviewActive(false);
       }
       return;
@@ -517,18 +564,22 @@ export function CreatorVideoStreaming({
   useEffect(() => {
     if (!isStreaming) {
       if (videoSourceType === "screen") {
-        setScreenSelectionDone(false);
-        setIsPreviewActive(false);
-        setPreviewStream(null);
-        previewStreamRef.current = null;
-        if (videoPreviewRef.current) {
-          videoPreviewRef.current.srcObject = null;
+        if (!screenSelectionDone) {
+          setIsPreviewActive(false);
+          setPreviewStream(null);
+          previewStreamRef.current = null;
+          if (videoPreviewRef.current) {
+            videoPreviewRef.current.srcObject = null;
+          }
         }
       } else {
+        if (screenSelectionDone) {
+          setScreenSelectionDone(false);
+        }
         restartPreview();
       }
     }
-  }, [videoSourceType, selectedCameraDevice]);
+  }, [videoSourceType, selectedCameraDevice, screenSelectionDone, restartPreview, isStreaming]);
 
   useEffect(() => {
     if (isStreaming && streamForPreview) {
@@ -649,6 +700,11 @@ export function CreatorVideoStreaming({
       }
     }
 
+    if (videoSourceType === "screen" && (!previewStreamRef.current || !screenSelectionDone)) {
+      setError("Please select a screen to share first");
+      return;
+    }
+
     setIsStarting(true);
     setError(null);
     setConnectionState("connecting");
@@ -658,28 +714,8 @@ export function CreatorVideoStreaming({
     let screenCaptureDone = false;
 
     if (videoSourceType === "screen") {
-      try {
-        const result = await captureScreen();
-        videoStream = result.stream;
-        setScreenSelectionDone(true);
-        screenCaptureDone = true;
-
-        if (!result.audioEnabled && useSystemAudio) {
-          console.warn("Screen capture started without audio. User may have unchecked 'Share audio'.");
-          setError("System audio was not captured. Please ensure 'Share audio' is checked in the browser picker.");
-        }
-        
-        videoStream.getVideoTracks()[0].onended = () => {
-          console.log("Screen capture ended");
-          setVideoSourceType("camera");
-          setScreenSelectionDone(false);
-        };
-      } catch (err) {
-        console.error("Failed to capture screen:", err);
-        setError("Screen capture failed. Please try again.");
-        setIsStarting(false);
-        return;
-      }
+      videoStream = previewStreamRef.current!;
+      screenCaptureDone = true;
     } else {
       videoStream = previewStreamRef.current!;
     }
@@ -714,21 +750,13 @@ export function CreatorVideoStreaming({
       }
 
       if (useSystemAudio && screenCaptureDone) {
-        try {
-          const systemStream = await captureSystemSource();
-          engine.addChannel('system', 'SYSTEM', 'system', systemStream);
-        } catch (e) {
-          console.log("System audio not available:", e);
-          setError("System audio is not available. Please ensure you selected audio sharing in the browser picker.");
-        }
-      } else if (useSystemAudio && videoSourceType === "screen") {
-        try {
-          const audioTracks = videoStream.getAudioTracks();
-          if (audioTracks.length > 0) {
-            engine.addChannel('system', 'SYSTEM', 'system', new MediaStream(audioTracks));
-          }
-        } catch (e) {
-          console.log("System audio from screen capture not available:", e);
+        const screenAudioTracks = videoStream.getAudioTracks();
+        if (screenAudioTracks.length > 0) {
+          console.log('[Publisher] Using screen audio tracks:', screenAudioTracks.length);
+          engine.addChannel('screen-audio', 'SYSTEM', 'system', new MediaStream(screenAudioTracks));
+        } else {
+          console.warn("Screen capture has no audio tracks. User may have not selected 'Share audio'.");
+          setError("System audio was not captured. Please ensure 'Share audio' is checked in the browser picker.");
         }
       }
 
@@ -1329,7 +1357,13 @@ export function CreatorVideoStreaming({
               <div className="collapsible-content space-y-2">
                 <button
                   type="button"
-                  onClick={() => !isStreaming && setVideoSourceType("camera")}
+                  onClick={() => {
+                    if (!isStreaming && !isStarting) {
+                      setVideoSourceType("camera");
+                      setUseMic(true);
+                      setUseSystemAudio(false);
+                    }
+                  }}
                   disabled={isStreaming || isStarting}
                   className={cn(
                     "source-card w-full flex items-center gap-3",
@@ -1351,7 +1385,7 @@ export function CreatorVideoStreaming({
 
                 <button
                   type="button"
-                  onClick={() => !isStreaming && setVideoSourceType("screen")}
+                  onClick={handleScreenSourceClick}
                   disabled={isStreaming || isStarting}
                   className={cn(
                     "source-card w-full flex items-center gap-3",
@@ -1422,19 +1456,21 @@ export function CreatorVideoStreaming({
                 </div>
               </div>
               <div className="collapsible-content space-y-2">
-                <label className={cn("source-card flex items-center gap-3", (isStreaming || isStarting) && "disabled")}>
-                  <input
-                    type="checkbox"
-                    checked={useMic}
-                    onChange={(e) => !isStreaming && setUseMic(e.target.checked)}
-                    disabled={isStreaming || isStarting}
-                    className="w-4 h-4 accent-[var(--accent)]"
-                  />
-                  <Mic className="w-5 h-5" style={{ color: "var(--accent)" }} />
-                  <span className="text-sm">Microphone</span>
-                </label>
+                {videoSourceType === "camera" && (
+                  <label className={cn("source-card flex items-center gap-3", (isStreaming || isStarting) && "disabled")}>
+                    <input
+                      type="checkbox"
+                      checked={useMic}
+                      onChange={(e) => !isStreaming && setUseMic(e.target.checked)}
+                      disabled={isStreaming || isStarting}
+                      className="w-4 h-4 accent-[var(--accent)]"
+                    />
+                    <Mic className="w-5 h-5" style={{ color: "var(--accent)" }} />
+                    <span className="text-sm">Microphone</span>
+                  </label>
+                )}
 
-                {useMic && !isStreaming && (
+                {useMic && !isStreaming && videoSourceType === "camera" && (
                   <div className="ml-7 mb-2">
                     <button
                       type="button"
@@ -1644,7 +1680,7 @@ export function CreatorVideoStreaming({
                   <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "var(--bg-base)" }}>
                     <div className="text-center" style={{ color: "var(--text-muted)" }}>
                       <Monitor className="w-12 h-12 mx-auto mb-2" />
-                      <p>Click &ldquo;Go Live&rdquo; to select screen</p>
+                      <p>Select a screen to share on the left</p>
                     </div>
                   </div>
                 )}
@@ -1780,7 +1816,7 @@ export function CreatorVideoStreaming({
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={handleStartStream}
-                disabled={isStarting || !streamTitle.trim() || (videoSourceType === "screen" && !screenSelectionDone)}
+                disabled={isStarting || !streamTitle.trim()}
                 className="cta-button go-live"
                 aria-live="polite"
                 aria-label={isStarting ? "Connecting..." : "Go Live"}
@@ -1789,11 +1825,6 @@ export function CreatorVideoStreaming({
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
                     Starting...
-                  </>
-                ) : videoSourceType === "screen" && !screenSelectionDone ? (
-                  <>
-                    <Monitor className="w-5 h-5" />
-                    Select Screen to Share
                   </>
                 ) : (
                   <>
@@ -1956,7 +1987,13 @@ export function CreatorVideoStreaming({
                   <div className="space-y-2">
                     <button
                       type="button"
-                      onClick={() => !isStreaming && setVideoSourceType("camera")}
+                      onClick={() => {
+                        if (!isStreaming) {
+                          setVideoSourceType("camera");
+                          setUseMic(true);
+                          setUseSystemAudio(false);
+                        }
+                      }}
                       disabled={isStreaming}
                       className={cn("source-card w-full flex items-center gap-3", videoSourceType === "camera" && "selected", isStreaming && "disabled")}
                     >
@@ -1965,7 +2002,7 @@ export function CreatorVideoStreaming({
                     </button>
                     <button
                       type="button"
-                      onClick={() => !isStreaming && setVideoSourceType("screen")}
+                      onClick={handleScreenSourceClick}
                       disabled={isStreaming}
                       className={cn("source-card w-full flex items-center gap-3", videoSourceType === "screen" && "selected", isStreaming && "disabled")}
                     >
@@ -1980,10 +2017,12 @@ export function CreatorVideoStreaming({
                     <Mic className="w-4 h-4" style={{ color: "var(--accent)" }} />
                     <span className="text-sm font-medium">Audio Source</span>
                   </div>
-                  <label className="source-card flex items-center gap-3">
-                    <input type="checkbox" checked={useMic} onChange={(e) => !isStreaming && setUseMic(e.target.checked)} disabled={isStreaming} className="w-4 h-4" />
-                    <span className="text-sm">Microphone</span>
-                  </label>
+                  {videoSourceType === "camera" && (
+                    <label className="source-card flex items-center gap-3">
+                      <input type="checkbox" checked={useMic} onChange={(e) => !isStreaming && setUseMic(e.target.checked)} disabled={isStreaming} className="w-4 h-4" />
+                      <span className="text-sm">Microphone</span>
+                    </label>
+                  )}
                   <label className="source-card flex items-center gap-3 mt-2">
                     <input type="checkbox" checked={useSystemAudio} onChange={(e) => !isStreaming && setUseSystemAudio(e.target.checked)} disabled={isStreaming} className="w-4 h-4" />
                     <span className="text-sm">System Audio</span>
@@ -2017,7 +2056,7 @@ export function CreatorVideoStreaming({
         {!isStreaming ? (
           <button
             onClick={handleStartStream}
-            disabled={isStarting || !streamTitle.trim() || (videoSourceType === "screen" && !screenSelectionDone)}
+            disabled={isStarting || !streamTitle.trim()}
             className="cta-button go-live"
             aria-live="polite"
           >
