@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ConnectionStatus } from '@/types/livestream';
-import { preferVideoCodecs } from '@/lib/webrtc-utils';
 
 interface UseWebRTCOptions {
   onConnectionStateChange?: (state: ConnectionStatus) => void;
@@ -108,11 +107,6 @@ function preferOpus(sdp: string): string {
       `$1${opusFmtp}\r\n`
     );
   }
-}
-
-// Prefer H.264 video codec and Opus audio
-function preferCodecs(sdp: string): string {
-  return preferVideoCodecs(sdp);
 }
 
 // Pull codec name from SDP
@@ -360,18 +354,33 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
       handleIceConnectionStateChange(pc.iceConnectionState);
     };
 
-    // Use a single stable MediaStream and add tracks to it as they arrive
+    // Stable MediaStream — never replaced, tracks are added/removed in-place
     const incomingStream = new MediaStream();
     setRemoteStream(incomingStream);
 
-    // Handle incoming tracks - add each track to the stable stream
-    pc.ontrack = (event) => {
-      console.log('[useWebRTC] ontrack event - kind:', event.track.kind, 'label:', event.track.label, 'enabled:', event.track.enabled);
-      console.log('[useWebRTC] Track settings:', event.track.getSettings());
-      console.log('[useWebRTC] incomingStream before add:', incomingStream.getTracks().map(t => t.kind));
-      incomingStream.addTrack(event.track);
-      console.log('[useWebRTC] incomingStream after add:', incomingStream.getTracks().map(t => t.kind));
+    // Debounce React state updates so both audio+video tracks are batched in one render
+    let updatePending = false;
+    let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const flushRemoteStream = () => {
+      updatePending = false;
+      if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
       setRemoteStream(new MediaStream(incomingStream.getTracks()));
+    };
+
+    // Handle incoming tracks
+    pc.ontrack = (event) => {
+      const mid = event.transceiver?.mid;
+      console.log('[useWebRTC] ontrack - kind:', event.track.kind, 'mid:', mid, 'label:', event.track.label);
+      const existing = incomingStream.getTracks().find(t => t.id === event.track.id);
+      if (!existing) {
+        incomingStream.addTrack(event.track);
+      }
+      console.log('[useWebRTC] incomingStream tracks:', incomingStream.getTracks().map(t => `${t.kind}[${t.id.slice(0,8)}]`));
+
+      // Debounce: schedule React state update, cancel previous if new track arrives soon
+      if (pendingTimer) clearTimeout(pendingTimer);
+      pendingTimer = setTimeout(flushRemoteStream, 0);
     };
 
     pc.onconnectionstatechange = () => {
@@ -382,29 +391,19 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
       console.log('[useWebRTC] ICE connection state:', pc.iceConnectionState);
     };
 
-    // Debug: log all transceivers after offer is set
-    setTimeout(() => {
-      if (pcRef.current) {
-        console.log('[useWebRTC] Transceivers after offer:');
-        pcRef.current.getTransceivers().forEach((t, i) => {
-          console.log(`  [${i}] mid=${t.mid} kind=${t.receiver.track?.kind} direction=${t.direction} currentDirection=${t.currentDirection}`);
-        });
-      }
-    }, 100);
-
     // WHEP: add recvonly transceivers for both audio and video
-    pc.addTransceiver('audio', { direction: 'recvonly' });
     pc.addTransceiver('video', { direction: 'recvonly' });
+    pc.addTransceiver('audio', { direction: 'recvonly' });
 
     // Create offer
     const offer = await pc.createOffer();
     console.log('[useWebRTC] Created offer, SDP preview:', offer.sdp?.substring(0, 500));
-    console.log('[useWebRTC] Offer contains video:', offer.sdp?.includes('video'));
-    console.log('[useWebRTC] Offer contains H264:', offer.sdp?.includes('H264'));
-    // Prefer codecs for both audio and video
-    const sdpWithCodecs = preferCodecs(offer.sdp || '');
-    console.log('[useWebRTC] Modified SDP preview:', sdpWithCodecs.substring(0, 500));
-    await pc.setLocalDescription({ type: offer.type, sdp: sdpWithCodecs });
+    console.log('[useWebRTC] Offer contains video:', offer.sdp?.includes('m=video'));
+    console.log('[useWebRTC] Offer video codecs:', offer.sdp?.match(/a=rtpmap:\d+ ([A-Za-z0-9]+)/g));
+
+    // Use preferOpus only for audio — avoid aggressive SDP munging that can break Cloudflare's video answer
+    const sdpWithAudio = preferOpus(offer.sdp || '');
+    await pc.setLocalDescription({ type: offer.type, sdp: sdpWithAudio });
 
     // Wait for ICE gathering
     await waitForIce(pc, 2000);

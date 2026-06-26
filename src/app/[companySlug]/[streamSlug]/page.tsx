@@ -123,8 +123,8 @@ function StreamPlayer({
   };
 
 
-  const isConnected = connectionState === 'connected';
-  const isConnecting = connectionState === 'connecting' || connectionState === 'new';
+  const isConnected = connectionState === 'connected' || (!!remoteStream && connectionState !== 'failed');
+  const isConnecting = (connectionState === 'connecting' || connectionState === 'new') && !remoteStream;
   const statusColor = isConnected ? '#22d3ee' : isConnecting ? '#f59e0b' : '#ef4444';
   const statusLabel = isConnected ? 'Connected' : isConnecting ? 'Connecting…' : 'Disconnected';
   const liveViewers = viewerCount !== undefined ? viewerCount : stream.viewer_count;
@@ -432,50 +432,30 @@ function VideoPlayerLayout({
   const [volume, setVolume] = useState(0.8);
   const [hasVideoTracks, setHasVideoTracks] = useState(false);
 
-  // Check for video tracks
+  // Detect video tracks and assign srcObject immediately when they arrive
   useEffect(() => {
-    if (remoteStream) {
-      const videoTracks = remoteStream.getVideoTracks();
-      const audioTracks = remoteStream.getAudioTracks();
-      console.log('[VideoPlayerLayout] remoteStream updated');
-      console.log('[VideoPlayerLayout] Video tracks:', videoTracks.length, videoTracks.map(t => ({ label: t.label, enabled: t.enabled })));
-      console.log('[VideoPlayerLayout] Audio tracks:', audioTracks.length, audioTracks.map(t => ({ label: t.label, enabled: t.enabled })));
-      setHasVideoTracks(videoTracks.length > 0);
-    } else {
-      console.log('[VideoPlayerLayout] No remoteStream');
-      setHasVideoTracks(false);
+    if (!remoteStream) { setHasVideoTracks(false); return; }
+    const videoTracks = remoteStream.getVideoTracks();
+    const audioTracks = remoteStream.getAudioTracks();
+    const has = videoTracks.length > 0;
+    console.log('[VideoPlayerLayout] Tracks updated - video:', videoTracks.length, 'audio:', audioTracks.length, 'hasVideo:', has);
+    setHasVideoTracks(has);
+
+    // Assign srcObject immediately when video track arrives — don't gate on connectionState
+    if (has && videoRef.current && videoRef.current.srcObject !== remoteStream) {
+      console.log('[VideoPlayerLayout] Assigning srcObject immediately for video track');
+      videoRef.current.srcObject = remoteStream;
+      videoRef.current.muted = true; // start muted for autoplay policy
+      const playPromise = videoRef.current.play();
+      playPromise.then(() => console.log('[VideoPlayerLayout] Immediate play succeeded'))
+        .catch(err => {
+          console.error('[VideoPlayerLayout] Immediate play failed:', err);
+          videoRef.current!.muted = true;
+          videoRef.current!.play().then(() => console.log('[VideoPlayerLayout] Muted play succeeded'))
+            .catch(e => console.error('[VideoPlayerLayout] Muted play also failed:', e));
+        });
     }
   }, [remoteStream]);
-
-  // Auto-play video when stream is connected and has video tracks
-  useEffect(() => {
-    console.log('[VideoPlayerLayout] Auto-play effect:', { hasVideoTracks, connectionState, isPlaying });
-    if (remoteStream && videoRef.current && connectionState === 'connected' && hasVideoTracks) {
-      console.log('[VideoPlayerLayout] Setting video srcObject and playing');
-      videoRef.current.srcObject = remoteStream;
-      console.log('[VideoPlayerLayout] videoRef.srcObject set, attempting play...');
-      const playPromise = videoRef.current.play();
-      playPromise.then(() => console.log('[VideoPlayerLayout] Play started successfully'))
-         .catch(err => {
-           console.error('[VideoPlayerLayout] Play failed:', err);
-           // Try muted for autoplay policy fallback
-           console.log('[VideoPlayerLayout] Attempting muted play...');
-           videoRef.current!.muted = true;
-           videoRef.current!.play().then(() => console.log('[VideoPlayerLayout] Muted play worked'))
-             .catch(e => console.error('[VideoPlayerLayout] Muted play also failed:', e));
-         });
-    } else if (connectionState === 'connected' && !hasVideoTracks) {
-      console.log('[VideoPlayerLayout] Connected but no video tracks yet, waiting...');
-      // Check periodically for video tracks
-      const interval = setInterval(() => {
-        if (videoRef.current?.srcObject) {
-          const stream = videoRef.current.srcObject as MediaStream;
-          console.log('[VideoPlayerLayout] Periodic check - tracks:', stream.getTracks().map(t => t.kind));
-        }
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [remoteStream, connectionState, hasVideoTracks, isPlaying]);
 
   const handleVolumeChange = (v: number) => {
     setVolume(v);
@@ -522,13 +502,13 @@ function VideoPlayerLayout({
             </div>
           </div>
         )}
-        {isConnecting && (
+        {isConnecting && !hasVideoTracks && remoteStream && (
           <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm">
             <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
             <span className="text-white text-xs">Connecting...</span>
           </div>
         )}
-        {isConnected && (
+        {(isConnected || hasVideoTracks) && (
           <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm">
             <div className="w-2 h-2 rounded-full bg-green-500" />
             <span className="text-white text-xs">Live</span>
@@ -640,10 +620,13 @@ export default function StreamPage() {
     if (stream?.stream_type === 'video' && stream?.cf_webrtc_playback_url && !autoPlayAttemptedRef.current && connectionState !== 'connected' && connectionState !== 'connecting') {
       console.log('[StreamPage] Auto-starting video playback...');
       autoPlayAttemptedRef.current = true;
-      // Call handlePlay directly - it will be defined by second render if not on first
+      setIsPlaying(true); // mark playing BEFORE connection completes so UI reflects intent
       if (stream?.cf_webrtc_playback_url) {
-        startPlayback(stream.cf_webrtc_playback_url).catch((err) => {
+        startPlayback(stream.cf_webrtc_playback_url).then(() => {
+          console.log('[StreamPage] startPlayback resolved');
+        }).catch((err) => {
           console.error('[StreamPage] Auto-play failed:', err);
+          setIsPlaying(false); // rollback if it failed
         });
       }
     }
@@ -731,12 +714,14 @@ export default function StreamPage() {
       setIsPlaying(true);
       return;
     }
+    setIsPlaying(true);
     try {
       console.log('[StreamPage] Calling startPlayback...');
       await startPlayback(stream.cf_webrtc_playback_url);
       console.log('[StreamPage] startPlayback succeeded');
     } catch (err) {
       console.error('[StreamPage] startPlayback failed:', err);
+      setIsPlaying(false);
       const error = err as { status?: number; message?: string };
       if (error.status === 409) {
         setCreatorNotStreamingInfo({ creatorName: company?.name || 'The Creator', streamTitle: stream.title });
