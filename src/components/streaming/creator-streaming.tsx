@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Mic,
@@ -30,6 +31,7 @@ import {
   Reply,
   Copy,
   Check,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -1067,6 +1069,14 @@ export function CreatorStreaming({
             <h1 className="text-2xl font-bold">Creator Studio</h1>
             <p className="text-slate-400">WHIP Audio Streaming</p>
           </div>
+
+          <Link
+            href="/creator/video"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
+          >
+            <Video className="w-4 h-4" />
+            Switch to Video Stream
+          </Link>
 
           {/* Connection status */}
           <div className="flex items-center gap-2">

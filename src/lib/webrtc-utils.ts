@@ -134,7 +134,29 @@ export function mixAudioStreams(streams: MediaStream[]): MediaStream {
     source.connect(destination);
   });
   
+  // Note: The AudioContext should be closed by the caller when done
+  // This function is deprecated - use MixerEngine instead for proper cleanup
   return destination.stream;
+}
+
+/**
+ * @deprecated Use MixerEngine class instead for proper resource management
+ */
+export function mixAudioStreamsWithCleanup(streams: MediaStream[]): { stream: MediaStream; cleanup: () => void } {
+  const audioCtx = new AudioContext();
+  const destination = audioCtx.createMediaStreamDestination();
+  
+  streams.forEach(stream => {
+    const source = audioCtx.createMediaStreamSource(stream);
+    source.connect(destination);
+  });
+  
+  return {
+    stream: destination.stream,
+    cleanup: () => {
+      audioCtx.close();
+    },
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -177,37 +199,6 @@ export function preferOpus(sdp: string): string {
     );
   }
 
-  // Add BUNDLE group if not present (required for max-bundle policy)
-  if (!newSdp.includes('a=group:BUNDLE')) {
-    // Find all mid values from the SDP
-    const midMatches = newSdp.matchAll(/a=mid:(\S+)/g);
-    const mids = [...midMatches].map(m => m[1]);
-
-    if (mids.length > 0) {
-      const bundleLine = `a=group:BUNDLE ${mids.join(' ')}\r\n`;
-      // Find the position right after session description (after o= line)
-      // The session description typically ends with a media line (m=) or c= line
-      const lines = newSdp.split(/\r?\n/);
-      let insertIndex = -1;
-      
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].startsWith('m=')) {
-          insertIndex = i;
-          break;
-        }
-      }
-      
-      if (insertIndex > 0) {
-        // Not the cleanest but add before first m= line
-        const bundleWithNewline = bundleLine.trimEnd() + '\r\n';
-        // Add at line before first m=
-        lines.splice(insertIndex, 0, '');
-        lines.splice(insertIndex, 0, bundleWithNewline.trim());
-        newSdp = lines.join('\r\n');
-      }
-    }
-  }
-
   return newSdp;
 }
 
@@ -241,4 +232,43 @@ export async function getAudioStats(
   });
   
   return result;
+}
+
+// ─────────────────────────────────────────────
+// Prefer H.264 video codec — required for Cloudflare Stream
+// ─────────────────────────────────────────────
+export function preferH264(sdp: string): string {
+  const h264Match = sdp.match(/a=rtpmap:(\d+) H264\/\d+/i);
+  if (!h264Match) return sdp;
+
+  const h264Pt = h264Match[1];
+  const h264Fmtp = `a=fmtp:${h264Pt} level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f`;
+
+  // Check if profile-level-id is already set
+  const hasExistingFmtp = new RegExp(`a=fmtp:${h264Pt} `).test(sdp);
+
+  let newSdp = sdp;
+
+  // First, move H264 to the front of video codecs (put it first in m= line)
+  // This tells the server we prefer H264
+
+  if (hasExistingFmtp) {
+    newSdp = newSdp.replace(new RegExp(`a=fmtp:${h264Pt} [^\\r\\n]+`), h264Fmtp);
+  } else {
+    const rtpmapLine = sdp.match(new RegExp(`(a=rtpmap:${h264Pt} H264[^\\r\\n]+\\r?\\n)`));
+    if (rtpmapLine) {
+      newSdp = newSdp.replace(rtpmapLine[1], rtpmapLine[1] + h264Fmtp + '\r\n');
+    }
+  }
+
+  return newSdp;
+}
+
+// ─────────────────────────────────────────────
+// Combine opus and h264 preferences for video streams
+// ─────────────────────────────────────────────
+export function preferVideoCodecs(sdp: string): string {
+  let modifiedSdp = preferOpus(sdp);
+  modifiedSdp = preferH264(modifiedSdp);
+  return modifiedSdp;
 }

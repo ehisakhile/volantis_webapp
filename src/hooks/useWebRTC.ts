@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ConnectionStatus } from '@/types/livestream';
+import { preferVideoCodecs } from '@/lib/webrtc-utils';
 
 interface UseWebRTCOptions {
   onConnectionStateChange?: (state: ConnectionStatus) => void;
@@ -38,9 +39,10 @@ interface UseWebRTCReturn {
   startPlayback: (playbackUrl: string) => Promise<void>;
   stop: () => void;
   retryConnection: () => Promise<void>;
-  // Audio stats
+  // Stats for monitoring
   audioStats: {
     bitrate?: number;
+    videoBitrate?: number;
     jitter?: number;
     codec?: string;
   };
@@ -106,6 +108,11 @@ function preferOpus(sdp: string): string {
       `$1${opusFmtp}\r\n`
     );
   }
+}
+
+// Prefer H.264 video codec and Opus audio
+function preferCodecs(sdp: string): string {
+  return preferVideoCodecs(sdp);
 }
 
 // Pull codec name from SDP
@@ -181,13 +188,14 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
     }
   }, []);
 
-  // Start audio stats monitoring
+  // Start audio/video stats monitoring
   const startStatsMonitoring = useCallback((pc: RTCPeerConnection, isOutbound: boolean) => {
     if (statsTimerRef.current) {
       clearInterval(statsTimerRef.current);
     }
 
-    let lastBytes = 0;
+    let lastAudioBytes = 0;
+    let lastVideoBytes = 0;
     let lastTs = 0;
 
     statsTimerRef.current = setInterval(async () => {
@@ -196,21 +204,41 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
       try {
         const stats = await pc.getStats();
         stats.forEach((r) => {
-          if (isOutbound && r.type === 'outbound-rtp' && r.kind === 'audio') {
-            const now = r.timestamp;
-            const bytes = r.bytesSent;
-            if (lastTs && now > lastTs) {
-              const dt = (Number(now) - lastTs) / 1000;
-              const kbps = Math.round(((bytes - lastBytes) * 8) / dt / 1000);
-              setAudioStats((prev) => ({ ...prev, bitrate: kbps }));
+          if (isOutbound && r.type === 'outbound-rtp') {
+            if (r.kind === 'audio' && r.timestamp) {
+              const bytes = Number(r.bytesSent);
+              if (lastTs) {
+                const dt = (Number(r.timestamp) - lastTs) / 1000;
+                if (dt > 0) {
+                  const kbps = Math.round(((bytes - lastAudioBytes) * 8) / dt / 1000);
+                  setAudioStats((prev) => ({ ...prev, bitrate: kbps }));
+                }
+              }
+              lastAudioBytes = bytes;
+            } else if (r.kind === 'video' && r.timestamp) {
+              const bytes = Number(r.bytesSent);
+              if (lastTs) {
+                const dt = (Number(r.timestamp) - lastTs) / 1000;
+                if (dt > 0) {
+                  const kbps = Math.round(((bytes - lastVideoBytes) * 8) / dt / 1000);
+                  setAudioStats((prev) => ({ ...prev, videoBitrate: kbps }));
+                }
+              }
+              lastVideoBytes = bytes;
             }
-            lastBytes = bytes;
-            lastTs = Number(now);
-          } else if (!isOutbound && r.type === 'inbound-rtp' && r.kind === 'audio') {
-            const jitter = r.jitter != null ? Number(r.jitter) * 1000 : null;
-            setAudioStats((prev) => ({ ...prev, jitter: jitter ?? prev.jitter }));
+          } else if (!isOutbound && r.type === 'inbound-rtp') {
+            if (r.kind === 'audio' && r.jitter != null) {
+              const jitter = Number(r.jitter) * 1000;
+              setAudioStats((prev) => ({ ...prev, jitter: jitter }));
+            } else if (r.kind === 'video') {
+              console.log('[useWebRTC] Video RTP being received, bytes:', r.bytesReceived);
+            }
           }
         });
+        const firstRtp = Array.from(stats.values()).find(r => r.type === 'outbound-rtp' || r.type === 'inbound-rtp');
+        if (firstRtp?.timestamp) {
+          lastTs = Number(firstRtp.timestamp);
+        }
       } catch (e) {
         console.warn('Failed to get stats:', e);
       }
@@ -332,19 +360,51 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
       handleIceConnectionStateChange(pc.iceConnectionState);
     };
 
-    // Handle incoming tracks
+    // Use a single stable MediaStream and add tracks to it as they arrive
+    const incomingStream = new MediaStream();
+    setRemoteStream(incomingStream);
+
+    // Handle incoming tracks - add each track to the stable stream
     pc.ontrack = (event) => {
-      if (event.streams[0]) {
-        setRemoteStream(event.streams[0]);
-      }
+      console.log('[useWebRTC] ontrack event - kind:', event.track.kind, 'label:', event.track.label, 'enabled:', event.track.enabled);
+      console.log('[useWebRTC] Track settings:', event.track.getSettings());
+      console.log('[useWebRTC] incomingStream before add:', incomingStream.getTracks().map(t => t.kind));
+      incomingStream.addTrack(event.track);
+      console.log('[useWebRTC] incomingStream after add:', incomingStream.getTracks().map(t => t.kind));
+      setRemoteStream(new MediaStream(incomingStream.getTracks()));
     };
 
-    // WHEP: add recvonly transceiver
+    pc.onconnectionstatechange = () => {
+      console.log('[useWebRTC] Connection state:', pc.connectionState);
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('[useWebRTC] ICE connection state:', pc.iceConnectionState);
+    };
+
+    // Debug: log all transceivers after offer is set
+    setTimeout(() => {
+      if (pcRef.current) {
+        console.log('[useWebRTC] Transceivers after offer:');
+        pcRef.current.getTransceivers().forEach((t, i) => {
+          console.log(`  [${i}] mid=${t.mid} kind=${t.receiver.track?.kind} direction=${t.direction} currentDirection=${t.currentDirection}`);
+        });
+      }
+    }, 100);
+
+    // WHEP: add recvonly transceivers for both audio and video
     pc.addTransceiver('audio', { direction: 'recvonly' });
+    pc.addTransceiver('video', { direction: 'recvonly' });
 
     // Create offer
     const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
+    console.log('[useWebRTC] Created offer, SDP preview:', offer.sdp?.substring(0, 500));
+    console.log('[useWebRTC] Offer contains video:', offer.sdp?.includes('video'));
+    console.log('[useWebRTC] Offer contains H264:', offer.sdp?.includes('H264'));
+    // Prefer codecs for both audio and video
+    const sdpWithCodecs = preferCodecs(offer.sdp || '');
+    console.log('[useWebRTC] Modified SDP preview:', sdpWithCodecs.substring(0, 500));
+    await pc.setLocalDescription({ type: offer.type, sdp: sdpWithCodecs });
 
     // Wait for ICE gathering
     await waitForIce(pc, 2000);
@@ -373,6 +433,9 @@ export function useWebRTC(options: UseWebRTCOptions = {}) {
     }
 
     const answerSDP = await response.text();
+    console.log('[useWebRTC] Answer SDP preview:', answerSDP.substring(0, 300));
+    console.log('[useWebRTC] Answer contains video:', answerSDP.includes('video'));
+    console.log('[useWebRTC] Answer video codec:', answerSDP.match(/a=rtpmap:\d+ ([A-Za-z0-9]+)/));
 
     // Detect codec
     const codec = detectAudioCodec(answerSDP);

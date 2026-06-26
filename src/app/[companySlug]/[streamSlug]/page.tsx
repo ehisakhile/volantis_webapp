@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Radio, Play, X, Volume2, VolumeX, Wifi, Users, Activity, Signal,
+  Radio, Play, X, Volume2, VolumeX, Wifi, Users, Activity, Signal, Video,
   Eye, Share2, ArrowLeft, MessageCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { LiveChat } from '@/components/streaming/live-chat';
@@ -84,7 +84,7 @@ function GrainOverlay() {
 /* ─────────────────── Stream Player ─────────────────── */
 function StreamPlayer({
   stream, company, isPlaying, connectionState, remoteStream, audioStats,
-  onStop, onPlay, onRetry, onVolumeChange, viewerCount, peakViewers,
+  onStop, onPlay, onRetry, onVolumeChange, viewerCount, peakViewers, isVideoStream,
 }: {
   stream: VolLivestreamOut;
   company: VolCompanyResponse | null;
@@ -98,23 +98,49 @@ function StreamPlayer({
   onVolumeChange?: (volume: number) => void;
   viewerCount?: number;
   peakViewers?: number;
+  isVideoStream?: boolean;
 }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [showStats, setShowStats] = useState(false);
+  const [hasVideoTrack, setHasVideoTrack] = useState(false);
+
+  // Check for video track in remote stream
+  useEffect(() => {
+    if (remoteStream) {
+      const videoTracks = remoteStream.getVideoTracks();
+      setHasVideoTrack(videoTracks.length > 0);
+    } else {
+      setHasVideoTrack(false);
+    }
+  }, [remoteStream]);
 
   const handleVolumeChange = (v: number) => {
     setVolume(v);
     onVolumeChange?.(v);
   };
 
-  console.log('prop drilled peak viewers', peakViewers);
 
   const isConnected = connectionState === 'connected';
   const isConnecting = connectionState === 'connecting' || connectionState === 'new';
   const statusColor = isConnected ? '#22d3ee' : isConnecting ? '#f59e0b' : '#ef4444';
   const statusLabel = isConnected ? 'Connected' : isConnecting ? 'Connecting…' : 'Disconnected';
   const liveViewers = viewerCount !== undefined ? viewerCount : stream.viewer_count;
+
+  // Auto-play video when stream has video track
+  useEffect(() => {
+    if (hasVideoTrack && videoRef.current && remoteStream && isPlaying) {
+      videoRef.current.srcObject = remoteStream;
+      videoRef.current.play().then(() => {
+        console.log('[StreamPlayer] Video playback started');
+        setIsVideoLoaded(true);
+      }).catch(err => {
+        console.error('[StreamPlayer] Video playback failed:', err);
+      });
+    }
+  }, [hasVideoTrack, remoteStream, isPlaying]);
 
 
   return (
@@ -199,37 +225,54 @@ function StreamPlayer({
           </div>
         </div>
 
-        {/* Visualizer */}
+        {/* Video or Audio Visualizer */}
         <div
-          className="relative rounded-xl overflow-hidden mb-4 h-20"
+          className="relative rounded-xl overflow-hidden mb-4"
           style={{
             background: 'linear-gradient(180deg, rgba(34,211,238,0.04) 0%, rgba(139,92,246,0.04) 100%)',
             border: '1px solid rgba(255,255,255,0.05)',
+            height: hasVideoTrack ? 'auto' : '80px',
+            aspectRatio: hasVideoTrack ? '16/9' : undefined,
+            maxHeight: hasVideoTrack ? '320px' : undefined,
           }}
         >
-          <div className="absolute inset-0 opacity-[0.07]"
-            style={{
-              backgroundImage: 'linear-gradient(rgba(34,211,238,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.4) 1px, transparent 1px)',
-              backgroundSize: '36px 36px',
-            }} />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="relative">
-              <PulseRings isActive={isPlaying} />
-              <motion.div
-                className="w-11 h-11 rounded-full bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center shadow-lg z-10 relative"
-                animate={isPlaying ? {
-                  scale: [1, 1.07, 1],
-                  boxShadow: ['0 0 12px rgba(34,211,238,0.25)', '0 0 32px rgba(34,211,238,0.55)', '0 0 12px rgba(34,211,238,0.25)'],
-                } : {}}
-                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              >
-                <Radio className="w-4.5 h-4.5 text-white" />
-              </motion.div>
-            </div>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 px-3 pb-2 h-9">
-            <AudioVisualizer isActive={isPlaying} color="#22d3ee" />
-          </div>
+          {hasVideoTrack ? (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-contain bg-black"
+            />
+          ) : (
+            <>
+              <div className="h-[80px]">
+                <div className="absolute inset-0 opacity-[0.07]"
+                  style={{
+                    backgroundImage: 'linear-gradient(rgba(34,211,238,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.4) 1px, transparent 1px)',
+                    backgroundSize: '36px 36px',
+                  }} />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="relative">
+                    <PulseRings isActive={isPlaying} />
+                    <motion.div
+                      className="w-11 h-11 rounded-full bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center shadow-lg z-10 relative"
+                      animate={isPlaying ? {
+                        scale: [1, 1.07, 1],
+                        boxShadow: ['0 0 12px rgba(34,211,238,0.25)', '0 0 32px rgba(34,211,238,0.55)', '0 0 12px rgba(34,211,238,0.25)'],
+                      } : {}}
+                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                    >
+                      <Radio className="w-4.5 h-4.5 text-white" />
+                    </motion.div>
+                  </div>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 px-3 pb-2 h-9">
+                  <AudioVisualizer isActive={isPlaying} color="#22d3ee" />
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Volume */}
@@ -370,6 +413,150 @@ function MobileChatSection({ streamSlug, companyName }: { streamSlug: string; co
   );
 }
 
+/* ───────────────────────── Video Player Layout ───────────────────────── */
+function VideoPlayerLayout({ 
+  stream, company, remoteStream, isPlaying, connectionState, onPlay, onRetry, viewerCount, peakViewers 
+}: {
+  stream: VolLivestreamOut;
+  company: VolCompanyResponse | null;
+  remoteStream: MediaStream | null;
+  isPlaying: boolean;
+  connectionState: string;
+  onPlay: () => void;
+  onRetry: () => void;
+  viewerCount?: number;
+  peakViewers?: number;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isMuted, setIsMuted] = useState(true); // Start muted for autoplay
+  const [volume, setVolume] = useState(0.8);
+  const [hasVideoTracks, setHasVideoTracks] = useState(false);
+
+  // Check for video tracks
+  useEffect(() => {
+    if (remoteStream) {
+      const videoTracks = remoteStream.getVideoTracks();
+      const audioTracks = remoteStream.getAudioTracks();
+      console.log('[VideoPlayerLayout] remoteStream updated');
+      console.log('[VideoPlayerLayout] Video tracks:', videoTracks.length, videoTracks.map(t => ({ label: t.label, enabled: t.enabled })));
+      console.log('[VideoPlayerLayout] Audio tracks:', audioTracks.length, audioTracks.map(t => ({ label: t.label, enabled: t.enabled })));
+      setHasVideoTracks(videoTracks.length > 0);
+    } else {
+      console.log('[VideoPlayerLayout] No remoteStream');
+      setHasVideoTracks(false);
+    }
+  }, [remoteStream]);
+
+  // Auto-play video when stream is connected and has video tracks
+  useEffect(() => {
+    console.log('[VideoPlayerLayout] Auto-play effect:', { hasVideoTracks, connectionState, isPlaying });
+    if (remoteStream && videoRef.current && connectionState === 'connected' && hasVideoTracks) {
+      console.log('[VideoPlayerLayout] Setting video srcObject and playing');
+      videoRef.current.srcObject = remoteStream;
+      console.log('[VideoPlayerLayout] videoRef.srcObject set, attempting play...');
+      const playPromise = videoRef.current.play();
+      playPromise.then(() => console.log('[VideoPlayerLayout] Play started successfully'))
+         .catch(err => {
+           console.error('[VideoPlayerLayout] Play failed:', err);
+           // Try muted for autoplay policy fallback
+           console.log('[VideoPlayerLayout] Attempting muted play...');
+           videoRef.current!.muted = true;
+           videoRef.current!.play().then(() => console.log('[VideoPlayerLayout] Muted play worked'))
+             .catch(e => console.error('[VideoPlayerLayout] Muted play also failed:', e));
+         });
+    } else if (connectionState === 'connected' && !hasVideoTracks) {
+      console.log('[VideoPlayerLayout] Connected but no video tracks yet, waiting...');
+      // Check periodically for video tracks
+      const interval = setInterval(() => {
+        if (videoRef.current?.srcObject) {
+          const stream = videoRef.current.srcObject as MediaStream;
+          console.log('[VideoPlayerLayout] Periodic check - tracks:', stream.getTracks().map(t => t.kind));
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [remoteStream, connectionState, hasVideoTracks, isPlaying]);
+
+  const handleVolumeChange = (v: number) => {
+    setVolume(v);
+    if (videoRef.current) {
+      videoRef.current.volume = v;
+    }
+  };
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const isConnected = connectionState === 'connected';
+  const isConnecting = connectionState === 'connecting';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+      className="w-full rounded-2xl overflow-hidden border border-white/8"
+      style={{ background: 'linear-gradient(160deg, rgba(13,18,32,0.97) 0%, rgba(6,10,22,0.99) 100%)' }}
+    >
+      {/* Video Output */}
+      <div className="relative aspect-video bg-black max-h-[70vh]">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          controls
+          muted={isMuted}
+          className="w-full h-full object-contain"
+        />
+        {(!remoteStream || (remoteStream && !hasVideoTracks)) && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+            <div className="text-center text-white">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-700/50 flex items-center justify-center">
+                <Video className="w-8 h-8" />
+              </div>
+              <p className="text-slate-400">Waiting for video...</p>
+            </div>
+          </div>
+        )}
+        {isConnecting && (
+          <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm">
+            <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+            <span className="text-white text-xs">Connecting...</span>
+          </div>
+        )}
+        {isConnected && (
+          <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm">
+            <div className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="text-white text-xs">Live</span>
+          </div>
+        )}
+      </div>
+
+      {/* Info Bar */}
+      <div className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <Link href={`/${company?.slug || ''}`} className="text-cyan-400 text-xs font-bold uppercase tracking-widest hover:underline">
+              {company?.name || 'Channel'}
+            </Link>
+            <h2 className="text-white font-bold">{stream.title}</h2>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 text-slate-400">
+              <Eye className="w-4 h-4" />
+              <span className="text-white font-semibold">{viewerCount ?? 0}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 /* ─────────────────────────────── PAGE ─────────────────────────────── */
 export default function StreamPage() {
   const params = useParams();
@@ -385,8 +572,21 @@ export default function StreamPage() {
   const [isAudioInitialized, setIsAudioInitialized] = useState(false);
   const [showCreatorNotStreaming, setShowCreatorNotStreaming] = useState(false);
   const [creatorNotStreamingInfo, setCreatorNotStreamingInfo] = useState<{ creatorName: string; streamTitle?: string } | null>(null);
+  const [hasVideoTrack, setHasVideoTrack] = useState(false);
+  const autoPlayAttemptedRef = useRef(false);
 
   const { remoteStream, connectionState, startPlayback, stop: stopPlayback, retryConnection, audioStats } = useWebRTC();
+
+  // Detect if remote stream has video tracks
+  useEffect(() => {
+    if (remoteStream) {
+      const videoTracks = remoteStream.getVideoTracks();
+      setHasVideoTrack(videoTracks.length > 0);
+      console.log('[StreamPage] Remote stream video tracks:', videoTracks.length, videoTracks.map(t => t.label));
+    } else {
+      setHasVideoTrack(false);
+    }
+  }, [remoteStream]);
   const { viewerCount: realtimeViewerCount, totalViews, peakViewers } = useViewerCount({
     slug: streamSlug || '',
     companyId: company?.id || 0,
@@ -412,17 +612,42 @@ export default function StreamPage() {
   });
   useVisibilityChange();
 
-  // Initialize audio when remote stream becomes available
+  // Initialize audio when remote stream becomes available - for audio streams only
   useEffect(() => {
-    if (remoteStream && !audioIsInitialized) {
+    if (remoteStream && !audioIsInitialized && stream?.stream_type !== 'video') {
+      console.log('[StreamPage] Auto-connecting audio stream');
       initializeAudio(remoteStream);
-      // After initialization, start playback to actually hear the audio
-      // This is critical for mobile browsers to recognize audio playback
       play().then(() => {
         setIsPlaying(true);
       }).catch(console.error);
     }
-  }, [remoteStream, initializeAudio, play, audioIsInitialized]);
+  }, [remoteStream, initializeAudio, play, audioIsInitialized, stream?.stream_type]);
+
+  // For video streams, auto-trigger handlePlay when stream data loads with playback URL
+  // But only if not already playing/connecting
+  useEffect(() => {
+    console.log('[StreamPage] Video stream check:', {
+      hasRemoteStream: !!remoteStream,
+      streamType: stream?.stream_type,
+      isPlaying,
+      isAlreadyConnecting: connectionState === 'connecting',
+      hasPlaybackUrl: !!stream?.cf_webrtc_playback_url,
+      connectionState,
+      autoPlayAttempted: autoPlayAttemptedRef.current
+    });
+
+    // Auto-play for video streams when we have the playback URL but no connection yet
+    if (stream?.stream_type === 'video' && stream?.cf_webrtc_playback_url && !autoPlayAttemptedRef.current && connectionState !== 'connected' && connectionState !== 'connecting') {
+      console.log('[StreamPage] Auto-starting video playback...');
+      autoPlayAttemptedRef.current = true;
+      // Call handlePlay directly - it will be defined by second render if not on first
+      if (stream?.cf_webrtc_playback_url) {
+        startPlayback(stream.cf_webrtc_playback_url).catch((err) => {
+          console.error('[StreamPage] Auto-play failed:', err);
+        });
+      }
+    }
+  }, [stream?.stream_type, stream?.cf_webrtc_playback_url, stream, connectionState, startPlayback]);
 
   const updateVolume = useCallback((vol: number) => setVolume(vol), [setVolume]);
 
@@ -442,6 +667,10 @@ export default function StreamPage() {
       }
       setStream(streamData);
       if (!streamData.is_active) { router.push(`/${companySlug}`); return; }
+      // Mark as video stream for display purposes
+      if (streamData.stream_type === 'video') {
+        // Video stream detected
+      }
       try {
         const pageData = await livestreamApi.getCompanyPage(companySlug);
         setCompany({
@@ -494,18 +723,27 @@ export default function StreamPage() {
     router.push(`/${companySlug}`);
   }
 
-  const handlePlay = async () => {
-    if (!stream?.cf_webrtc_playback_url) { setIsPlaying(true); return; }
+  const handlePlay = useCallback(async () => {
+    console.log('[StreamPage] handlePlay called, stream type:', stream?.stream_type);
+    console.log('[StreamPage] playback URL:', stream?.cf_webrtc_playback_url);
+    if (!stream?.cf_webrtc_playback_url) {
+      console.log('[StreamPage] No playback URL available');
+      setIsPlaying(true);
+      return;
+    }
     try {
+      console.log('[StreamPage] Calling startPlayback...');
       await startPlayback(stream.cf_webrtc_playback_url);
+      console.log('[StreamPage] startPlayback succeeded');
     } catch (err) {
-      const error = err as { status?: number };
+      console.error('[StreamPage] startPlayback failed:', err);
+      const error = err as { status?: number; message?: string };
       if (error.status === 409) {
         setCreatorNotStreamingInfo({ creatorName: company?.name || 'The Creator', streamTitle: stream.title });
         setShowCreatorNotStreaming(true);
       }
     }
-  };
+  }, [stream, startPlayback, company]);
 
   const handleRetry = async () => {
     if (!stream?.cf_webrtc_playback_url) return;
@@ -602,14 +840,25 @@ export default function StreamPage() {
             {/* ── Desktop: player + sidebar chat side by side ── */}
             <div className="hidden lg:flex gap-6 items-start">
               <div className="flex-1 min-w-0">
-                <StreamPlayer
-                  stream={stream} company={company} isPlaying={isPlaying}
-                  connectionState={connectionState} remoteStream={remoteStream}
-                  audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
-                  onRetry={handleRetry} onVolumeChange={updateVolume}
-                  viewerCount={totalViews}
-                  peakViewers={peakViewers}
-                />
+                {stream?.stream_type === 'video' ? (
+                  <VideoPlayerLayout
+                    stream={stream} company={company}
+                    remoteStream={remoteStream} isPlaying={isPlaying}
+                    connectionState={connectionState}
+                    onPlay={handlePlay} onRetry={handleRetry}
+                    viewerCount={totalViews} peakViewers={peakViewers}
+                  />
+                ) : (
+                  <StreamPlayer
+                    stream={stream} company={company} isPlaying={isPlaying}
+                    connectionState={connectionState} remoteStream={remoteStream}
+                    audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
+                    onRetry={handleRetry} onVolumeChange={updateVolume}
+                    viewerCount={totalViews}
+                    peakViewers={peakViewers}
+                    isVideoStream={false}
+                  />
+                )}
               </div>
 
               {/* Desktop chat — sticky with a fixed height so it never collapses */}
@@ -622,14 +871,25 @@ export default function StreamPage() {
 
             {/* ── Mobile: player stacked above collapsible chat ── */}
             <div className="lg:hidden">
-              <StreamPlayer
-                stream={stream} company={company} isPlaying={isPlaying}
-                connectionState={connectionState} remoteStream={remoteStream}
-                audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
-                onRetry={handleRetry} onVolumeChange={updateVolume}
-                viewerCount={totalViews}
-                peakViewers={peakViewers}
-              />
+              {stream?.stream_type === 'video' ? (
+                <VideoPlayerLayout
+                  stream={stream} company={company}
+                  remoteStream={remoteStream} isPlaying={isPlaying}
+                  connectionState={connectionState}
+                  onPlay={handlePlay} onRetry={handleRetry}
+                  viewerCount={totalViews} peakViewers={peakViewers}
+                />
+              ) : (
+                <StreamPlayer
+                  stream={stream} company={company} isPlaying={isPlaying}
+                  connectionState={connectionState} remoteStream={remoteStream}
+                  audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
+                  onRetry={handleRetry} onVolumeChange={updateVolume}
+                  viewerCount={totalViews}
+                  peakViewers={peakViewers}
+                  isVideoStream={false}
+                />
+              )}
               <MobileChatSection streamSlug={streamSlug} companyName={company?.name} />
             </div>
 

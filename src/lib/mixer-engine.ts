@@ -59,13 +59,17 @@ export class MixerEngine {
   private isDestroyed: boolean = false;
 
   constructor(config?: MixerEngineConfig) {
+    if (typeof window === 'undefined') {
+      throw new Error('MixerEngine requires a browser environment');
+    }
+
     // Create AudioContext with specified sample rate
     const sampleRate = config?.sampleRate || 44100;
     
     // Try to use existing context or create new one
     const existingCtx = (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (existingCtx) {
-      this.audioCtx = new existingCtx() as AudioContext;
+      this.audioCtx = new existingCtx({ sampleRate }) as AudioContext;
     } else {
       this.audioCtx = new AudioContext({ sampleRate });
     }
