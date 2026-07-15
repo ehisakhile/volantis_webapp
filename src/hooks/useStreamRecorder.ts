@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback } from 'react';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { livestreamApi } from '@/lib/api/livestream';
 
 export interface StreamRecorderOptions {
@@ -21,9 +23,11 @@ export interface StreamRecorderState {
   isRecording: boolean;
   /** Duration of current recording in seconds */
   recordingDuration: number;
-  /** Recording file blob (available after recording stops) */
+  /** Whether the raw recording is currently being transcoded to MP3 */
+  isTranscoding: boolean;
+  /** Recording file blob (available after recording stops and transcoding finishes) - always audio/mpeg */
   recordedBlob: Blob | null;
-  /** Original filename of the recording */
+  /** Original filename of the recording - always .mp3 */
   recordedFilename: string | null;
   /** Whether upload is in progress */
   isUploading: boolean;
@@ -51,8 +55,8 @@ export interface StreamRecorderReturn {
   declineRecording: () => void;
   /** Start recording with the provided media stream (audio being sent to WebRTC) */
   startRecording: (stream: MediaStream, streamSlug: string, streamTitle: string) => void;
-  /** Stop recording - will auto-download if enabled */
-  stopRecording: () => void;
+  /** Stop recording - waits for MP3 transcoding to finish, then auto-downloads if enabled */
+  stopRecording: () => Promise<void>;
   /** Upload the recorded file to the server */
   uploadRecording: () => Promise<void>;
   /** Download the recording to user's local storage */
@@ -63,18 +67,118 @@ export interface StreamRecorderReturn {
   shouldPromptRecording: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// ffmpeg.wasm setup (module-level singleton so the ~30MB core only loads once
+// per page session, not once per recording).
+// ---------------------------------------------------------------------------
+
+let ffmpegInstance: FFmpeg | null = null;
+let ffmpegLoadPromise: Promise<FFmpeg> | null = null;
+
+// Single-threaded core - no COOP/COEP cross-origin-isolation headers required
+// (the -mt/core-mt build needs SharedArrayBuffer + those headers; this one doesn't).
+const FFMPEG_CORE_BASE_URL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+
+async function getFFmpeg(): Promise<FFmpeg> {
+  if (ffmpegInstance) return ffmpegInstance;
+  if (ffmpegLoadPromise) return ffmpegLoadPromise;
+
+  ffmpegLoadPromise = (async () => {
+    const ffmpeg = new FFmpeg();
+    ffmpeg.on('log', ({ message }) => {
+      console.log('[ffmpeg]', message);
+    });
+
+    const [coreURL, wasmURL] = await Promise.all([
+      toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.js`, 'text/javascript'),
+      toBlobURL(`${FFMPEG_CORE_BASE_URL}/ffmpeg-core.wasm`, 'application/wasm'),
+    ]);
+
+    await ffmpeg.load({ coreURL, wasmURL });
+    ffmpegInstance = ffmpeg;
+    return ffmpeg;
+  })();
+
+  try {
+    return await ffmpegLoadPromise;
+  } catch (err) {
+    // Allow retrying on next call if load failed
+    ffmpegLoadPromise = null;
+    throw err;
+  }
+}
+
+/** Kick off loading the ffmpeg core in the background without blocking the caller. */
+function preloadFFmpeg(): void {
+  getFFmpeg().catch((err) => {
+    console.warn('ffmpeg preload failed (will retry on demand):', err);
+  });
+}
+
+function extensionForMimeType(mimeType: string): string {
+  if (mimeType.includes('mp4') || mimeType.includes('m4a')) return 'm4a';
+  if (mimeType.includes('wav')) return 'wav';
+  if (mimeType.includes('mpeg') || mimeType.includes('mp3')) return 'mp3';
+  return 'webm';
+}
+
+/**
+ * Transcode a raw MediaRecorder blob (webm/mp4/wav/whatever the browser gave us)
+ * into an MP3 blob using ffmpeg.wasm.
+ */
+async function transcodeToMp3(inputBlob: Blob, sourceMimeType: string): Promise<Blob> {
+  const ffmpeg = await getFFmpeg();
+
+  const inputExt = extensionForMimeType(sourceMimeType);
+  const inputName = `input_${Date.now()}.${inputExt}`;
+  const outputName = `output_${Date.now()}.mp3`;
+
+  await ffmpeg.writeFile(inputName, await fetchFile(inputBlob));
+
+  await ffmpeg.exec([
+    '-i', inputName,
+    '-vn',
+    '-codec:a', 'libmp3lame',
+    '-b:a', '128k',
+    '-ar', '44100',
+    outputName,
+  ]);
+
+  const data = await ffmpeg.readFile(outputName);
+
+  // Best-effort cleanup of the virtual FS so long sessions don't leak memory
+  await ffmpeg.deleteFile(inputName).catch(() => {});
+  await ffmpeg.deleteFile(outputName).catch(() => {});
+
+  // readFile can return a string in text mode; we always want binary here
+  const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+
+  // ffmpeg.wasm types the returned buffer as ArrayBufferLike (which includes
+  // SharedArrayBuffer), but Blob's BlobPart wants a concrete ArrayBuffer.
+  // Copy into a fresh, plain ArrayBuffer to satisfy the type and guarantee
+  // we're not accidentally holding a view over a shared/detached buffer.
+  const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(arrayBuffer).set(bytes);
+
+  return new Blob([arrayBuffer], { type: 'audio/mpeg' });
+}
+
 /**
  * Custom hook for recording livestreams on the client side.
- * 
+ *
  * Workflow:
  * 1. Call promptRecording() to show user a prompt asking if they want to record
  * 2. User accepts or declines - if accepted, wantsToRecord = true
  * 3. When stream starts, call startRecording() with the audio stream
- * 4. Recording runs throughout the stream
- * 5. When stream ends, call stopRecording() - this auto-downloads the recording
+ * 4. Recording runs throughout the stream (captured via MediaRecorder, browser-native format)
+ * 5. When stream ends, call stopRecording() - this transcodes to MP3 via ffmpeg.wasm,
+ *    then auto-downloads the recording
  * 6. User can then upload the recording via uploadRecording()
- * 
+ *
  * The recording captures the same audio that is being sent to the WebRTC stream.
+ * Regardless of what the browser's MediaRecorder supports natively, the final
+ * recordedBlob/recordedFilename exposed by this hook is always MP3 (audio/mpeg),
+ * to match mobile app playback requirements.
  */
 export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRecorderReturn {
   const { onRecordingReady, onUploadComplete, onUploadError, onAutoUploadComplete } = options;
@@ -83,6 +187,7 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     wantsToRecord: null,
     isRecording: false,
     recordingDuration: 0,
+    isTranscoding: false,
     recordedBlob: null,
     recordedFilename: null,
     isUploading: false,
@@ -99,15 +204,21 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const destNodeRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  
+
   // Refs to store recording data for auto-upload (avoids async state issues)
   const recordedBlobRef = useRef<Blob | null>(null);
   const recordedFilenameRef = useRef<string | null>(null);
   const streamTitleRef = useRef<string>('');
   const streamSlugRef = useRef<string | null>(null);
 
-  // Get supported MIME type for audio-only recording
-  // Prefer MP4/M4A (AAC codec) over webm for better compatibility
+  // Resolver for the promise stopRecording() awaits, so it knows the async
+  // onstop handler (capture -> transcode -> finalize) has actually completed,
+  // instead of guessing with a fixed setTimeout.
+  const stopProcessingResolveRef = useRef<(() => void) | null>(null);
+
+  // Get supported MIME type for the *capture* stage. This is just what
+  // MediaRecorder records into before we transcode to MP3 - it does not
+  // affect the final output format.
   const getSupportedMimeType = useCallback((): string => {
     const mimeTypes = [
       'audio/mp4',        // MP4 with AAC - preferred for better compatibility
@@ -193,7 +304,11 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
       // Store stream info in refs for auto-upload
       streamSlugRef.current = streamSlug;
       streamTitleRef.current = streamTitle;
-      
+
+      // Warm up the ffmpeg core in the background now, so it's (hopefully)
+      // already loaded by the time the user stops the stream.
+      preloadFFmpeg();
+
       // Create audio context to capture the stream audio
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
@@ -210,7 +325,7 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
       const recordingStream = destNode.stream;
 
       const mimeType = getSupportedMimeType();
-      console.log('Using MIME type for recording:', mimeType);
+      console.log('Using MIME type for capture:', mimeType);
 
       // Create MediaRecorder with the audio stream
       const mediaRecorder = new MediaRecorder(recordingStream, {
@@ -226,42 +341,55 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
         }
       };
 
-      mediaRecorder.onstop = () => {
-        // Create blob from recorded chunks
-        const blob = new Blob(chunksRef.current, { type: mimeType });
-        
-        // Determine file extension based on MIME type
-        let extension = 'webm';
-        if (mimeType.includes('mp4') || mimeType.includes('m4a')) {
-          extension = 'm4a';
-        } else if (mimeType.includes('wav')) {
-          extension = 'wav';
-        } else if (mimeType.includes('mpeg') || mimeType.includes('mp3')) {
-          extension = 'mp3';
-        }
-        
-        // Generate filename with timestamp
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const safeTitle = streamTitle.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
-        const filename = `recording_${safeTitle}_${timestamp}.${extension}`;
+      mediaRecorder.onstop = async () => {
+        try {
+          setState(prev => ({ ...prev, isTranscoding: true }));
 
-        // Store in refs for auto-upload
-        recordedBlobRef.current = blob;
-        recordedFilenameRef.current = filename;
+          // Raw blob in whatever format the browser captured
+          const rawBlob = new Blob(chunksRef.current, { type: mimeType });
 
-        setState(prev => ({
-          ...prev,
-          recordedBlob: blob,
-          recordedFilename: filename,
-          isRecording: false,
-        }));
+          // Transcode to MP3 so downstream (download/upload/mobile playback)
+          // always deals with a consistent format
+          const mp3Blob = await transcodeToMp3(rawBlob, mimeType);
 
-        // Notify callback
-        onRecordingReady?.(blob, filename);
+          // Generate filename with timestamp - always .mp3 now
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const safeTitle = streamTitleRef.current.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
+          const filename = `recording_${safeTitle}_${timestamp}.mp3`;
 
-        // Auto-download the recording (only if not auto-uploading)
-        if (!state.autoUpload) {
-          downloadBlob(blob, filename);
+          // Store in refs for auto-upload
+          recordedBlobRef.current = mp3Blob;
+          recordedFilenameRef.current = filename;
+
+          setState(prev => ({
+            ...prev,
+            recordedBlob: mp3Blob,
+            recordedFilename: filename,
+            isRecording: false,
+            isTranscoding: false,
+          }));
+
+          // Notify callback
+          onRecordingReady?.(mp3Blob, filename);
+
+          // Auto-download the recording (only if not auto-uploading)
+          if (!state.autoUpload) {
+            downloadBlob(mp3Blob, filename);
+          }
+        } catch (err) {
+          console.error('Failed to transcode recording to MP3:', err);
+          const errorMessage = err instanceof Error ? err.message : 'Failed to process recording audio';
+          setState(prev => ({
+            ...prev,
+            isRecording: false,
+            isTranscoding: false,
+            error: errorMessage,
+          }));
+        } finally {
+          // Let stopRecording() know the async work here is done, whether it
+          // succeeded or failed.
+          stopProcessingResolveRef.current?.();
+          stopProcessingResolveRef.current = null;
         }
       };
 
@@ -312,10 +440,20 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     const currentStreamSlug = streamSlugRef.current;
     const currentStreamTitle = streamTitleRef.current;
 
+    // Set up a promise that resolves once onstop's async transcoding work
+    // finishes, so we don't guess with a fixed timeout (transcoding time
+    // scales with recording length).
+    const wasRecording = mediaRecorderRef.current?.state === 'recording';
+    const onStopComplete = wasRecording
+      ? new Promise<void>((resolve) => {
+          stopProcessingResolveRef.current = resolve;
+        })
+      : Promise.resolve();
+
     // Stop the media recorder - this will trigger the onstop handler
-    // which creates the blob and handles the rest
-    if (mediaRecorderRef.current?.state === 'recording') {
-      mediaRecorderRef.current.stop();
+    // which creates the blob, transcodes to MP3, and handles the rest
+    if (wasRecording) {
+      mediaRecorderRef.current!.stop();
     }
 
     // Clean up audio context
@@ -334,15 +472,15 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
 
     console.log('Recording stopped, autoUpload:', shouldAutoUpload, 'slug:', currentStreamSlug);
 
+    // Wait for onstop (capture -> MP3 transcode -> finalize) to actually finish
+    await onStopComplete;
+
     // If auto-upload is enabled and we have the stream slug and blob, upload
     if (shouldAutoUpload && currentStreamSlug) {
-      // Wait for the blob to be created (onstop handler runs async)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
       // Use refs for the blob and filename (these are populated in onstop handler)
       const blob = recordedBlobRef.current;
       const filename = recordedFilenameRef.current;
-      
+
       if (blob && filename && currentStreamSlug) {
         setState(prev => ({
           ...prev,
@@ -351,9 +489,8 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
         }));
 
         try {
-          const blobType = blob.type || 'audio/mp4';
           const file = new File([blob], filename, {
-            type: blobType,
+            type: 'audio/mpeg',
           });
 
           // Pass description and duration to the API
@@ -424,10 +561,9 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     }));
 
     try {
-      // Create a File from the Blob - use the actual blob type or default to m4a/mp4
-      const blobType = state.recordedBlob.type || 'audio/mp4';
+      // recordedBlob is always MP3 by the time it's set (post-transcode)
       const file = new File([state.recordedBlob], state.recordedFilename, {
-        type: blobType,
+        type: 'audio/mpeg',
       });
 
       // Upload using the livestream API
@@ -474,11 +610,13 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     chunksRef.current = [];
     streamRef.current = null;
     destNodeRef.current = null;
+    stopProcessingResolveRef.current = null;
 
     setState({
       wantsToRecord: null,
       isRecording: false,
       recordingDuration: 0,
+      isTranscoding: false,
       recordedBlob: null,
       recordedFilename: null,
       isUploading: false,
