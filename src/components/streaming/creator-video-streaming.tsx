@@ -68,6 +68,7 @@ import { CreatorMixer } from "./creator-mixer";
 import type { VolLivestreamOut } from "@/types/livestream";
 import type { VolChatMessageOut } from "@/types/chat";
 import { useStreamUsage } from "@/hooks/useStreamUsage";
+import { subscriptionsApi } from "@/lib/api/subscriptions";
 import { StreamUsageBanner } from "./stream-usage-banner";
 import { StreamLimitModal } from "./stream-limit-modal";
 import { useViewerCount } from "@/lib/api/useViewerCount";
@@ -121,6 +122,36 @@ interface CreatorVideoStreamingProps {
 }
 
 type VideoSourceType = "camera" | "screen";
+
+// Subscription type from API
+interface Subscription {
+  id: number;
+  company_id: number;
+  plan_id: number;
+  billing_cycle: string;
+  subscription_start: string;
+  subscription_end: string | null;
+  paystack_subscription_code: string | null;
+  paystack_customer_code: string | null;
+  is_active: boolean;
+  auto_renew: boolean;
+  referral_code: string;
+  additional_integrations: number;
+  integration_addon_price_kobo: number;
+  created_at: string;
+  updated_at: string;
+  plan_name: string;
+  plan_display_name: string;
+  monthly_price_kobo: number;
+  annual_price_kobo: number;
+  daily_stream_used: number;
+  daily_stream_limit: number;
+  monthly_uploads_used: number;
+  monthly_uploads_limit: number;
+  integrations_used: number;
+  integrations_allowed: number;
+  is_within_limits: boolean;
+}
 
 export function CreatorVideoStreaming({
   onStreamStarted,
@@ -233,6 +264,9 @@ export function CreatorVideoStreaming({
 
   const [realtimeViewerCount, setRealtimeViewerCount] = useState(0);
   const [peakViewerCount, setPeakViewerCount] = useState(0);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [isFreeUser, setIsFreeUser] = useState(false);
 
   const checkForActiveStream = useCallback(async () => {
     try {
@@ -255,7 +289,25 @@ export function CreatorVideoStreaming({
       setCompanySlug(company.slug);
     }).catch(() => {});
   }, []);
-
+  
+  // Fetch subscription on mount to determine if user is free tier
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      try {
+        const response = await subscriptionsApi.getCurrentSubscription();
+        const subscriptionData = response as Subscription;
+        setSubscription(subscriptionData);
+        setIsFreeUser(subscriptionData?.plan_name === 'free' || subscriptionData?.daily_stream_limit === 3600);
+      } catch (err) {
+        console.error('Failed to fetch subscription:', err);
+      } finally {
+        setSubscriptionLoading(false);
+      }
+    };
+    
+    fetchSubscription();
+  }, []);
+  
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
@@ -671,7 +723,7 @@ export function CreatorVideoStreaming({
  
   const { usage: streamUsage } = useStreamUsage({
     slug: currentStream?.slug ?? '',
-    enabled: isStreaming && !!currentStream?.slug,
+    enabled: isFreeUser && isStreaming && !!currentStream?.slug,
     onWarning: () => {
       setShowUsageBanner(true);
       setUsageBannerDismissed(false);
@@ -685,6 +737,9 @@ export function CreatorVideoStreaming({
       handleStopStream();
     },
   });
+  
+  // Placeholder streamUsage when hook is disabled to avoid undefined errors
+  const safeStreamUsage = isFreeUser ? streamUsage : null;
 
   const handleStartStream = useCallback(async () => {
     if (!streamTitle.trim()) {
@@ -1265,7 +1320,7 @@ export function CreatorVideoStreaming({
       </header>
 
       {/* Stream Limit Modal */}
-      <StreamLimitModal isOpen={showLimitModal} usage={streamUsage} />
+      <StreamLimitModal isOpen={showLimitModal} usage={safeStreamUsage} />
 
       {/* Stream Ended Modal */}
       <AnimatePresence>
@@ -1331,10 +1386,10 @@ export function CreatorVideoStreaming({
       </AnimatePresence>
 
       {/* Usage Warning Banner */}
-      {isStreaming && showUsageBanner && streamUsage && (
+      {isStreaming && showUsageBanner && safeStreamUsage && (
         <div className="fixed top-56 left-1/2 -translate-x-1/2 z-40 max-w-lg w-full px-4">
           <StreamUsageBanner
-            usage={streamUsage}
+            usage={safeStreamUsage}
             dismissed={usageBannerDismissed}
             onDismiss={() => setUsageBannerDismissed(true)}
           />
@@ -1600,9 +1655,9 @@ export function CreatorVideoStreaming({
           )}
 
           {/* Usage banner (top of preview) */}
-          {isStreaming && showUsageBanner && streamUsage && (
+          {isStreaming && showUsageBanner && safeStreamUsage && (
             <StreamUsageBanner
-              usage={streamUsage}
+              usage={safeStreamUsage}
               dismissed={usageBannerDismissed}
               onDismiss={() => setUsageBannerDismissed(true)}
             />

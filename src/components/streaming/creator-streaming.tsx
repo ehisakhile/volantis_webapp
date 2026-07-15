@@ -66,6 +66,7 @@ import { RecordingPrompt, RecordingStatus } from "./recording-prompt";
 import { CreatorNotStreamingModal } from "./creator-not-streaming-modal";
 import { useViewerCount } from "@/lib/api/useViewerCount";
 import { useStreamUsage } from "@/hooks/useStreamUsage";
+import { subscriptionsApi } from "@/lib/api/subscriptions";
 import { StreamUsageBanner } from "./stream-usage-banner";
 import { StreamLimitModal } from "./stream-limit-modal";
 
@@ -75,6 +76,36 @@ interface AudioVisualizerProps {
   level: number;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   accentColor?: string;
+}
+
+// Subscription type from API
+interface Subscription {
+  id: number;
+  company_id: number;
+  plan_id: number;
+  billing_cycle: string;
+  subscription_start: string;
+  subscription_end: string | null;
+  paystack_subscription_code: string | null;
+  paystack_customer_code: string | null;
+  is_active: boolean;
+  auto_renew: boolean;
+  referral_code: string;
+  additional_integrations: number;
+  integration_addon_price_kobo: number;
+  created_at: string;
+  updated_at: string;
+  plan_name: string;
+  plan_display_name: string;
+  monthly_price_kobo: number;
+  annual_price_kobo: number;
+  daily_stream_used: number;
+  daily_stream_limit: number;
+  monthly_uploads_used: number;
+  monthly_uploads_limit: number;
+  integrations_used: number;
+  integrations_allowed: number;
+  is_within_limits: boolean;
 }
 
 function AudioVisualizer({
@@ -128,7 +159,25 @@ export function CreatorStreaming({
       }
     });
   }, [currentStream?.company_slug]);
-
+  
+  // Fetch subscription on mount to determine if user is free tier
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      try {
+        const response = await subscriptionsApi.getCurrentSubscription();
+        const subscriptionData = response as Subscription;
+        setSubscription(subscriptionData);
+        setIsFreeUser(subscriptionData?.plan_name === 'free' || subscriptionData?.daily_stream_limit === 3600);
+      } catch (err) {
+        console.error('Failed to fetch subscription:', err);
+      } finally {
+        setSubscriptionLoading(false);
+      }
+    };
+    
+    fetchSubscription();
+  }, []);
+  
   // Audio source selection (like test_webrtc.html)
   const [useMic, setUseMic] = useState(true);
   const [useSystemAudio, setUseSystemAudio] = useState(false);
@@ -148,6 +197,11 @@ export function CreatorStreaming({
   // Connection state
   const [connectionState, setConnectionState] = useState<string>("idle");
   const [error, setError] = useState<string | null>(null);
+  
+  // Subscription state
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [isFreeUser, setIsFreeUser] = useState(false);
 
   // Active stream detection state
   const [existingActiveStream, setExistingActiveStream] =
@@ -175,10 +229,10 @@ export function CreatorStreaming({
     pollingInterval: 5000,
   });
 
-  // Plan usage monitoring — only active while streaming
+  // Plan usage monitoring — only active while streaming for free users
   const { usage: streamUsage } = useStreamUsage({
     slug: currentStream?.slug ?? '',
-    enabled: isStreaming && !!currentStream?.slug,
+    enabled: isFreeUser && isStreaming && !!currentStream?.slug,
     onWarning: () => {
       setShowUsageBanner(true);
       setUsageBannerDismissed(false);
@@ -193,6 +247,9 @@ export function CreatorStreaming({
       handleStopStream();
     },
   });
+  
+  // Placeholder streamUsage when hook is disabled to avoid undefined errors
+  const safeStreamUsage = isFreeUser ? streamUsage : null;
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<VolChatMessageOut[]>([]);
@@ -1102,7 +1159,7 @@ export function CreatorStreaming({
         />
 
         {/* Stream Limit Modal — fixed overlay, shown when plan limit is hit */}
-        <StreamLimitModal isOpen={showLimitModal} usage={streamUsage} />
+        <StreamLimitModal isOpen={showLimitModal} usage={safeStreamUsage} />
 
         {/* Network Status Banner */}
         {!isOnline && (
@@ -1223,9 +1280,9 @@ export function CreatorStreaming({
         )}
 
         {/* Usage warning banner — shown when approaching plan limit */}
-        {isStreaming && showUsageBanner && streamUsage && (
+        {isStreaming && showUsageBanner && safeStreamUsage && (
           <StreamUsageBanner
-            usage={streamUsage}
+            usage={safeStreamUsage}
             dismissed={usageBannerDismissed}
             onDismiss={() => setUsageBannerDismissed(true)}
           />
