@@ -1,9 +1,15 @@
-[{
-  "relation": ["delegate_permission/common.handle_all_urls"],
-  "target": {
-    "namespace": "android_app",
-    "package_name": "com.volantislive.volantislive",
-    "sha256_cert_fingerprints":
-    ["97:15:BA:6E:32:0E:3C:37:61:5A:AD:B8:FB:54:DC:67:0A:6E:59:65:82:DB:48:9C:4F:1C:CE:7C:3F:0D:3B:FE"]
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.volantislive.volantislive",
+      "sha256_cert_fingerprints": [
+        "97:15:BA:6E:32:0E:3C:37:61:5A:AD:B8:FB:54:DC:67:0A:6E:59:65:82:DB:48:9C:4F:1C:CE:7C:3F:0D:3B:FE",
+        "D6:45:A7:3D:B8:97:B0:D3:69:D6:E4:19:C8:EC:90:5D:D4:A2:9E:5A:E8:11:80:04:88:54:F0:C3:8A:B8:04:BA"
+      ]
+    }
   }
-}]
+]
