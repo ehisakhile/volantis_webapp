@@ -9,6 +9,7 @@ const PUBLIC_FILE = /\.(.*)$/;
 const API_PREFIX = '/api';
 const MEDIA_PROXY_PREFIX = '/media-proxy';
 const STATIC_PREFIXES = ['/_next', '/favicon.ico', '/robots.txt', '/sitemap'];
+const APP_PREFIX = '/dashboard'; // The main app prefix for the dashboard and creator pages. All other routes are considered public-facing.
 
 // Playlist links are resolved by Next.js route matching, never as stream routes.
 const PLAYLIST_SEGMENTS = ['playlist', 'playlists'];
@@ -52,6 +53,10 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith(MEDIA_PROXY_PREFIX)) {
+    return NextResponse.next();
+  }
+
+  if (pathname.startsWith(APP_PREFIX)) {
     return NextResponse.next();
   }
 
