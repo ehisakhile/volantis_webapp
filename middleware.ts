@@ -7,11 +7,27 @@ const USE_SUBDOMAINS = process.env.NEXT_PUBLIC_USE_SUBDOMAINS === 'true';
 
 const PUBLIC_FILE = /\.(.*)$/;
 const API_PREFIX = '/api';
+const MEDIA_PROXY_PREFIX = '/media-proxy';
 const STATIC_PREFIXES = ['/_next', '/favicon.ico', '/robots.txt', '/sitemap'];
+
+// Playlist links are resolved by Next.js route matching, never as stream routes.
+const PLAYLIST_SEGMENTS = ['playlist', 'playlists'];
 
 function isStaticAsset(pathname: string): boolean {
   return STATIC_PREFIXES.some(prefix => pathname.startsWith(prefix)) || 
          PUBLIC_FILE.test(pathname);
+}
+
+function isPlaylistPath(pathname: string): boolean {
+  return pathname.split('/').some(seg => PLAYLIST_SEGMENTS.includes(seg));
+}
+
+function normalizePlaylistPath(pathname: string): string {
+  if (!isPlaylistPath(pathname)) return pathname;
+  if (pathname.includes('/playlists/')) {
+    return pathname.replace('/playlists/', '/playlist/');
+  }
+  return pathname;
 }
 
 function getHostname(request: NextRequest): string | null {
@@ -35,7 +51,38 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname.startsWith(MEDIA_PROXY_PREFIX)) {
+    return NextResponse.next();
+  }
+
   if (isStaticAsset(pathname)) {
+    return NextResponse.next();
+  }
+
+  // Playlist links must never be resolved as stream routes.
+  if (isPlaylistPath(pathname)) {
+    // Normalize legacy /playlists/ links to the canonical /playlist/ route.
+    const normalized = normalizePlaylistPath(pathname);
+    if (normalized !== pathname) {
+      const url = request.nextUrl.clone();
+      url.pathname = normalized;
+      return NextResponse.redirect(url, 308);
+    }
+    // Base domain: let Next.js route /{company}/playlist/{id} normally.
+    if (cleanHostname === baseDomain || cleanHostname === `www.${baseDomain}`) {
+      return NextResponse.next();
+    }
+    // Subdomain: prepend the company prefix so the page resolves correctly.
+    if (USE_SUBDOMAINS) {
+      const subdomain = parseSubdomain(hostname);
+      if (subdomain && isValidCompanySlug(subdomain)) {
+        const url = request.nextUrl.clone();
+        url.pathname = `/${subdomain}${pathname}`;
+        return NextResponse.rewrite(url);
+      }
+      // Unknown subdomain: keep the original behavior and never resolve as a stream.
+      return NextResponse.redirect(new URL('/', request.url));
+    }
     return NextResponse.next();
   }
 

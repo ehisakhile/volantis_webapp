@@ -6,11 +6,12 @@ import Link from 'next/link';
 import { Container } from '@/components/ui/container';
 import { useAuth } from '@/lib/auth-context';
 import { telegramApi, TelegramConnection } from '@/lib/api/telegram';
+import { playlistsApi, PlaylistOut } from '@/lib/api/playlists';
 import {
   LogOut, Play, Eye, Settings, Plug, MessageCircle,
-  CheckCircle, XCircle, RefreshCw, ExternalLink, Trash2,
-  Plus, Download, List, Music, Pause, PlayCircle, FolderPlus,
-  Clock, FileDown, Loader2, Save
+  CheckCircle, XCircle, Trash2,
+  Plus, List, Music, FolderPlus,
+  Loader2, Globe, EyeOff, ExternalLink, Pencil
 } from 'lucide-react';
 
 interface TelegramChannel {
@@ -35,26 +36,6 @@ interface TelegramIntegrationState {
   importingNew: number | null;
 }
 
-interface TelegramPlaylistOut {
-  id: number;
-  company_id: number;
-  title: string;
-  items: TelegramPlaylistItem[];
-  is_playing: boolean;
-  created_at: string;
-}
-
-interface TelegramPlaylistItem {
-  id: number;
-  telegram_media_id: number;
-  title: string | null;
-  file_name: string;
-  file_type: string;
-  duration_seconds: number | null;
-  file_url: string | null;
-  order: number;
-}
-
 interface TelegramChannelMediaItem {
   message_id: number;
   message_date: string;
@@ -66,6 +47,13 @@ interface TelegramChannelMediaItem {
   is_imported: boolean;
   imported_media_id: number | null;
 }
+
+const PLAYLIST_GRADIENTS = [
+  'from-purple-500 to-indigo-600',
+  'from-sky-500 to-cyan-600',
+  'from-rose-500 to-orange-500',
+  'from-emerald-500 to-teal-600',
+];
 
 export default function IntegrationsPage() {
   const router = useRouter();
@@ -86,15 +74,21 @@ export default function IntegrationsPage() {
     importingNew: null,
   });
 
-  const [selectedConnectionId, setSelectedConnectionId] = useState<number | null>(null);
   const [importingHistory, setImportingHistory] = useState<number | null>(null);
-  const [playlists, setPlaylists] = useState<TelegramPlaylistOut[]>([]);
+
+  // Playlist state
+  const [playlists, setPlaylists] = useState<PlaylistOut[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
+  const [playlistsError, setPlaylistsError] = useState<string | null>(null);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
-  const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
   const [playlistName, setPlaylistName] = useState('');
+  const [playlistDescription, setPlaylistDescription] = useState('');
+  const [playlistLoopEnabled, setPlaylistLoopEnabled] = useState(true);
+  const [playlistIsActive, setPlaylistIsActive] = useState(true);
   const [creatingPlaylist, setCreatingPlaylist] = useState(false);
-  const [playingPlaylistId, setPlayingPlaylistId] = useState<number | null>(null);
+  const [creatingError, setCreatingError] = useState<string | null>(null);
+  const [togglingVisibilityId, setTogglingVisibilityId] = useState<number | null>(null);
+  const [deletingPlaylistId, setDeletingPlaylistId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -110,17 +104,19 @@ export default function IntegrationsPage() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchTelegramConnections();
-      // fetchPlaylists();
+      fetchPlaylists();
     }
   }, [isAuthenticated]);
 
   const fetchPlaylists = async () => {
     setLoadingPlaylists(true);
+    setPlaylistsError(null);
     try {
-      const response = await telegramApi.getCompanyPlaylists();
-      setPlaylists(response.playlists);
+      const response = await playlistsApi.listPlaylists();
+      setPlaylists(response);
     } catch (err: unknown) {
       console.error('Failed to fetch playlists:', err);
+      setPlaylistsError('Failed to load playlists');
     } finally {
       setLoadingPlaylists(false);
     }
@@ -208,13 +204,11 @@ export default function IntegrationsPage() {
   };
 
   const handleVerifyCode = async () => {
-    console.log('Verify clicked, code:', telegramState.verificationCode, 'session:', telegramState.sessionId);
-    
     if (!telegramState.verificationCode) {
       setTelegramState(prev => ({ ...prev, error: 'Please enter the verification code' }));
       return;
     }
-    
+
     if (!telegramState.sessionId) {
       setTelegramState(prev => ({ ...prev, error: 'Missing verification session. Please start over.' }));
       return;
@@ -274,9 +268,6 @@ export default function IntegrationsPage() {
     try {
       await telegramApi.disconnect(connectionId);
       fetchTelegramConnections();
-      if (selectedConnectionId === connectionId) {
-        setSelectedConnectionId(null);
-      }
     } catch (err: unknown) {
       console.error('Failed to disconnect Telegram channel:', err);
     }
@@ -308,53 +299,61 @@ export default function IntegrationsPage() {
     }
   };
 
+  // Playlist Handlers
   const handleCreatePlaylist = async () => {
-    if (!playlistName.trim() || selectedMediaIds.length === 0) {
-      alert('Please enter a playlist name and select at least one media item');
-      return;
-    }
-
-    if (!selectedConnectionId) {
-      alert('Please select a connection first');
+    if (!playlistName.trim()) {
+      setCreatingError('Please enter a playlist name');
       return;
     }
 
     setCreatingPlaylist(true);
+    setCreatingError(null);
     try {
-      await telegramApi.createPlaylist(selectedConnectionId, {
-        name: playlistName,
-        media_ids: selectedMediaIds,
+      await playlistsApi.createPlaylist({
+        name: playlistName.trim(),
+        description: playlistDescription.trim() || undefined,
+        loop_enabled: playlistLoopEnabled,
+        is_active: playlistIsActive,
       });
       setShowPlaylistModal(false);
       setPlaylistName('');
-      setSelectedMediaIds([]);
+      setPlaylistDescription('');
+      setPlaylistLoopEnabled(true);
+      setPlaylistIsActive(true);
       fetchPlaylists();
-      alert('Playlist created successfully!');
     } catch (err: unknown) {
       console.error('Failed to create playlist:', err);
-      alert('Failed to create playlist');
+      setCreatingError('Failed to create playlist');
     } finally {
       setCreatingPlaylist(false);
     }
   };
 
-  const handlePlayPlaylist = async (playlistId: number) => {
+  const handleToggleVisibility = async (playlist: PlaylistOut) => {
+    setTogglingVisibilityId(playlist.id);
     try {
-      await telegramApi.playPlaylist(playlistId);
-      setPlayingPlaylistId(playlistId);
-      alert('Playlist is now playing!');
+      await playlistsApi.updatePlaylist(playlist.id, { is_active: !playlist.is_active });
+      fetchPlaylists();
     } catch (err: unknown) {
-      console.error('Failed to play playlist:', err);
-      alert('Failed to play playlist');
+      console.error('Failed to update playlist visibility:', err);
+      alert('Failed to update playlist');
+    } finally {
+      setTogglingVisibilityId(null);
     }
   };
 
-  const handleStopPlaylist = async (playlistId: number) => {
+  const handleDeletePlaylist = async (playlist: PlaylistOut) => {
+    if (!confirm(`Delete playlist "${playlist.name}"? The media items will not be deleted.`)) return;
+
+    setDeletingPlaylistId(playlist.id);
     try {
-      await telegramApi.stopPlaylist(playlistId);
-      setPlayingPlaylistId(null);
+      await playlistsApi.deletePlaylist(playlist.id);
+      fetchPlaylists();
     } catch (err: unknown) {
-      console.error('Failed to stop playlist:', err);
+      console.error('Failed to delete playlist:', err);
+      alert('Failed to delete playlist');
+    } finally {
+      setDeletingPlaylistId(null);
     }
   };
 
@@ -419,7 +418,7 @@ export default function IntegrationsPage() {
           {/* Page Title */}
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-slate-900">Integrations</h1>
-            <p className="text-slate-600">Connect external services to enhance your streaming experience</p>
+            <p className="text-slate-600">Connect external services and manage your content playlists</p>
           </div>
 
           {/* Sidebar Layout */}
@@ -487,16 +486,9 @@ export default function IntegrationsPage() {
                       {telegramState.connections.map((connection) => (
                         <div
                           key={connection.id}
-                          className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${
-                            selectedConnectionId === connection.id
-                              ? 'border-blue-300 bg-blue-50'
-                              : 'border-slate-200 hover:border-slate-300'
-                          }`}
+                          className="flex items-center justify-between p-4 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors"
                         >
-                          <div
-                            className="flex items-center gap-3 cursor-pointer flex-1"
-                            onClick={() => setSelectedConnectionId(connection.id)}
-                          >
+                          <div className="flex items-center gap-3 flex-1">
                             {connection.is_active ? (
                               <CheckCircle className="w-5 h-5 text-green-500" />
                             ) : (
@@ -517,6 +509,18 @@ export default function IntegrationsPage() {
                               <Music className="w-4 h-4" />
                               Browse Media
                             </Link>
+                            {/* <button
+                              onClick={() => handleImportHistory(connection.id)}
+                              disabled={importingHistory === connection.id}
+                              className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {importingHistory === connection.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Play className="w-4 h-4" />
+                              )}
+                              Import
+                            </button> */}
                             <button
                               onClick={() => handleDisconnect(connection.id)}
                               className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
@@ -541,7 +545,9 @@ export default function IntegrationsPage() {
                       </div>
                       <div>
                         <h2 className="text-lg font-semibold text-slate-900">Playlists</h2>
-                        <p className="text-sm text-slate-500">Manage your imported media playlists</p>
+                        <p className="text-sm text-slate-500">
+                          Mix recordings and Telegram media into playlists your audience can play
+                        </p>
                       </div>
                     </div>
                     <button
@@ -559,49 +565,110 @@ export default function IntegrationsPage() {
                     <div className="flex items-center justify-center py-8">
                       <div className="animate-spin w-6 h-6 border-4 border-purple-500 border-t-transparent rounded-full" />
                     </div>
+                  ) : playlistsError ? (
+                    <div className="text-center py-8">
+                      <p className="text-slate-500">{playlistsError}</p>
+                      <button
+                        onClick={fetchPlaylists}
+                        className="mt-3 text-sm text-purple-600 hover:text-purple-700 font-medium"
+                      >
+                        Try again
+                      </button>
+                    </div>
                   ) : playlists.length === 0 ? (
                     <div className="text-center py-8">
                       <List className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                       <p className="text-slate-500">No playlists created yet</p>
-                      <p className="text-sm text-slate-400">Select media from the Media page to create a playlist</p>
+                      <p className="text-sm text-slate-400">Create a playlist, then add recordings or Telegram media</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {playlists.map((playlist) => (
-                        <div
-                          key={playlist.id}
-                          className="flex items-center justify-between p-4 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                              <List className="w-5 h-5 text-purple-500" />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {playlists.map((playlist) => {
+                        const gradient = PLAYLIST_GRADIENTS[playlist.id % PLAYLIST_GRADIENTS.length];
+                        return (
+                          <div
+                            key={playlist.id}
+                            className="flex flex-col rounded-xl border border-slate-200 overflow-hidden hover:border-purple-300 transition-colors"
+                          >
+                            <div className="flex items-center gap-3 p-4">
+                              {playlist.cover_image_url ? (
+                                <img
+                                  src={playlist.cover_image_url}
+                                  alt={playlist.name}
+                                  className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
+                                />
+                              ) : (
+                                <div className={`w-14 h-14 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0`}>
+                                  <List className="w-6 h-6 text-white" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-slate-900 truncate">{playlist.name}</p>
+                                <p className="text-sm text-slate-500">
+                                  {playlist.media_count} item{playlist.media_count === 1 ? '' : 's'}
+                                </p>
+                                {playlist.description && (
+                                  <p className="text-xs text-slate-400 truncate">{playlist.description}</p>
+                                )}
+                              </div>
+                              <span
+                                className={`flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full flex-shrink-0 ${
+                                  playlist.is_active
+                                    ? 'bg-green-50 text-green-600 border border-green-200'
+                                    : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                }`}
+                              >
+                                {playlist.is_active ? <Globe className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                                {playlist.is_active ? 'Public' : 'Hidden'}
+                              </span>
                             </div>
-                            <div>
-                              <p className="font-medium text-slate-900">{playlist.title}</p>
-                              <p className="text-sm text-slate-500">{playlist.items.length} items</p>
+                            <div className="flex items-center gap-2 px-4 pb-4 border-t border-slate-100 pt-3">
+                              <Link
+                                href={`/dashboard/integrations/playlists/${playlist.id}`}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+                              >
+                                <Pencil className="w-4 h-4" />
+                                Manage
+                              </Link>
+                              <button
+                                onClick={() => handleToggleVisibility(playlist)}
+                                disabled={togglingVisibilityId === playlist.id}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                {togglingVisibilityId === playlist.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : playlist.is_active ? (
+                                  <EyeOff className="w-4 h-4" />
+                                ) : (
+                                  <Globe className="w-4 h-4" />
+                                )}
+                                {playlist.is_active ? 'Hide' : 'Publish'}
+                              </button>
+                              <button
+                                onClick={() => handleDeletePlaylist(playlist)}
+                                disabled={deletingPlaylistId === playlist.id}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                {deletingPlaylistId === playlist.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
+                                Delete
+                              </button>
+                              {user?.company_slug ? (
+                                <Link
+                                  href={`/${user.company_slug}/playlist/${playlist.id}`}
+                                  className="ml-auto flex items-center gap-1 px-2 py-1.5 text-xs text-slate-400 hover:text-sky-600 transition-colors"
+                                  title="View public playlist page"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </Link>
+                              ) : null}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {playlist.is_playing || playingPlaylistId === playlist.id ? (
-                              <button
-                                onClick={() => handleStopPlaylist(playlist.id)}
-                                className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                              >
-                                <Pause className="w-4 h-4" />
-                                Stop
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handlePlayPlaylist(playlist.id)}
-                                className="flex items-center gap-1 px-3 py-1.5 text-sm text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
-                              >
-                                <PlayCircle className="w-4 h-4" />
-                                Play
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -663,10 +730,7 @@ export default function IntegrationsPage() {
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   value={telegramState.verificationCode}
-                  onChange={(e) => {
-                    console.log('Code input changed:', e.target.value);
-                    setTelegramState(prev => ({ ...prev, verificationCode: e.target.value }));
-                  }}
+                  onChange={(e) => setTelegramState(prev => ({ ...prev, verificationCode: e.target.value }))}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && telegramState.verificationCode) {
                       handleVerifyCode();
@@ -761,6 +825,12 @@ export default function IntegrationsPage() {
               </button>
             </div>
 
+            {creatingError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                {creatingError}
+              </div>
+            )}
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Playlist Name
@@ -769,26 +839,62 @@ export default function IntegrationsPage() {
                 type="text"
                 value={playlistName}
                 onChange={(e) => setPlaylistName(e.target.value)}
-                placeholder="Enter playlist name"
+                placeholder="e.g. Sunday Worship Mix"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 autoFocus
               />
             </div>
 
             <div className="mb-4">
-              <p className="text-sm text-slate-600 mb-2">
-                To create a playlist, go to the Media page and select media items first.
-              </p>
-              <p className="text-xs text-slate-500">
-                Select a connection above, then click "Media" to view and select imported media.
-              </p>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Description
+              </label>
+              <textarea
+                value={playlistDescription}
+                onChange={(e) => setPlaylistDescription(e.target.value)}
+                placeholder="Optional description"
+                rows={3}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              />
             </div>
+
+            <label className="flex items-center justify-between mb-4 p-3 rounded-lg border border-slate-200 cursor-pointer">
+              <div>
+                <p className="text-sm font-medium text-slate-700">Loop playback</p>
+                <p className="text-xs text-slate-500">Repeat the playlist when it finishes</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={playlistLoopEnabled}
+                onChange={(e) => setPlaylistLoopEnabled(e.target.checked)}
+                className="w-4 h-4 text-purple-600 rounded"
+              />
+            </label>
+
+            <label className="flex items-center justify-between p-3 rounded-lg border border-slate-200 cursor-pointer">
+              <div>
+                <p className="text-sm font-medium text-slate-700">Visible to the public</p>
+                <p className="text-xs text-slate-500">Anyone can view and play this playlist on your channel</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={playlistIsActive}
+                onChange={(e) => setPlaylistIsActive(e.target.checked)}
+                className="w-4 h-4 text-purple-600 rounded"
+              />
+            </label>
+
+            <p className="text-xs text-slate-500 mt-4">
+              After creating, you can add recordings and Telegram media (audio &amp; video) from the Manage page.
+            </p>
 
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => {
                   setShowPlaylistModal(false);
                   setPlaylistName('');
+                  setPlaylistDescription('');
+                  setCreatingError(null);
                 }}
                 className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               >

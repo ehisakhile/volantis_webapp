@@ -82,6 +82,12 @@ export interface TelegramMediaListResponse {
   total: number;
 }
 
+export interface TelegramMediaByCompanyResponse {
+  media: TelegramMediaItem[];
+  total: number;
+  company_id: number;
+}
+
 export interface TelegramChannelMediaItem {
   message_id: number;
   message_date: string;
@@ -242,6 +248,18 @@ export const telegramApi = {
   async getChannelMedia(connectionId: number, limit = 50, offset = 0): Promise<TelegramChannelMediaListResponse> {
     const response = await apiClient.request<TelegramChannelMediaListResponse>(
       `/telegram/${connectionId}/channel-media?limit=${limit}&offset=${offset}`,
+      { method: 'GET' }
+    );
+    return response;
+  },
+
+  /**
+   * List all imported Telegram media across all connections for the company.
+   * Requires authentication.
+   */
+  async getCompanyMedia(limit = 100, offset = 0): Promise<TelegramMediaByCompanyResponse> {
+    const response = await apiClient.request<TelegramMediaByCompanyResponse>(
+      `/telegram/media?limit=${limit}&offset=${offset}`,
       { method: 'GET' }
     );
     return response;

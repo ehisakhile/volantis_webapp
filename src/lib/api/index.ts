@@ -6,6 +6,7 @@ export { recordingsApi } from './recordings';
 export { chatApi } from './chat';
 export { subscriptionsApi } from './subscriptions';
 export { telegramApi } from './telegram';
+export { playlistsApi } from './playlists';
 export { meetingsApi } from './meetings';
 export { viewerWs, ViewerWebSocket } from './viewer-websocket';
 export { meetingWs, MeetingWebSocket, disconnectMeetingSocket } from './meeting-websocket';

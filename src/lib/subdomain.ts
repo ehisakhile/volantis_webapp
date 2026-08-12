@@ -34,7 +34,7 @@ export function isValidCompanySlug(slug: string): boolean {
   if (!slug || typeof slug !== 'string') return false;
   
   const validSlugRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$/;
-  const reservedWords = ['www', 'api', 'app', 'admin', 'login', 'signup', 'dashboard', 'listen', 'pricing', 'about', 'contact', 'features', 'how-it-works', 'solutions', 'verify', 'resend-verification', 'subscription', 'user', 'creator'];
+  const reservedWords = ['www', 'api', 'app', 'admin', 'login', 'signup', 'dashboard', 'listen', 'pricing', 'about', 'contact', 'features', 'how-it-works', 'solutions', 'verify', 'resend-verification', 'subscription', 'user', 'creator', 'playlist', 'playlists'];
   
   if (!validSlugRegex.test(slug)) return false;
   if (reservedWords.includes(slug.toLowerCase())) return false;

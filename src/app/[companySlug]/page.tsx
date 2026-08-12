@@ -9,7 +9,7 @@ import {
   Radio, Users, Play, X, ChevronRight, Headphones, Eye, History, EyeIcon,
   Pause, Volume2, VolumeX, Minimize2, Maximize2, Wifi, WifiOff,
   Activity, Zap, ChevronDown, ChevronUp, Clock, BarChart2, Signal,
-  ArrowLeft, Share2, Heart, Bell, BellPlus, Disc3, UserCheck
+  ArrowLeft, Share2, Heart, Bell, BellPlus, Disc3, UserCheck, ListMusic
 } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar';
 import { StreamCard } from '@/components/streaming/stream-card';
@@ -17,6 +17,7 @@ import { AudioPlayer } from '@/components/streaming/audio-player';
 import { LiveChat } from '@/components/streaming/live-chat';
 import { livestreamApi, type CompanyLivePageResponse, type CompanyPageResponse } from '@/lib/api/livestream';
 import { recordingsApi, type RecordingStatsResponse } from '@/lib/api/recordings';
+import { playlistsApi, type PlaylistOut } from '@/lib/api/playlists';
 import { subscriptionsApi } from '@/lib/api/subscriptions';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import type { VolLivestreamOut, VolRecordingOut } from '@/types/livestream';
@@ -658,6 +659,10 @@ export default function CompanyPage() {
   const [recordings, setRecordings] = useState<VolRecordingOut[]>([]);
   const [isRecordingsLoading, setIsRecordingsLoading] = useState(false);
   const [showAllRecordings, setShowAllRecordings] = useState(false);
+  
+  // Playlists state
+  const [playlists, setPlaylists] = useState<PlaylistOut[]>([]);
+  const [isPlaylistsLoading, setIsPlaylistsLoading] = useState(false);
    
   // Creator not streaming modal
   const [showCreatorNotStreaming, setShowCreatorNotStreaming] = useState(false);
@@ -860,7 +865,24 @@ export default function CompanyPage() {
     }
   }, [slug]);
 
+  // Fetch public playlists for this company
+  const fetchPlaylists = useCallback(async () => {
+    if (!slug) return;
+    setIsPlaylistsLoading(true);
+    try {
+      const pls = await playlistsApi.getCompanyPlaylistsPublic(slug, 50, 0);
+      setPlaylists(pls);
+    } catch (err) {
+      console.error('Failed to fetch playlists:', err);
+      setPlaylists([]);
+    } finally {
+      setIsPlaylistsLoading(false);
+    }
+  }, [slug]);
+
   useEffect(() => { fetchData(); }, [fetchData]);
+  
+  useEffect(() => { fetchPlaylists(); }, [fetchPlaylists]);
   
   // SEO: Update metadata when company data loads
   useEffect(() => {
@@ -1377,6 +1399,80 @@ export default function CompanyPage() {
                 </motion.div>
               )}
             </motion.section>
+
+{/* ── Playlists ── */}
+            {playlists.length > 0 && (
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="mt-16"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <ListMusic className="w-4 h-4 text-violet-400" />
+                  <h2 className="text-lg font-bold text-white uppercase tracking-widest">Playlists</h2>
+                  <div className="flex-1 h-px bg-gradient-to-r from-violet-500/30 to-transparent" />
+                  <span className="mono text-xs text-violet-400/70 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-full">
+                    {playlists.length} playlist{playlists.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                {isPlaylistsLoading ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="rounded-2xl border border-white/5 overflow-hidden animate-pulse" style={{ height: 200, background: 'rgba(15,23,42,0.6)' }} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {playlists.map((playlist, i) => (
+                      <motion.div
+                        key={playlist.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                      >
+                        <Link
+                          href={`/${company?.slug || slug}/playlist/${playlist.id}`}
+                          className="block group relative overflow-hidden rounded-2xl bg-slate-800/50 border border-slate-700/50 hover:border-violet-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-violet-500/20"
+                        >
+                          {playlist.cover_image_url ? (
+                            <div
+                              className="absolute inset-0 bg-cover bg-center opacity-80 group-hover:opacity-90 transition-opacity"
+                              style={{ backgroundImage: `url(${playlist.cover_image_url})` }}
+                            />
+                          ) : (
+                            <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-700 opacity-25 group-hover:opacity-40 transition-opacity" />
+                          )}
+                          <div className="relative p-5 pt-24">
+                            <h3 className="text-lg font-semibold text-white mb-1 line-clamp-1 group-hover:text-violet-400 transition-colors">
+                              {playlist.name}
+                            </h3>
+                            {playlist.description && (
+                              <p className="text-sm text-slate-400 mb-3 line-clamp-1">{playlist.description}</p>
+                            )}
+                            <div className="flex items-center justify-between text-xs text-slate-500">
+                              <span className="flex items-center gap-1.5">
+                                <ListMusic className="w-3.5 h-3.5" />
+                                {playlist.media_count} track{playlist.media_count === 1 ? '' : 's'}
+                              </span>
+                              {playlist.loop_enabled && (
+                                <span className="text-violet-400/70">Loop</span>
+                              )}
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="w-14 h-14 bg-violet-500 rounded-full flex items-center justify-center shadow-lg shadow-violet-500/30 transform scale-0 group-hover:scale-100 transition-transform duration-300">
+                                <Play className="w-6 h-6 text-white ml-1" />
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.section>
+            )}
 
 {/* ── Previous Recordings ── */}
             {recordings.length > 0 && (
