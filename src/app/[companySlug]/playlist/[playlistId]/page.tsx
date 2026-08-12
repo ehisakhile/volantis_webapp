@@ -11,6 +11,7 @@ import { Navbar } from '@/components/layout/navbar';
 import { playlistsApi, PlaylistOut, PlaylistMediaItemOut } from '@/lib/api/playlists';
 import AudioPlayer from '@/components/media/AudioPlayer';
 import VideoPlayer from '@/components/media/VideoPlayer';
+import { isVideoRecording } from '@/lib/media';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-dev.volantislive.com';
 
@@ -40,7 +41,7 @@ function totalDuration(items: PlaylistMediaItemOut[]): number {
 
 function isVideoItem(item: PlaylistMediaItemOut | null): boolean {
   if (!item) return false;
-  return item.media_subtype === 'video' || item.media_subtype === 'video_note';
+  return isVideoRecording({ s3_url: item.s3_url });
 }
 
 export default function PublicPlaylistPage() {
@@ -296,7 +297,7 @@ export default function PublicPlaylistPage() {
                       {item.media_subtype && (
                         <>
                           <span>•</span>
-                          <span className="capitalize">{item.media_subtype}</span>
+                          <span className="capitalize">{isVideoRecording({ s3_url: item.s3_url }) ? 'Video' : 'Audio'}</span>
                         </>
                       )}
                     </p>
