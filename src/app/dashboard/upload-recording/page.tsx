@@ -9,9 +9,11 @@ import { recordingsApi } from '@/lib/api/recordings';
 import { subscriptionsApi } from '@/lib/api/subscriptions';
 import { SubscriptionLimitModal } from '@/components/subscription/subscription-limit-modal';
 import {
-  Radio, Upload, FileAudio, Image, Play, ArrowLeft,
+  Upload, FileAudio, FileVideo, Image, ArrowLeft,
   CheckCircle, AlertCircle, Loader2
 } from 'lucide-react';
+import AudioPlayer from '@/components/media/AudioPlayer';
+import VideoPlayer from '@/components/media/VideoPlayer';
 import type { VolRecordingOut } from '@/types/livestream';
 
 export default function UploadRecordingPage() {
@@ -22,11 +24,12 @@ export default function UploadRecordingPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [durationSeconds, setDurationSeconds] = useState<number>(0);
-  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaType, setMediaType] = useState<'audio' | 'video' | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   
   // Preview URLs
-  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string | null>(null);
   
   // UI state
@@ -36,7 +39,6 @@ export default function UploadRecordingPage() {
   const [success, setSuccess] = useState<VolRecordingOut | null>(null);
   const [uploadPermission, setUploadPermission] = useState<{ allowed: boolean; reason: string } | null>(null);
   
-  const audioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -64,15 +66,31 @@ export default function UploadRecordingPage() {
     }
   }, [isAuthenticated, authLoading, router, user]);
 
-  // Get audio duration when file is selected
-  const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Get media duration when file is selected
+  const detectMediaDuration = (url: string, isVideo: boolean) => {
+    const el = document.createElement(isVideo ? 'video' : 'audio');
+    el.preload = 'metadata';
+    el.addEventListener('loadedmetadata', () => {
+      if (Number.isFinite(el.duration) && el.duration > 0) {
+        setDurationSeconds(Math.floor(el.duration));
+      }
+      el.remove();
+    });
+    el.addEventListener('error', () => el.remove());
+    el.src = url;
+  };
+
+  const handleMediaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Validate file type
-    const allowedTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/m4a'];
-    if (!allowedTypes.includes(file.type)) {
-      setError('Please select a valid audio file (MP3, WAV, OGG, WebM, M4A)');
+    const isVideo = file.type.startsWith('video/');
+    const allowedAudio = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/m4a'];
+    const allowedVideo = ['video/mp4', 'video/webm', 'video/quicktime'];
+    const valid = isVideo ? allowedVideo.includes(file.type) : allowedAudio.includes(file.type);
+    if (!valid) {
+      setError('Please select a valid audio (MP3, WAV, OGG, WebM, M4A) or video file (MP4, WebM, MOV)');
       return;
     }
 
@@ -84,20 +102,18 @@ export default function UploadRecordingPage() {
     }
 
     setError(null);
-    setAudioFile(file);
-    
+    setMediaFile(file);
+    setMediaType(isVideo ? 'video' : 'audio');
+
     // Create preview URL
-    if (audioPreviewUrl) {
-      URL.revokeObjectURL(audioPreviewUrl);
+    if (mediaPreviewUrl) {
+      URL.revokeObjectURL(mediaPreviewUrl);
     }
     const url = URL.createObjectURL(file);
-    setAudioPreviewUrl(url);
+    setMediaPreviewUrl(url);
 
     // Get duration
-    const audio = new Audio(url);
-    audio.addEventListener('loadedmetadata', () => {
-      setDurationSeconds(Math.floor(audio.duration));
-    });
+    detectMediaDuration(url, isVideo);
   };
 
   const handleThumbnailFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -137,12 +153,12 @@ export default function UploadRecordingPage() {
       setError('Please enter a title');
       return;
     }
-    if (!audioFile) {
-      setError('Please select an audio file');
+    if (!mediaFile) {
+      setError('Please select an audio or video file');
       return;
     }
     if (durationSeconds <= 0) {
-      setError('Could not determine audio duration');
+      setError('Could not determine media duration');
       return;
     }
 
@@ -153,7 +169,7 @@ export default function UploadRecordingPage() {
     try {
       setUploadProgress('Uploading recording...');
       const result = await recordingsApi.uploadRecording(
-        audioFile,
+        mediaFile,
         title.trim(),
         description.trim(),
         durationSeconds,
@@ -263,9 +279,14 @@ export default function UploadRecordingPage() {
                       setSuccess(null);
                       setTitle('');
                       setDescription('');
-                      setAudioFile(null);
+                      setMediaFile(null);
+                      setMediaType(null);
                       setThumbnailFile(null);
                       setDurationSeconds(0);
+                      if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
+                      setMediaPreviewUrl(null);
+                      if (thumbnailPreviewUrl) URL.revokeObjectURL(thumbnailPreviewUrl);
+                      setThumbnailPreviewUrl(null);
                       if (fileInputRef.current) fileInputRef.current.value = '';
                       if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
                     }}
@@ -319,7 +340,7 @@ export default function UploadRecordingPage() {
             {/* Page Title */}
             <div className="mb-8">
               <h1 className="text-2xl font-bold text-slate-900">Upload Recording</h1>
-              <p className="text-slate-600">Share pre-recorded audio with your audience</p>
+              <p className="text-slate-600">Share pre-recorded media with your audience</p>
             </div>
 
             {/* Error Message */}
@@ -335,23 +356,27 @@ export default function UploadRecordingPage() {
 
             {/* Upload Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Audio File Upload */}
+              {/* Media File Upload */}
               <div className="bg-white rounded-xl p-6 border border-slate-200">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center">
-                    <FileAudio className="w-5 h-5 text-sky-600" />
+                    {mediaType === 'video' ? (
+                      <FileVideo className="w-5 h-5 text-sky-600" />
+                    ) : (
+                      <FileAudio className="w-5 h-5 text-sky-600" />
+                    )}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900">Audio File</h3>
-                    <p className="text-sm text-slate-500">Upload your recording (MP3, WAV, OGG, WebM, M4A)</p>
+                    <h3 className="font-semibold text-slate-900">Media File</h3>
+                    <p className="text-sm text-slate-500">Upload your recording (MP4, WebM, MOV, MP3, WAV, OGG, M4A)</p>
                   </div>
                 </div>
 
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="audio/*"
-                  onChange={handleAudioFileChange}
+                  accept="video/*,audio/*"
+                  onChange={handleMediaFileChange}
                   className="block w-full text-sm text-slate-500
                     file:mr-4 file:py-2 file:px-4
                     file:rounded-lg file:border-0
@@ -361,19 +386,31 @@ export default function UploadRecordingPage() {
                   "
                 />
 
-                {/* Audio Preview */}
-                {audioPreviewUrl && (
+                {/* Media Preview */}
+                {mediaPreviewUrl && (
                   <div className="mt-4 p-4 bg-slate-50 rounded-lg">
-                    <audio
-                      ref={audioRef}
-                      controls
-                      className="w-full"
-                      src={audioPreviewUrl}
-                    />
+                    {mediaType === 'video' ? (
+                      <VideoPlayer
+                        src={mediaPreviewUrl}
+                        poster={thumbnailPreviewUrl}
+                        title={title.trim() || 'Video preview'}
+                      />
+                    ) : (
+                      <AudioPlayer
+                        src={mediaPreviewUrl}
+                        title={title.trim() || 'Audio preview'}
+                        thumbnailUrl={thumbnailPreviewUrl}
+                        accent="violet"
+                      />
+                    )}
                     <div className="mt-2 flex items-center justify-between text-sm text-slate-600">
-                      <span>Duration: {formatDuration(durationSeconds)}</span>
-                      {audioFile && (
-                        <span>Size: {(audioFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                      <span>
+                        <span className="capitalize">{mediaType}</span>
+                        {' • Duration: '}
+                        {formatDuration(durationSeconds)}
+                      </span>
+                      {mediaFile && (
+                        <span>Size: {(mediaFile.size / (1024 * 1024)).toFixed(2)} MB</span>
                       )}
                     </div>
                   </div>
@@ -455,7 +492,7 @@ export default function UploadRecordingPage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isUploading || !audioFile || !title.trim()}
+                disabled={isUploading || !mediaFile || !title.trim()}
                 className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
               >
                 {isUploading ? (

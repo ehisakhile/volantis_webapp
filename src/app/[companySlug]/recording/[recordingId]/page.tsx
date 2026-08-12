@@ -13,8 +13,10 @@ import {
 import { Navbar } from '@/components/layout/navbar';
 import { recordingsApi, type RecordingStatsResponse } from '@/lib/api/recordings';
 import type { VolRecordingOut, VolRecordingWithReplayOut } from '@/types/livestream';
+import VideoPlayer from '@/components/media/VideoPlayer';
+import { isVideoRecording } from '@/lib/media';
 
-const API_BASE_URL = 'https://api-dev.volantislive.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-dev.volantislive.com';
 
 function AudioVisualizer({ isActive, isMuted }: { isActive: boolean; isMuted: boolean }) {
   const bars = 48;
@@ -178,6 +180,18 @@ export default function RecordingPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const positionUpdateRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Determine whether this is a video or audio recording
+  const isVideo = isVideoRecording({
+    stream_type: playbackData?.stream_type ?? null,
+    s3_url: playbackData?.s3_url ?? recording?.s3_url ?? null,
+  });
+
+  const playbackSrc = playbackData?.streaming_url
+    ? playbackData.streaming_url.startsWith('http')
+      ? playbackData.streaming_url
+      : `${API_BASE_URL}${playbackData.streaming_url}`
+    : '';
+
   const fetchRecording = useCallback(async () => {
     if (!companySlug || !recordingId) return;
     
@@ -223,7 +237,7 @@ export default function RecordingPage() {
   }, [fetchRecording]);
 
   useEffect(() => {
-    if (!playbackData?.streaming_url) return;
+    if (isVideo || !playbackData?.streaming_url) return;
     
     let isMounted = true;
     
@@ -305,7 +319,7 @@ export default function RecordingPage() {
         audioRef.current = null;
       }
     };
-  }, [playbackData?.streaming_url, recordingId]);
+  }, [playbackData?.streaming_url, recordingId, isVideo]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -350,6 +364,15 @@ export default function RecordingPage() {
     audioRef.current.currentTime = newTime;
     setCurrentTime(newTime);
   }, [duration]);
+
+  const handleVideoEnded = useCallback(async () => {
+    setIsPlaying(false);
+    try {
+      await recordingsApi.markRecordingCompleted(parseInt(recordingId, 10));
+    } catch (err) {
+      console.error('Failed to mark completed:', err);
+    }
+  }, [recordingId]);
 
   const formatTime = (seconds: number): string => {
     const hrs = Math.floor(seconds / 3600);
@@ -559,92 +582,105 @@ export default function RecordingPage() {
                   </div>
                 </div>
 
-                <div className="relative rounded-2xl overflow-hidden mb-6" style={{ background: 'linear-gradient(180deg, rgba(245,158,11,0.04) 0%, rgba(139,92,246,0.04) 100%)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'linear-gradient(rgba(245,158,11,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(245,158,11,0.3) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-                  
-                  <div className="relative py-8 flex flex-col items-center justify-center">
-                    <div className="relative mb-4">
-                      <PulseRings isActive={isPlaying && !isMuted} />
-                      <motion.div
-                        className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-2xl"
-                        animate={isPlaying ? { scale: [1, 1.05, 1], boxShadow: ['0 0 20px rgba(245,158,11,0.3)', '0 0 40px rgba(245,158,11,0.6)', '0 0 20px rgba(245,158,11,0.3)'] } : {}}
-                        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                      >
-                        {isLoadingAudio ? (
-                          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : isPlaying ? (
-                          <Pause className="w-8 h-8 text-white" />
-                        ) : (
-                          <Play className="w-8 h-8 text-white ml-1" />
-                        )}
-                      </motion.div>
-                    </div>
-                    
-                    <AudioVisualizer isActive={isPlaying} isMuted={isMuted} />
-                    
-                    {isLoadingAudio && (
-                      <p className="text-slate-500 text-sm mt-2">Loading audio...</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 mb-2">
-                  <button onClick={toggleMute} disabled={isLoadingAudio} className="text-slate-400 hover:text-white transition-colors flex-shrink-0 disabled:opacity-50">
-                    {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
-                  <div className="relative flex-1 h-2 bg-white/10 rounded-full overflow-hidden cursor-pointer">
-                    <div className="absolute h-full bg-white/20 transition-all" style={{ width: `${bufferedPercent}%` }} />
-                    <div className="absolute h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all" style={{ width: `${progressPercent}%` }} />
-                    <input
-                      type="range"
-                      min={0}
-                      max={duration || 100}
-                      value={currentTime}
-                      onChange={handleSeek}
-                      disabled={isLoadingAudio}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-default"
-                    />
-                  </div>
-                  <span className="text-slate-500 text-xs mono w-16 text-right">
-                    {formatTime(currentTime)} / {formatTime(duration)}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-center gap-4 mt-4">
-                  <button onClick={() => skip(-10)} disabled={isLoadingAudio} className="w-10 h-10 text-slate-400 hover:text-white transition-colors flex items-center justify-center disabled:opacity-50">
-                    <SkipBack className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={togglePlayPause}
-                    disabled={isLoadingAudio}
-                    className="w-14 h-14 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-500/25"
-                  >
-                    {isLoadingAudio || isBuffering ? (
-                      <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : isPlaying ? (
-                      <Pause className="w-6 h-6" />
-                    ) : (
-                      <Play className="w-6 h-6 ml-0.5" />
-                    )}
-                  </button>
-                  <button onClick={() => skip(10)} disabled={isLoadingAudio} className="w-10 h-10 text-slate-400 hover:text-white transition-colors flex items-center justify-center disabled:opacity-50">
-                    <SkipForward className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-center gap-2 mt-4">
-                  <span className="text-slate-500 text-xs">Volume</span>
-                  <input
-                    type="range" 
-                    min="0" 
-                    max="1" 
-                    step="0.1"
-                    value={isMuted ? 0 : volume}
-                    onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                    disabled={isLoadingAudio}
-                    className="w-20 h-1 bg-slate-700 rounded-full appearance-none cursor-pointer disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                {isVideo ? (
+                  <VideoPlayer
+                    src={playbackSrc}
+                    poster={recording.thumbnail_url || undefined}
+                    title={recording.title}
+                    autoPlay
+                    onEnded={handleVideoEnded}
+                    className="mb-6"
                   />
-                </div>
+                ) : (
+                  <>
+                    <div className="relative rounded-2xl overflow-hidden mb-6" style={{ background: 'linear-gradient(180deg, rgba(245,158,11,0.04) 0%, rgba(139,92,246,0.04) 100%)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'linear-gradient(rgba(245,158,11,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(245,158,11,0.3) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+
+                      <div className="relative py-8 flex flex-col items-center justify-center">
+                        <div className="relative mb-4">
+                          <PulseRings isActive={isPlaying && !isMuted} />
+                          <motion.div
+                            className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-2xl"
+                            animate={isPlaying ? { scale: [1, 1.05, 1], boxShadow: ['0 0 20px rgba(245,158,11,0.3)', '0 0 40px rgba(245,158,11,0.6)', '0 0 20px rgba(245,158,11,0.3)'] } : {}}
+                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                          >
+                            {isLoadingAudio ? (
+                              <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : isPlaying ? (
+                              <Pause className="w-8 h-8 text-white" />
+                            ) : (
+                              <Play className="w-8 h-8 text-white ml-1" />
+                            )}
+                          </motion.div>
+                        </div>
+
+                        <AudioVisualizer isActive={isPlaying} isMuted={isMuted} />
+
+                        {isLoadingAudio && (
+                          <p className="text-slate-500 text-sm mt-2">Loading audio...</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 mb-2">
+                      <button onClick={toggleMute} disabled={isLoadingAudio} className="text-slate-400 hover:text-white transition-colors flex-shrink-0 disabled:opacity-50">
+                        {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                      </button>
+                      <div className="relative flex-1 h-2 bg-white/10 rounded-full overflow-hidden cursor-pointer">
+                        <div className="absolute h-full bg-white/20 transition-all" style={{ width: `${bufferedPercent}%` }} />
+                        <div className="absolute h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all" style={{ width: `${progressPercent}%` }} />
+                        <input
+                          type="range"
+                          min={0}
+                          max={duration || 100}
+                          value={currentTime}
+                          onChange={handleSeek}
+                          disabled={isLoadingAudio}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-default"
+                        />
+                      </div>
+                      <span className="text-slate-500 text-xs mono w-16 text-right">
+                        {formatTime(currentTime)} / {formatTime(duration)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-4 mt-4">
+                      <button onClick={() => skip(-10)} disabled={isLoadingAudio} className="w-10 h-10 text-slate-400 hover:text-white transition-colors flex items-center justify-center disabled:opacity-50">
+                        <SkipBack className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={togglePlayPause}
+                        disabled={isLoadingAudio}
+                        className="w-14 h-14 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-500/25"
+                      >
+                        {isLoadingAudio || isBuffering ? (
+                          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : isPlaying ? (
+                          <Pause className="w-6 h-6" />
+                        ) : (
+                          <Play className="w-6 h-6 ml-0.5" />
+                        )}
+                      </button>
+                      <button onClick={() => skip(10)} disabled={isLoadingAudio} className="w-10 h-10 text-slate-400 hover:text-white transition-colors flex items-center justify-center disabled:opacity-50">
+                        <SkipForward className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-2 mt-4">
+                      <span className="text-slate-500 text-xs">Volume</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={isMuted ? 0 : volume}
+                        onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                        disabled={isLoadingAudio}
+                        className="w-20 h-1 bg-slate-700 rounded-full appearance-none cursor-pointer disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </motion.div>
 

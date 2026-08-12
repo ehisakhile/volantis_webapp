@@ -9,7 +9,7 @@ import {
   Radio, Users, Play, X, ChevronRight, Headphones, Eye, History, EyeIcon,
   Pause, Volume2, VolumeX, Minimize2, Maximize2, Wifi, WifiOff,
   Activity, Zap, ChevronDown, ChevronUp, Clock, BarChart2, Signal,
-  ArrowLeft, Share2, Heart, Bell, BellPlus, Disc3, UserCheck, ListMusic
+  ArrowLeft, Share2, Heart, Bell, BellPlus, Disc3, UserCheck, ListMusic, Film
 } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar';
 import { StreamCard } from '@/components/streaming/stream-card';
@@ -26,6 +26,7 @@ import type { VolCompanyResponse } from '@/types/company';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { useViewerCount } from '@/lib/api/useViewerCount';
+import { isVideoRecording } from '@/lib/media';
 
 /* ─────────────────────── Waveform Visualizer ─────────────────────── */
 function AudioVisualizer({ isActive, color = '#38bdf8' }: { isActive: boolean; color?: string }) {
@@ -1500,7 +1501,9 @@ export default function CompanyPage() {
                 ) : (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {visibleRecordings.map((recording, i) => (
+                      {visibleRecordings.map((recording, i) => {
+                        const isVideo = isVideoRecording(recording);
+                        return (
                         <motion.div
                           key={recording.id}
                           initial={{ opacity: 0, y: 20 }}
@@ -1509,7 +1512,11 @@ export default function CompanyPage() {
                         >
                           <Link
                             href={`/${company?.slug || slug}/recording/${recording.id}`}
-                            className="block group relative overflow-hidden rounded-2xl bg-slate-800/50 border border-slate-700/50 hover:border-amber-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/20"
+                            className={`block group relative overflow-hidden rounded-2xl bg-slate-800/50 border transition-all duration-300 ${
+                              isVideo
+                                ? 'border-slate-700/50 hover:border-sky-500/50 hover:shadow-lg hover:shadow-sky-500/20'
+                                : 'border-slate-700/50 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/20'
+                            }`}
                           >
                             {recording.thumbnail_url ? (
                               <div
@@ -1517,21 +1524,38 @@ export default function CompanyPage() {
                                 style={{ backgroundImage: `url(${recording.thumbnail_url})` }}
                               />
                             ) : (
-                              <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-500 to-rose-600 opacity-20 group-hover:opacity-30 transition-opacity" />
+                              <div className={`absolute inset-0 bg-gradient-to-br opacity-20 group-hover:opacity-30 transition-opacity ${
+                                isVideo
+                                  ? 'from-sky-600 via-indigo-600 to-violet-700'
+                                  : 'from-amber-600 via-orange-500 to-rose-600'
+                              }`} />
                             )}
+
+                            {/* Type badge */}
+                            <div className="absolute top-4 left-4 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/50 backdrop-blur border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white/90">
+                              {isVideo ? <Film className="w-3 h-3 text-sky-400" /> : <Headphones className="w-3 h-3 text-amber-400" />}
+                              {isVideo ? 'Video' : 'Audio'}
+                            </div>
+
                             <div className="relative p-5 pt-20">
                               <div className="absolute top-4 right-4">
-                                <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center overflow-hidden">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden ${
+                                  isVideo ? 'bg-sky-500/20' : 'bg-amber-500/20'
+                                }`}>
                                   {recording.thumbnail_url ? (
                                     <img src={recording.thumbnail_url} alt={recording.title} className="w-full h-full object-cover" />
                                   ) : recording.company_logo_url ? (
                                     <img src={recording.company_logo_url} alt={recording.company_name || 'Company'} className="w-full h-full object-cover" />
+                                  ) : isVideo ? (
+                                    <Film className="w-4 h-4 text-sky-400" />
                                   ) : (
                                     <Clock className="w-4 h-4 text-amber-400" />
                                   )}
                                 </div>
                               </div>
-                              <h3 className="text-lg font-semibold text-white mb-1 line-clamp-1 group-hover:text-amber-400 transition-colors">
+                              <h3 className={`text-lg font-semibold text-white mb-1 line-clamp-1 transition-colors ${
+                                isVideo ? 'group-hover:text-sky-400' : 'group-hover:text-amber-400'
+                              }`}>
                                 {recording.title}
                               </h3>
                               {recording.description && (
@@ -1541,7 +1565,7 @@ export default function CompanyPage() {
                                 <span>{new Date(recording.created_at).toLocaleDateString()}</span>
                                 <div className="flex items-center gap-3">
                                   {recording.replay_count !== undefined && recording.replay_count > 0 && (
-                                    <span className="flex items-center gap-1 text-amber-400/70">
+                                    <span className={`flex items-center gap-1 ${isVideo ? 'text-sky-400/70' : 'text-amber-400/70'}`}>
                                       <Users className="w-3 h-3" />
                                       {recording.replay_count.toLocaleString()}
                                     </span>
@@ -1552,14 +1576,17 @@ export default function CompanyPage() {
                                 </div>
                               </div>
                               <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="w-14 h-14 bg-amber-500 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/30 transform scale-0 group-hover:scale-100 transition-transform duration-300">
+                                <div className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg transform scale-0 group-hover:scale-100 transition-transform duration-300 ${
+                                  isVideo ? 'bg-sky-500 shadow-sky-500/30' : 'bg-amber-500 shadow-amber-500/30'
+                                }`}>
                                   <Play className="w-6 h-6 text-white ml-1" />
                                 </div>
                               </div>
                             </div>
                           </Link>
                         </motion.div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {recordings.length > 6 && (

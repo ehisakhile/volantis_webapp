@@ -6,7 +6,7 @@ import { Play, Pause, Volume2, VolumeX, Clock, X, SkipBack, SkipForward } from '
 import type { VolRecordingOut } from '@/types/livestream';
 import { recordingsApi } from '@/lib/api/recordings';
 
-const API_BASE_URL = 'https://api-dev.volantislive.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api-dev.volantislive.com';
 
 interface RecordingPlayerProps {
   recording: VolRecordingOut;

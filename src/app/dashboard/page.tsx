@@ -193,7 +193,7 @@ export default function DashboardPage() {
 
   const menuItems = [
     { icon: Play, label: 'Go Live', href: '/creator/stream', color: 'bg-red-500', description: 'Start streaming now' },
-    { icon: Upload, label: 'Upload Recording', href: '/dashboard/upload-recording', color: 'bg-orange-500', description: 'Upload pre-recorded audio' },
+    { icon: Upload, label: 'Upload Recording', href: '/dashboard/upload-recording', color: 'bg-orange-500', description: 'Upload pre-recorded video and audio' },
     { icon: Video, label: 'My Streams', href: `/${companySlug}`, color: 'bg-sky-500', description: 'View past broadcasts' },
     { icon: Plug, label: 'Integrations', href: '/dashboard/integrations', color: 'bg-indigo-500', description: 'Connect external services' },
     { icon: Bookmark, label: 'Preferences', href: '/dashboard/preferences', color: 'bg-teal-500', description: 'Content categories' },
