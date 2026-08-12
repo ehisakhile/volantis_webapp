@@ -99,7 +99,7 @@ export default function PublicPlaylistPage() {
     }
   }, [queue.length, currentIndex, playlist?.loop_enabled, playIndex]);
 
-  const currentSrc = resolveUrl(currentItem?.streaming_url || currentItem?.s3_url);
+  const currentSrc = resolveUrl(currentItem?.s3_url || currentItem?.streaming_url);
   const showVideo = isVideoItem(currentItem);
 
   if (loading) {
