@@ -1,192 +1,77 @@
-'use client';
+"use client";
 
-import { useState, FormEvent, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { Container } from '@/components/ui/container';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/lib/auth-context';
-import { ArrowRight, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { FormEvent, Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { useAuth } from "@/lib/auth-context";
+
+const fieldClass = "w-full rounded-xl border border-slate-300 bg-white py-3 pl-11 pr-4 text-slate-900 outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-100";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, user, error: authError, clearError, isLoading, checkEmailVerification, isEmailVerified } = useAuth();
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { login, error: authError, clearError, isLoading, checkEmailVerification } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-  const [localError, setLocalError] = useState('');
+  const [localError, setLocalError] = useState("");
 
   useEffect(() => {
-    const callbackUrl = searchParams?.get('callbackUrl');
-    if (callbackUrl) {
-      sessionStorage.setItem('login_callback_url', callbackUrl);
-    }
+    const callbackUrl = searchParams.get("callbackUrl");
+    if (callbackUrl?.startsWith("/")) sessionStorage.setItem("login_callback_url", callbackUrl);
   }, [searchParams]);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setLocalError('');
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setLocalError("");
     clearError();
-
-    if (!email || !password) {
-      setLocalError('Please fill in all fields');
-      return;
-    }
+    if (!email.trim() || !password) return setLocalError("Enter your email and password.");
 
     try {
-      await login({ email, password });
+      const loggedInUser = await login({ email: email.trim(), password });
+      const verified = await checkEmailVerification();
+      if (!verified) return router.push("/verify-email");
 
-      const callbackUrl = sessionStorage.getItem('login_callback_url');
-      sessionStorage.removeItem('login_callback_url');
-
-      const isVerified = await checkEmailVerification();
-
-      if (!isVerified) {
-        router.push('/verify-email');
-      } else if (callbackUrl) {
-        router.push(callbackUrl);
-      } else if (user?.company_id) {
-        router.push('/dashboard');
-      } else {
-        router.push('/user/dashboard');
-      }
+      const callbackUrl = sessionStorage.getItem("login_callback_url");
+      sessionStorage.removeItem("login_callback_url");
+      if (callbackUrl?.startsWith("/")) return router.push(callbackUrl);
+      router.push(loggedInUser.company_id ? "/dashboard" : "/user/dashboard");
     } catch {
-      // Error is handled by auth context
+      // The auth context exposes the user-facing error.
     }
   };
 
-  const displayError = localError || (authError ? 'Invalid email or password. Please try again.' : '');
+  const error = localError || (authError ? "We could not sign you in. Check your details and try again." : "");
 
   return (
-    <div className="min-h-screen bg-navy-50">
-      {/* Simple Header */}
-      <header className="bg-white border-b border-navy-100 py-4">
-        <Container>
-          <Link href="/" className="flex items-center gap-2 w-fit">
-            <img
-              src="/logo.png"
-              alt="Volantislive"
-              className="h-8 w-auto"
-            />
-          </Link>
-        </Container>
-      </header>
-
-      <main className="py-16">
-        <Container>
-          <div className="max-w-md mx-auto">
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-navy-100">
-              <div className="text-center mb-8">
-                <h1 className="text-2xl font-bold text-navy-900 mb-2">Welcome back</h1>
-                <p className="text-navy-600">Login to your account to continue</p>
-              </div>
-
-              {displayError && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-700">{displayError}</p>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-navy-700 mb-2">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
-                    <input
-                      type="email"
-                      id="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
-                      placeholder="you@example.com"
-                      required
-                      autoComplete="email"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-navy-700 mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-navy-400" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      id="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-10 pr-12 py-3 rounded-lg border border-navy-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all"
-                      placeholder="••••••••"
-                      required
-                      autoComplete="current-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-navy-400 hover:text-navy-600 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="rounded border-navy-300 text-sky-500 focus:ring-sky-500" 
-                    />
-                    <span className="text-sm text-navy-600">Remember me</span>
-                  </label>
-                  <Link href="/forgot-password" className="text-sm text-sky-600 hover:underline">
-                    Forgot password?
-                  </Link>
-                </div>
-
-                <Button 
-                  type="submit" 
-                  size="lg" 
-                  className="w-full"
-                  loading={isLoading}
-                >
-                  Login
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </Button>
-              </form>
-
-              <div className="mt-6 text-center">
-                <p className="text-navy-600">
-                  I don't have an account?{" "}
-                  <Link href="/signup/user" className="text-sky-600 font-medium hover:underline">
-                    Sign up free
-                  </Link>
-                </p>
-              </div>
-            </div>
+    <AuthShell title="Welcome back" description="Sign in to continue to your account." benefits={["One login for listeners and creators", "Continue to the right account automatically", "Secure email verification"]}>
+      {error && <div role="alert" className="mb-5 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />{error}</div>}
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label htmlFor="email" className="mb-2 block text-sm font-semibold text-slate-700">Email address</label>
+          <div className="relative"><Mail className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden="true" /><input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" required className={fieldClass} /></div>
+        </div>
+        <div>
+          <div className="mb-2 flex items-center justify-between"><label htmlFor="password" className="text-sm font-semibold text-slate-700">Password</label><Link href="/forgot-password" className="text-sm font-semibold text-sky-700 hover:underline">Forgot password?</Link></div>
+          <div className="relative">
+            <Lock className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <input id="password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required className={`${fieldClass} pr-12`} />
+            <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-500 hover:text-slate-800">{showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}</button>
           </div>
-        </Container>
-      </main>
-    </div>
+        </div>
+        <button type="submit" disabled={isLoading} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-5 py-3 font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+          {isLoading ? "Signing in…" : "Sign in"}<ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </form>
+      <div className="mt-7 border-t border-slate-200 pt-6 text-center text-sm text-slate-600">
+        New to Volantislive? <Link href="/signup" className="font-semibold text-sky-700 hover:underline">Create an account</Link>
+      </div>
+    </AuthShell>
   );
 }
 
 export default function LoginPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-navy-50 flex items-center justify-center">
-        <div className="animate-pulse text-navy-600">Loading...</div>
-      </div>
-    }>
-      <LoginForm />
-    </Suspense>
-  );
+  return <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">Loading…</div>}><LoginForm /></Suspense>;
 }

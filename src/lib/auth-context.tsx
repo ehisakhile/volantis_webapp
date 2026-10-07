@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authApi } from '@/lib/api/auth';
-import type { VolUserResponse, LoginRequest, SignupRequest, UserSignupRequest, VolSignupResponse, VolTokenResponse } from '@/types/auth';
+import type { VolUserResponse, LoginRequest, SignupRequest, UserSignupRequest, VolSignupResponse } from '@/types/auth';
 
 interface AuthContextType {
   user: VolUserResponse | null;
@@ -10,7 +10,7 @@ interface AuthContextType {
   isEmailVerified: boolean;
   isLoading: boolean;
   error: string | null;
-  login: (data: LoginRequest) => Promise<void>;
+  login: (data: LoginRequest) => Promise<VolUserResponse>;
   signup: (data: SignupRequest) => Promise<VolSignupResponse>;
   signupUser: (data: UserSignupRequest) => Promise<VolSignupResponse>;
   logout: () => Promise<void>;
@@ -70,12 +70,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (data: LoginRequest) => {
+  const login = useCallback(async (data: LoginRequest): Promise<VolUserResponse> => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response: VolTokenResponse = await authApi.login(data);
+      await authApi.login(data);
       
       // Fetch user data after successful login
       const userData = await authApi.getMe();
@@ -103,6 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem('verification_user_id', String(userData.id));
         }
       }
+      return userData;
     } catch (err: unknown) {
       const errorMessage = err && typeof err === 'object' && 'detail' in err
         ? String(err.detail)
