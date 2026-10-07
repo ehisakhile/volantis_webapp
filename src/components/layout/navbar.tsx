@@ -204,7 +204,7 @@ export function Navbar() {
                 How It Works
               </Link>
                 <Link
-                href="/how-it-works"
+                href="/pricing"
                 className={cn(
                   "font-medium transition-colors text-sm",
                   pathname === "/pricing" ? "text-sky-600" : "text-slate-600 hover:text-sky-600"
