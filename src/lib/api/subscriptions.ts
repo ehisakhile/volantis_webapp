@@ -91,7 +91,7 @@ export interface UserCoupon {
   monthly_usage_limit: number;
   current_month_uses: number;
   valid_until: string;
-  applicable_plans: string;
+  applicable_plans: string | null;
 }
 
 export interface CouponValidationResponse {

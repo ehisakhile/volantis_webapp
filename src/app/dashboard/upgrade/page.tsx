@@ -181,7 +181,7 @@ function UpgradePageContent() {
     
     // Check if user has a coupon applicable to this plan
     const applicableCoupon = coupons.find(coupon => {
-      const couponPlanLower = coupon.applicable_plans.toLowerCase();
+      const couponPlanLower = (coupon.applicable_plans ?? '').toLowerCase();
       return couponPlanLower === plan.name.toLowerCase() || couponPlanLower === 'all';
     });
     
@@ -817,7 +817,7 @@ function UpgradePageContent() {
                     const originalDisplay = billingCycle === 'monthly' ? plan.priceDisplay : plan.annualPriceDisplay;
                     const couponValidation = couponValidations[plan.id];
                     const hasAssignedCoupon = !isLoadingCoupons && coupons.some(
-                      c => c.applicable_plans.toLowerCase() === plan.name.toLowerCase() || c.applicable_plans.toLowerCase() === 'all'
+                      c => c.applicable_plans?.toLowerCase() === plan.name.toLowerCase() || c.applicable_plans?.toLowerCase() === 'all'
                     );
                     const hasManualCoupon = manualCouponCode && couponValidation?.valid;
 
