@@ -327,6 +327,10 @@ export interface ActiveStreamItem {
   thumbnail_url: string | null;
   started_at: string;
   total_views: number;
+  stream_type?: 'audio' | 'video';
+  webrtc_playback_url?: string | null;
+  hls_url?: string | null;
+  dash_url?: string | null;
 }
 
 // For backward compatibility, keep the old type but map to it

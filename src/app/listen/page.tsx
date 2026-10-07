@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { 
   Search, Radio, Play, Pause, Volume2, VolumeX, 
   Users, Eye, X,
-  Headphones, Waves, Disc3, RadioReceiver, Clock, ChevronLeft, ChevronRight
+  Headphones, Disc3
 } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
@@ -52,36 +52,12 @@ function formatTimeSince(dateString: string): string {
   return `${Math.floor(diff / 86400)}d`;
 }
 
-// ─── Floating orbs background ────────────────────────────────────────────────
-
-function FloatingOrbs() {
-  return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden">
-      {/* Large ambient orbs */}
-      <div className="absolute -top-[30%] -right-[15%] w-[700px] h-[700px] rounded-full"
-        style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)', filter: 'blur(40px)' }} />
-      <div className="absolute -bottom-[20%] -left-[10%] w-[600px] h-[600px] rounded-full"
-        style={{ background: 'radial-gradient(circle, rgba(14,165,233,0.10) 0%, transparent 70%)', filter: 'blur(40px)' }} />
-      <div className="absolute top-[40%] left-[30%] w-[400px] h-[400px] rounded-full"
-        style={{ background: 'radial-gradient(circle, rgba(236,72,153,0.06) 0%, transparent 70%)', filter: 'blur(60px)' }} />
-      {/* Subtle noise overlay */}
-      <div className="absolute inset-0 opacity-[0.015]"
-        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
-          backgroundRepeat: 'repeat', backgroundSize: '128px' }} />
-    </div>
-  );
-}
-
 // ─── Live badge ───────────────────────────────────────────────────────────────
 
 function LiveBadge() {
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase"
-      style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.35)', color: '#F87171' }}>
-      <span className="relative flex h-1.5 w-1.5">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
-      </span>
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-red-700">
+      <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
       Live
     </span>
   );
@@ -89,206 +65,80 @@ function LiveBadge() {
 
 // ─── Stream Card ──────────────────────────────────────────────────────────────
 
-function StreamCard({ stream, index }: { stream: ActiveStreamItem; index: number }) {
-  const [colors] = useState(() => getGradientForCompany(stream.company_name));
-  const [hovered, setHovered] = useState(false);
+function StreamArtwork({ stream }: { stream: ActiveStreamItem }) {
 
+  const thumbnail = stream.thumbnail_url;
+  const source = thumbnail || stream.company_logo_url;
+
+
+  if (!source) {
+    return <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-sky-100 to-slate-100"><Radio className="h-12 w-12 text-sky-600" /></div>;
+  }
+
+
+
+  return <img src={source} alt={thumbnail ? `${stream.title} thumbnail` : `${stream.company_name} logo`} className={`h-full w-full ${thumbnail ? 'object-cover' : 'object-contain bg-slate-100 p-8'}`} />;
+}
+
+function StreamCard({ stream, onPlay, isActive }: { stream: ActiveStreamItem; onPlay: () => void; isActive: boolean }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.92 }}
-      transition={{ delay: index * 0.06, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      onHoverStart={() => setHovered(true)}
-      onHoverEnd={() => setHovered(false)}
-    >
-      <Link href={`/${stream.company_slug}`} className="block">
-        <div className="relative overflow-hidden rounded-2xl transition-all duration-300"
-          style={{
-            background: 'rgba(15,20,40,0.55)',
-            backdropFilter: 'blur(20px)',
-            border: hovered ? `1px solid rgba(${colors[0]}, 0.4)` : '1px solid rgba(255,255,255,0.07)',
-            boxShadow: hovered ? `0 20px 60px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)` : '0 4px 24px rgba(0,0,0,0.3)',
-            transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
-          }}>
+    <article className={`group relative min-h-[380px] overflow-hidden rounded-3xl border bg-slate-900 shadow-sm transition hover:-translate-y-1 hover:shadow-xl sm:min-h-[420px] ${isActive ? 'border-sky-400 ring-4 ring-sky-100' : 'border-slate-200'}`}>
+      <div className="absolute inset-0">
+        <StreamArtwork stream={stream} />
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/45 to-slate-950/10" />
 
-          {/* Gradient top bar */}
-          <div className="h-1 w-full"
-            style={{ background: `linear-gradient(90deg, ${colors[0]}, ${colors[1]})` }} />
+      <div className="absolute left-5 top-5"><LiveBadge /></div>
+      <div className="absolute right-5 top-5 inline-flex items-center gap-1.5 rounded-full bg-slate-950/70 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
+          <Users className="h-3.5 w-3.5" aria-hidden="true" />{formatViewerCount(stream.viewer_count)}
+      </div>
 
-          {/* Card background glow */}
-          <motion.div
-            className="absolute inset-0 opacity-0 pointer-events-none"
-            animate={{ opacity: hovered ? 0.08 : 0 }}
-            transition={{ duration: 0.3 }}
-            style={{ background: `radial-gradient(ellipse at 50% 0%, ${colors[0]}, transparent 70%)` }}
-          />
-
-          {/* Top badges */}
-          <div className="absolute top-3 left-3 z-10">
-            {stream.is_live && <LiveBadge />}
+      <div className="absolute inset-x-0 bottom-0 p-6 sm:p-7">
+        <h3 className="line-clamp-2 text-2xl font-bold leading-tight text-white sm:text-3xl">{stream.title}</h3>
+        <div className="mt-4 flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-sm">
+            {stream.company_logo_url ? <img src={stream.company_logo_url} alt="" className="h-full w-full object-cover" /> : <Radio className="h-4 w-4" />}
           </div>
-          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <Eye className="w-3 h-3" />
-            {formatViewerCount(stream.total_views)}
-          </div>
-
-          <div className="p-5 pt-10">
-            {/* Logo */}
-            <div className="relative w-16 h-16 mx-auto mb-4">
-              <div className="absolute inset-0 rounded-xl blur-2xl opacity-60"
-                style={{ background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})` }} />
-              <div className="relative w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center"
-                style={{ background: 'rgba(15,20,40,0.8)', border: '1.5px solid rgba(255,255,255,0.1)' }}>
-                {stream.company_logo_url
-                  ? <img src={stream.company_logo_url} alt={stream.company_name} className="w-full h-full object-cover" />
-                  : <Radio className="w-7 h-7" style={{ color: colors[0] }} />}
-              </div>
-            </div>
-
-            <h3 className="text-[15px] font-semibold text-white text-center mb-1 leading-snug truncate"
-              style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              {stream.company_name}
-            </h3>
-            <p className="text-xs text-center mb-4 truncate" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              {stream.title}
-            </p>
-
-            <div className="flex items-center justify-between text-[11px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              <span className="flex items-center gap-1">
-                <Waves className="w-3 h-3" />
-                {formatTimeSince(stream.started_at)} ago
-              </span>
-              <span className="flex items-center gap-1">
-                <Users className="w-3 h-3" />
-                {formatViewerCount(stream.total_views)}
-              </span>
-            </div>
-          </div>
-
-          {/* Play overlay */}
-          <motion.div
-            className="absolute inset-0 flex items-center justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: hovered ? 1 : 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)' }}>
-            <motion.div
-              initial={{ scale: 0.7 }}
-              animate={{ scale: hovered ? 1 : 0.7 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              className="w-14 h-14 rounded-full flex items-center justify-center"
-              style={{ background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`, boxShadow: `0 8px 32px ${colors[0]}60` }}>
-              <Play className="w-6 h-6 text-white ml-0.5" />
-            </motion.div>
-          </motion.div>
+          <div className="min-w-0 flex-1"><Link href={`/${stream.company_slug}`} className="block truncate text-sm font-semibold text-white hover:text-sky-300">{stream.company_name}</Link><p className="mt-0.5 text-xs text-slate-300">Started {formatTimeSince(stream.started_at)} ago</p></div>
         </div>
-      </Link>
-    </motion.div>
+        <button onClick={onPlay} aria-label={`${isActive ? 'Pause or resume' : 'Listen to'} ${stream.title}`} className={`mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-lg transition ${isActive ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-sky-600 text-white hover:bg-sky-500'}`}>
+          {isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}{isActive ? 'Now playing' : 'Listen now'}
+        </button>
+      </div>
+    </article>
   );
 }
 
 // ─── Company Card ─────────────────────────────────────────────────────────────
 
-function CompanyCard({ company, index }: { company: CompanySearchResult; index: number }) {
-  const [colors] = useState(() => getGradientForCompany(company.name));
-  const [hovered, setHovered] = useState(false);
-
+function CompanyCard({ company }: { company: CompanySearchResult }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.93 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: index * 0.025, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      onHoverStart={() => setHovered(true)}
-      onHoverEnd={() => setHovered(false)}
-    >
-      <Link href={`/${company.slug}`} className="block">
-        <div className="relative overflow-hidden rounded-xl p-4 text-center transition-all duration-200"
-          style={{
-            background: hovered ? 'rgba(20,25,50,0.8)' : 'rgba(15,20,40,0.5)',
-            backdropFilter: 'blur(16px)',
-            border: hovered ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(255,255,255,0.06)',
-            boxShadow: hovered ? '0 8px 32px rgba(0,0,0,0.4)' : 'none',
-            transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
-          }}>
-
-          {/* Bottom gradient glow on hover */}
-          <motion.div className="absolute inset-x-0 bottom-0 h-12 pointer-events-none"
-            animate={{ opacity: hovered ? 1 : 0 }}
-            transition={{ duration: 0.3 }}
-            style={{ background: `linear-gradient(to top, ${colors[0]}25, transparent)` }} />
-
-          <div className="relative w-12 h-12 mx-auto mb-2.5">
-            <div className="absolute inset-0 rounded-lg opacity-50 blur-lg"
-              style={{ background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})` }} />
-            <div className="relative w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center"
-              style={{ background: 'rgba(15,20,40,0.9)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              {company.logo_url
-                ? <img src={company.logo_url} alt={company.name} className="w-full h-full object-cover" />
-                : <Radio className="w-5 h-5" style={{ color: colors[0] }} />}
-            </div>
-          </div>
-
-          <h3 className="text-xs font-semibold text-white truncate leading-tight"
-            style={{ fontFamily: "'DM Sans', sans-serif" }}>
-            {company.name}
-          </h3>
-
-          {company.subscriber_count > 0 && (
-            <p className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              {company.subscriber_count.toLocaleString()} subs
-            </p>
-          )}
-        </div>
-      </Link>
-    </motion.div>
+    <Link href={`/${company.slug}`} className="block rounded-xl border border-slate-200 bg-white p-4 text-center transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-sm">
+      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-sky-50 text-sky-700">
+        {company.logo_url ? <img src={company.logo_url} alt="" className="h-full w-full object-cover" /> : <Radio className="h-5 w-5" />}
+      </div>
+      <h3 className="truncate text-sm font-semibold text-slate-900">{company.name}</h3>
+      <p className="mt-1 text-xs text-slate-500">{company.subscriber_count > 0 ? `${company.subscriber_count.toLocaleString()} followers` : 'View channel'}</p>
+    </Link>
   );
 }
 
 // ─── Search Bar ───────────────────────────────────────────────────────────────
 
 function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [focused, setFocused] = useState(false);
-
   return (
-    <div className="relative max-w-xl mx-auto">
-      <div className="relative rounded-2xl overflow-hidden transition-all duration-300"
-        style={{
-          background: 'rgba(15,20,40,0.6)',
-          backdropFilter: 'blur(20px)',
-          border: focused ? '1px solid rgba(99,102,241,0.5)' : '1px solid rgba(255,255,255,0.1)',
-          boxShadow: focused ? '0 0 0 4px rgba(99,102,241,0.12), 0 8px 32px rgba(0,0,0,0.3)' : '0 4px 24px rgba(0,0,0,0.2)',
-        }}>
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5"
-          style={{ color: focused ? '#818CF8' : 'rgba(255,255,255,0.35)' }} />
+    <div className="relative max-w-xl">
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
         <input
           type="text"
           placeholder="Search stations, churches, categories..."
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          className="w-full pl-11 pr-10 py-4 bg-transparent text-white text-sm placeholder-transparent focus:outline-none"
-          style={{ '--tw-placeholder-opacity': '0' } as React.CSSProperties}
+          aria-label="Search channels and live streams"
+          className="w-full rounded-xl border border-slate-300 bg-white py-3.5 pl-11 pr-11 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100"
         />
-        <span className="absolute left-11 top-1/2 -translate-y-1/2 text-sm pointer-events-none select-none"
-          style={{ color: value ? 'transparent' : 'rgba(255,255,255,0.3)' }}>
-          Search stations, churches, categories...
-        </span>
-        <AnimatePresence>
-          {value && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              onClick={() => onChange('')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.6)' }}>
-              <X className="w-3 h-3" />
-            </motion.button>
-          )}
-        </AnimatePresence>
+        {value && <button onClick={() => onChange('')} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>}
       </div>
     </div>
   );
@@ -310,7 +160,7 @@ function SectionHeader({ icon: Icon, title, subtitle, count, accentColor = '#818
           style={{ background: `${accentColor}20`, border: `1px solid ${accentColor}40` }}>
           <Icon className="w-4 h-4" style={{ color: accentColor }} />
         </div>
-        <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        <h2 className="text-xl font-bold text-slate-950">
           {title}
         </h2>
         {count !== undefined && (
@@ -320,7 +170,7 @@ function SectionHeader({ icon: Icon, title, subtitle, count, accentColor = '#818
           </span>
         )}
       </div>
-      {subtitle && <p className="text-sm pl-11" style={{ color: 'rgba(255,255,255,0.4)' }}>{subtitle}</p>}
+      {subtitle && <p className="pl-11 text-sm text-slate-500">{subtitle}</p>}
     </div>
   );
 }
@@ -329,14 +179,13 @@ function SectionHeader({ icon: Icon, title, subtitle, count, accentColor = '#818
 
 function SkeletonCard({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="rounded-2xl overflow-hidden animate-pulse"
-      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div className="h-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+    <div className="animate-pulse overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="h-1 bg-slate-100" />
       <div className={compact ? 'p-4' : 'p-5 pt-10'}>
         <div className={`rounded-xl mx-auto mb-3 ${compact ? 'w-12 h-12' : 'w-16 h-16'}`}
-          style={{ background: 'rgba(255,255,255,0.06)' }} />
-        <div className="h-3 rounded-full mx-auto mb-2" style={{ background: 'rgba(255,255,255,0.06)', width: '70%' }} />
-        {!compact && <div className="h-2.5 rounded-full mx-auto" style={{ background: 'rgba(255,255,255,0.04)', width: '50%' }} />}
+          style={{ background: '#e2e8f0' }} />
+        <div className="mx-auto mb-2 h-3 w-[70%] rounded-full bg-slate-200" />
+        {!compact && <div className="mx-auto h-2.5 w-1/2 rounded-full bg-slate-100" />}
       </div>
     </div>
   );
@@ -346,9 +195,6 @@ function SkeletonCard({ compact = false }: { compact?: boolean }) {
 
 export default function ListenPage() {
   const { isAuthenticated } = useAuth();
-  const { scrollY } = useScroll();
-  const heroParallax = useTransform(scrollY, [0, 400], [0, -80]);
-  const heroOpacity = useTransform(scrollY, [0, 300], [1, 0.3]);
 
   const [streams, setStreams] = useState<ActiveStreamItem[]>([]);
   const [filteredStreams, setFilteredStreams] = useState<ActiveStreamItem[]>([]);
@@ -369,9 +215,9 @@ export default function ListenPage() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0);
+  const [, setAudioLevel] = useState(0);
 
-  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [, setIsReconnecting] = useState(false);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
   const reconnectIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -623,110 +469,27 @@ export default function ListenPage() {
     }
   }, [currentStream]);
 
-  const totalListeners = filteredStreams?.reduce?.((acc, s) => acc + (s?.total_views || 0), 0) || 0;
   const playerColors = currentStream ? getGradientForCompany(currentStream.company_name) : ['#6366F1', '#8B5CF6'];
 
   return (
-    <div className="min-h-screen" style={{ background: '#080C1A', fontFamily: "'DM Sans', sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
-        
-        .glass-card {
-          background: rgba(15, 20, 40, 0.55);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.07);
-        }
-        
-        .glass-input {
-          background: rgba(15, 20, 40, 0.6);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-        }
-
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
-
-        /* Volume slider */
-        input[type=range] { -webkit-appearance: none; appearance: none; height: 3px; border-radius: 2px; outline: none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: white; cursor: pointer; box-shadow: 0 0 8px rgba(255,255,255,0.3); }
-        
-        /* Waveform bars animation */
-        @keyframes waveBar { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
-        .wave-bar { animation: waveBar 0.8s ease-in-out infinite; transform-origin: center; }
-      `}</style>
-
-      <FloatingOrbs />
+    <div className="min-h-screen bg-slate-50 text-slate-950">
       <CreatorNotStreamingModal isOpen={showCreatorNotStreaming} onClose={() => setShowCreatorNotStreaming(false)} creatorName={creatorNotStreamingInfo?.creatorName || ''} streamTitle={creatorNotStreamingInfo?.streamTitle} />
       <Navbar />
 
-      {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative pt-32 pb-20 px-4 overflow-hidden">
-        <motion.div style={{ y: heroParallax, opacity: heroOpacity }} className="relative container mx-auto max-w-6xl">
-          <motion.div
-            initial={{ opacity: 0, y: 32 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="text-center max-w-2xl mx-auto"
-          >
-            {/* Pill badge */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1 }}
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase mb-8"
-              style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', color: '#A5B4FC' }}>
-              <Headphones className="w-3.5 h-3.5" />
-              Live Audio Platform
-            </motion.div>
-
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-none tracking-tight">
-              Tune into the{' '}
-              <span className="relative inline-block">
-                <span className="relative z-10" style={{ background: 'linear-gradient(135deg, #818CF8, #38BDF8, #34D399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  world
-                </span>
-                <motion.span
-                  className="absolute -bottom-1 left-0 right-0 h-px"
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{ delay: 0.8, duration: 0.6 }}
-                  style={{ background: 'linear-gradient(90deg, transparent, #818CF8, #38BDF8, transparent)', transformOrigin: 'left' }} />
-              </span>
-            </h1>
-
-            <p className="text-base mb-10 leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              Live audio streams from churches, ministries, and community stations — anywhere, anytime.
-            </p>
-
-            <SearchBar value={searchQuery} onChange={setSearchQuery} />
-
-            {/* Stats row */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="flex items-center justify-center gap-8 mt-8">
-              {[
-                { icon: RadioReceiver, label: `${filteredStreams?.length || 0} Live`, color: '#F87171' },
-                { icon: Users, label: `${formatViewerCount(totalListeners)} Listeners`, color: '#34D399' },
-                { icon: Disc3, label: `${companiesTotal} Channels`, color: '#818CF8' },
-              ].map(({ icon: Icon, label, color }, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                  <Icon className="w-3.5 h-3.5" style={{ color }} />
-                  {label}
-                </div>
-              ))}
-            </motion.div>
-          </motion.div>
-        </motion.div>
+      <section className="border-b border-slate-200 bg-white px-4 pb-10 pt-28 sm:px-6 sm:pb-12 sm:pt-32">
+        <div className="mx-auto max-w-6xl">
+          <div className="max-w-2xl">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1.5 text-sm font-semibold text-sky-700"><Headphones className="h-4 w-4" aria-hidden="true" />Listen live</div>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-5xl">Find a live stream and start listening</h1>
+            <p className="mt-4 text-lg leading-8 text-slate-600">Discover churches, creators, and community stations. Tap once to listen.</p>
+            <div className="mt-7"><SearchBar value={searchQuery} onChange={setSearchQuery} /></div>
+            <div className="mt-5 flex flex-wrap gap-5 text-sm font-medium text-slate-500"><span>{filteredStreams.length} live now</span><span>{companiesTotal} channels</span></div>
+          </div>
+        </div>
       </section>
 
       {/* ── Live Streams ──────────────────────────────────────────────────── */}
-      <section className="px-4 pb-20">
+      <section className="px-4 py-14 sm:px-6 sm:py-16">
         <div className="container mx-auto max-w-6xl">
           <SectionHeader
             icon={Radio}
@@ -737,14 +500,14 @@ export default function ListenPage() {
           />
 
           {isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
               {[...Array(10)].map((_, i) => <SkeletonCard key={i} />)}
             </div>
           ) : filteredStreams?.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
               <AnimatePresence mode="popLayout">
-                {filteredStreams.map((stream, index) => (
-                  <StreamCard key={stream.id} stream={stream} index={index} />
+                {filteredStreams.map((stream) => (
+                  <StreamCard key={stream.id} stream={stream} onPlay={() => handleStreamSelect(stream)} isActive={currentStream?.id === stream.id} />
                 ))}
               </AnimatePresence>
             </div>
@@ -752,14 +515,12 @@ export default function ListenPage() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="py-16 text-center rounded-2xl"
-              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <div className="w-12 h-12 rounded-full mx-auto mb-4 flex items-center justify-center"
-                style={{ background: 'rgba(255,255,255,0.05)' }}>
-                <Radio className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.3)' }} />
+              className="rounded-2xl border border-slate-200 bg-white py-16 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+                <Radio className="h-5 w-5 text-slate-400" />
               </div>
-              <p className="text-sm font-medium text-white mb-1">No live stations</p>
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <p className="mb-1 text-sm font-medium text-slate-900">No live streams found</p>
+              <p className="text-xs text-slate-500">
                 {searchQuery ? 'Try adjusting your search' : 'Check back soon — streams start all the time'}
               </p>
             </motion.div>
@@ -768,7 +529,7 @@ export default function ListenPage() {
       </section>
 
       {/* ── Browse All Channels ───────────────────────────────────────────── */}
-      <section id="browse-channels" className="px-4 pb-32">
+      <section id="browse-channels" className="border-t border-slate-200 bg-white px-4 py-16 sm:px-6 sm:py-20">
         <div className="container mx-auto max-w-6xl">
           <SectionHeader
             icon={Disc3}
@@ -783,15 +544,15 @@ export default function ListenPage() {
               {[...Array(16)].map((_, i) => <SkeletonCard key={i} compact />)}
             </div>
           ) : filteredCompanies.length === 0 ? (
-            <div className="py-12 text-center" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              <Disc3 className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            <div className="py-12 text-center text-slate-500">
+              <Disc3 className="mx-auto mb-2 h-8 w-8 text-slate-300" />
               <p className="text-sm">No channels found</p>
             </div>
           ) : (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-                {filteredCompanies.slice(0, 32).map((company, index) => (
-                  <CompanyCard key={company.id} company={company} index={index} />
+                {filteredCompanies.slice(0, 32).map((company) => (
+                  <CompanyCard key={company.id} company={company} />
                 ))}
               </div>
 
@@ -800,10 +561,7 @@ export default function ListenPage() {
                   <button
                     onClick={() => { setCompaniesPage(p => p + 1); fetchCompaniesWithRef(false); }}
                     disabled={isLoadingMoreCompanies}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-200"
-                    style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.25)', color: '#A78BFA' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(167,139,250,0.18)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(167,139,250,0.1)'; }}>
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-700 disabled:opacity-60">
                     {isLoadingMoreCompanies ? (
                       <>
                         <div className="w-3.5 h-3.5 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
@@ -872,6 +630,7 @@ export default function ListenPage() {
                   <button
                     onClick={toggleLivePlayPause}
                     disabled={isConnecting}
+                    aria-label={isPlaying ? 'Pause stream' : 'Play stream'}
                     className="w-10 h-10 rounded-full flex items-center justify-center text-white transition-transform active:scale-95 disabled:opacity-50"
                     style={{ background: `linear-gradient(135deg, ${playerColors[0]}, ${playerColors[1]})`, boxShadow: `0 4px 20px ${playerColors[0]}50` }}>
                     {isConnecting
@@ -882,7 +641,7 @@ export default function ListenPage() {
 
                 {/* Volume */}
                 <div className="hidden sm:flex items-center gap-2.5">
-                  <button onClick={toggleMute} className="w-8 h-8 flex items-center justify-center transition-opacity hover:opacity-70" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                  <button onClick={toggleMute} aria-label={isMuted ? 'Unmute' : 'Mute'} className="w-8 h-8 flex items-center justify-center transition-opacity hover:opacity-70" style={{ color: 'rgba(255,255,255,0.6)' }}>
                     {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                   </button>
                   <input
@@ -890,6 +649,7 @@ export default function ListenPage() {
                     value={isMuted ? 0 : volume}
                     onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
                     className="w-20"
+                    aria-label="Volume"
                     style={{ background: `linear-gradient(90deg, ${playerColors[0]} ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.15) ${(isMuted ? 0 : volume) * 100}%)` }}
                   />
                 </div>
@@ -904,6 +664,7 @@ export default function ListenPage() {
                 {/* Close */}
                 <button
                   onClick={stopLivePlayback}
+                  aria-label="Close player"
                   className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
                   style={{ color: 'rgba(255,255,255,0.4)' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = 'white'; }}
