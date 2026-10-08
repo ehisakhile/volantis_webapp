@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { livestreamApi } from '@/lib/api/livestream';
@@ -78,6 +78,15 @@ let ffmpegLoadPromise: Promise<FFmpeg> | null = null;
 // Single-threaded core - no COOP/COEP cross-origin-isolation headers required
 // (the -mt/core-mt build needs SharedArrayBuffer + those headers; this one doesn't).
 const FFMPEG_CORE_BASE_URL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+export const RECORDING_PREFERENCE_KEY = 'volantis-recording-preference';
+
+type RecordingPreference = 'auto-upload' | 'local' | 'none' | null;
+
+function readRecordingPreference(): RecordingPreference {
+  if (typeof window === 'undefined') return null;
+  const value = window.localStorage.getItem(RECORDING_PREFERENCE_KEY);
+  return value === 'auto-upload' || value === 'local' || value === 'none' ? value : null;
+}
 
 async function getFFmpeg(): Promise<FFmpeg> {
   if (ffmpegInstance) return ffmpegInstance;
@@ -183,6 +192,11 @@ async function transcodeToMp3(inputBlob: Blob, sourceMimeType: string): Promise<
 export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRecorderReturn {
   const { onRecordingReady, onUploadComplete, onUploadError, onAutoUploadComplete } = options;
 
+  const savedPreferenceRef = useRef<RecordingPreference>(null);
+  const wantsToRecordRef = useRef<boolean | null>(null);
+  const autoUploadRef = useRef(false);
+  const [preferenceLoaded, setPreferenceLoaded] = useState(false);
+
   const [state, setState] = useState<StreamRecorderState>({
     wantsToRecord: null,
     isRecording: false,
@@ -215,6 +229,15 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
   // onstop handler (capture -> transcode -> finalize) has actually completed,
   // instead of guessing with a fixed setTimeout.
   const stopProcessingResolveRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    const savedPreference = readRecordingPreference();
+    savedPreferenceRef.current = savedPreference;
+    wantsToRecordRef.current = savedPreference === null ? null : savedPreference !== 'none';
+    autoUploadRef.current = savedPreference === 'auto-upload';
+    setState((previous) => ({ ...previous, wantsToRecord: wantsToRecordRef.current, autoUpload: autoUploadRef.current }));
+    setPreferenceLoaded(true);
+  }, []);
 
   // Get supported MIME type for the *capture* stage. This is just what
   // MediaRecorder records into before we transcode to MP3 - it does not
@@ -263,6 +286,8 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
 
   // User accepts recording - save locally only
   const acceptRecording = useCallback(() => {
+    wantsToRecordRef.current = true;
+    autoUploadRef.current = false;
     setState(prev => ({
       ...prev,
       wantsToRecord: true,
@@ -272,6 +297,8 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
 
   // User accepts recording with auto-upload
   const acceptRecordingWithAutoUpload = useCallback(() => {
+    wantsToRecordRef.current = true;
+    autoUploadRef.current = true;
     setState(prev => ({
       ...prev,
       wantsToRecord: true,
@@ -281,6 +308,8 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
 
   // User declines recording
   const declineRecording = useCallback(() => {
+    wantsToRecordRef.current = false;
+    autoUploadRef.current = false;
     setState(prev => ({
       ...prev,
       wantsToRecord: false,
@@ -290,7 +319,7 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
 
   // Start recording the stream audio
   const startRecording = useCallback((stream: MediaStream, streamSlug: string, streamTitle: string) => {
-    if (state.wantsToRecord !== true) {
+    if (wantsToRecordRef.current !== true) {
       console.log('Recording not enabled, skipping');
       return;
     }
@@ -373,7 +402,7 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
           onRecordingReady?.(mp3Blob, filename);
 
           // Auto-download the recording (only if not auto-uploading)
-          if (!state.autoUpload) {
+          if (!autoUploadRef.current) {
             downloadBlob(mp3Blob, filename);
           }
         } catch (err) {
@@ -425,7 +454,7 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
         wantsToRecord: false,
       }));
     }
-  }, [state.wantsToRecord, state.isRecording, state.autoUpload, getSupportedMimeType, onRecordingReady]);
+  }, [state.isRecording, getSupportedMimeType, onRecordingReady]);
 
   // Stop recording
   const stopRecording = useCallback(async () => {
@@ -436,7 +465,7 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     }
 
     // Store autoUpload setting and recording data from refs (not state - state is async)
-    const shouldAutoUpload = state.autoUpload;
+    const shouldAutoUpload = autoUploadRef.current;
     const currentStreamSlug = streamSlugRef.current;
     const currentStreamTitle = streamTitleRef.current;
 
@@ -526,7 +555,7 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
         console.error('Auto-upload skipped: blob or filename not available', { blob: !!blob, filename: !!filename });
       }
     }
-  }, [state.autoUpload, state.recordingDuration, onUploadComplete, onUploadError, onAutoUploadComplete]);
+  }, [state.recordingDuration, onUploadComplete, onUploadError, onAutoUploadComplete]);
 
   // Download the recording to local storage
   const downloadRecording = useCallback(() => {
@@ -612,8 +641,12 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
     destNodeRef.current = null;
     stopProcessingResolveRef.current = null;
 
+    const savedPreference = readRecordingPreference();
+    savedPreferenceRef.current = savedPreference;
+    wantsToRecordRef.current = savedPreference === null ? null : savedPreference !== 'none';
+    autoUploadRef.current = savedPreference === 'auto-upload';
     setState({
-      wantsToRecord: null,
+      wantsToRecord: wantsToRecordRef.current,
       isRecording: false,
       recordingDuration: 0,
       isTranscoding: false,
@@ -623,13 +656,13 @@ export function useStreamRecorder(options: StreamRecorderOptions = {}): StreamRe
       uploadProgress: 0,
       error: null,
       streamSlug: null,
-      autoUpload: false,
+      autoUpload: savedPreference === 'auto-upload',
       isUploaded: false,
     });
   }, []);
 
   // Check if we should show the recording prompt
-  const shouldPromptRecording = state.wantsToRecord === null;
+  const shouldPromptRecording = preferenceLoaded && state.wantsToRecord === null;
 
   return {
     state,

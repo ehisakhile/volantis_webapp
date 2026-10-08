@@ -132,19 +132,16 @@ function StreamTile({
       onHoverStart={() => setHovered(true)}
       onHoverEnd={() => setHovered(false)}
       onClick={handleClick}
-      className={`relative cursor-pointer rounded-2xl overflow-hidden border transition-all duration-300 ${
+      className={`group relative cursor-pointer overflow-hidden rounded-xl border p-3 transition-all duration-300 ${
         isActive
-          ? 'border-sky-400/60 shadow-[0_0_30px_rgba(56,189,248,0.25)]'
-          : 'border-white/5 hover:border-white/15'
+          ? 'border-sky-500 bg-sky-50'
+          : 'border-slate-200 bg-white hover:border-sky-300 hover:shadow-md'
       }`}
-      style={{ background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(20px)' }}
+      style={{ backdropFilter: 'blur(20px)' }}
     >
-      {/* Top gradient bar */}
-      <div className={`h-1 w-full bg-gradient-to-r ${grad}`} />
-
 {/* Thumbnail area - priority: thumbnail_url > company_logo_url > gradient */}
       <div
-        className={`relative h-36 bg-cover bg-center`}
+        className="relative aspect-square overflow-hidden rounded-lg bg-cover bg-center shadow-xl"
         style={{
           backgroundImage: imageUrl
             ? `url(${imageUrl})`
@@ -153,32 +150,9 @@ function StreamTile({
           opacity: imageUrl ? 0.6 : undefined,
         }}
       >
-        {/* Gradient overlay when using thumbnail or logo */}
-        {imageUrl && (
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent" />
-        )}
         {!imageUrl && (
-          <div className={`absolute inset-0 bg-gradient-to-br ${grad} opacity-20`} />
-        )}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="relative">
-            <PulseRings isActive={variant === 'live' && hovered} />
-<motion.div
-              className={`w-14 h-14 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center shadow-2xl`}
-              animate={variant === 'live' ? { boxShadow: ['0 0 0px rgba(56,189,248,0.3)', '0 0 30px rgba(56,189,248,0.5)', '0 0 0px rgba(56,189,248,0.3)'] } : {}}
-              transition={{ duration: 2, repeat: Infinity }}
-            >
-              {imageUrl ? (
-                <img src={imageUrl} alt={stream.company_name || 'Company'} className="w-full h-full object-cover rounded-full" />
-              ) : variant === 'live' ? <Radio className="w-6 h-6 text-white" /> : <History className="w-6 h-6 text-white" />}
-            </motion.div>
-          </div>
-        </div>
-
-        {/* Mini waveform */}
-        {variant === 'live' && (
-          <div className="absolute bottom-3 left-4 right-4 h-8">
-            <AudioVisualizer isActive={hovered} color="#38bdf8" />
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-400">
+            {variant === 'live' ? <Radio className="h-10 w-10" /> : <History className="h-10 w-10" />}
           </div>
         )}
 
@@ -201,8 +175,8 @@ function StreamTile({
       </div>
 
       {/* Info */}
-      <div className="p-4">
-        <p className="text-white font-semibold text-sm leading-tight line-clamp-1">{stream.title}</p>
+      <div className="px-1 pb-1 pt-4">
+        <p className="line-clamp-1 text-sm font-semibold leading-tight text-slate-950">{stream.title}</p>
         {stream.description && (
           <p className="text-slate-500 text-xs mt-1 line-clamp-2">{stream.description}</p>
         )}
@@ -225,8 +199,8 @@ function StreamTile({
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-              isActive ? 'bg-sky-500 text-white' : 'bg-white/10 text-white hover:bg-sky-500/40'
+            className={`h-10 w-10 rounded-full flex items-center justify-center shadow-lg transition-all ${
+              isActive ? 'bg-sky-600 text-white' : 'translate-y-2 bg-sky-600 text-white opacity-0 group-hover:translate-y-0 group-hover:opacity-100'
             }`}
           >
             <Play className="w-3.5 h-3.5 ml-0.5" />
@@ -1142,12 +1116,10 @@ export default function CompanyPage() {
         ::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.3); border-radius: 2px; }
       `}</style>
 
-      <GrainOverlay />
-
-      <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #030712 0%, #060c1e 50%, #03060f 100%)' }}>
+      <div className="min-h-screen bg-slate-50">
         <Navbar />
 
-        <main className="pt-24 pb-32">
+        <main className="pb-32 pt-20">
           <div className="container mx-auto px-4 max-w-6xl">
 
             {/* ── Channel Header ── */}
@@ -1155,21 +1127,17 @@ export default function CompanyPage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-              className="relative mb-16"
+              className="relative mb-10 overflow-hidden rounded-3xl border border-slate-300 bg-slate-200 p-6 sm:p-10"
             >
               {/* Background glow */}
-              <div className="absolute -inset-8 rounded-3xl opacity-30 pointer-events-none"
-                style={{ background: 'radial-gradient(ellipse at 30% 50%, rgba(56,189,248,0.1) 0%, transparent 60%)' }} />
-
-              <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-6">
+              <div className="relative flex flex-col items-start gap-7 sm:flex-row sm:items-end">
                 {/* Logo */}
                 <motion.div
                   className="relative flex-shrink-0"
                   whileHover={{ scale: 1.05 }}
                 >
                   <div
-                    className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl font-black text-white shadow-2xl overflow-hidden"
-                    style={{ background: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #8b5cf6 100%)' }}
+                    className="flex h-36 w-36 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white text-5xl font-black text-sky-700 shadow-md sm:h-44 sm:w-44"
                   >
                     {companyLogoUrl ? (
                       <img src={companyLogoUrl} alt={company?.name || 'Company'} className="w-full h-full object-cover" />
@@ -1191,38 +1159,26 @@ export default function CompanyPage() {
                 {/* Text info */}
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <h1 className="text-4xl font-black text-white tracking-tight">{company?.name || slug}</h1>
+                    <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-6xl">{company?.name || slug}</h1>
                     {allLiveStreams.length > 0 && <LiveBadge />}
                   </div>
                   {company?.description && (
-                    <p className="text-slate-400 text-base max-w-lg">{company.description}</p>
+                    <p className="max-w-lg text-base text-slate-600">{company.description}</p>
                   )}
 
                   {/* Stats row */}
-                  <div className="flex items-center gap-6 mt-4 flex-wrap">
+                  <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500">
                     <div className="flex items-center gap-2 text-sm">
-                      <div className="w-6 h-6 rounded-lg bg-red-500/20 flex items-center justify-center">
-                        <Radio className="w-3 h-3 text-red-400" />
-                      </div>
-                      <span className="text-slate-400">{allLiveStreams.length} <span className="text-white font-semibold">Live</span></span>
+                      <span>{allLiveStreams.length} <span className="font-semibold text-slate-900">Live</span></span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
-                      <div className="w-6 h-6 rounded-lg bg-sky-500/20 flex items-center justify-center">
-                        <Eye className="w-3 h-3 text-sky-400" />
-                      </div>
-                      <span className="text-slate-400"><span className="text-white font-semibold">{allLiveStreams.reduce((s, st) => s + st.viewer_count, 0).toLocaleString()}</span> watching</span>
+                      <span><span className="font-semibold text-slate-900">{allLiveStreams.reduce((s, st) => s + st.viewer_count, 0).toLocaleString()}</span> watching</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
-                      <div className="w-6 h-6 rounded-lg bg-violet-500/20 flex items-center justify-center">
-                        <History className="w-3 h-3 text-violet-400" />
-                      </div>
-                      <span className="text-slate-400"><span className="text-white font-semibold">{previousStreams.length}</span> replays</span>
+                      <span><span className="font-semibold text-slate-900">{previousStreams.length}</span> replays</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
-                      <div className="w-6 h-6 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                        <UserCheck className="w-3 h-3 text-emerald-400" />
-                      </div>
-                      <span className="text-slate-400"><span className="text-white font-semibold">{subscriberCount.toLocaleString()}</span> subscribers</span>
+                      <span><span className="font-semibold text-slate-900">{subscriberCount.toLocaleString()}</span> subscribers</span>
                     </div>
                   </div>
                 </div>
@@ -1235,8 +1191,8 @@ export default function CompanyPage() {
                   disabled={isSubscribing}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all self-start sm:self-center ${
                     isSubscribed
-                      ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-                      : 'border border-sky-500/30 bg-gradient-to-r from-sky-500 to-violet-500 text-white hover:shadow-lg hover:shadow-sky-500/25'
+                      ? 'border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
+                      : 'bg-sky-600 text-white hover:bg-sky-500'
                   }`}
                 >
                   {isSubscribing ? (
@@ -1286,8 +1242,8 @@ export default function CompanyPage() {
                       animate={{ opacity: [1, 0.3, 1] }}
                       transition={{ duration: 1.2, repeat: Infinity }}
                     />
-                    <h2 className="text-lg font-bold text-white uppercase tracking-widest">Live Now</h2>
-                    <div className="flex-1 h-px bg-gradient-to-r from-red-500/30 to-transparent" />
+                    <h2 className="text-2xl font-bold text-slate-950">Live now</h2>
+                    <div className="h-px flex-1 bg-slate-200" />
                     <span className="mono text-xs text-red-400/70 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">
                       {allLiveStreams.length} streams
                     </span>
@@ -1328,10 +1284,10 @@ export default function CompanyPage() {
             >
               <div className="flex items-center gap-3 mb-6">
                 <History className="w-4 h-4 text-slate-500" />
-                <h2 className="text-lg font-bold text-white uppercase tracking-widest">Past Broadcasts</h2>
-                <div className="flex-1 h-px bg-gradient-to-r from-white/10 to-transparent" />
+                <h2 className="text-2xl font-bold text-slate-950">Past broadcasts</h2>
+                <div className="h-px flex-1 bg-slate-200" />
                 {previousStreams.length > 0 && (
-                  <span className="mono text-xs text-slate-500 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+                  <span className="mono rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-500">
                     {previousStreams.length} replays
                   </span>
                 )}
@@ -1370,7 +1326,7 @@ export default function CompanyPage() {
                         whileHover={{ scale: 1.03 }}
                         whileTap={{ scale: 0.97 }}
                         onClick={() => setShowAllPast(s => !s)}
-                        className="flex items-center gap-2 px-6 py-3 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/8 text-slate-400 hover:text-white text-sm font-semibold transition-all"
+                        className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
                       >
                         {showAllPast ? (
                           <><ChevronUp className="w-4 h-4" /> Show Less</>
@@ -1411,8 +1367,8 @@ export default function CompanyPage() {
               >
                 <div className="flex items-center gap-3 mb-6">
                   <ListMusic className="w-4 h-4 text-violet-400" />
-                  <h2 className="text-lg font-bold text-white uppercase tracking-widest">Playlists</h2>
-                  <div className="flex-1 h-px bg-gradient-to-r from-violet-500/30 to-transparent" />
+                  <h2 className="text-2xl font-bold text-slate-950">Playlists</h2>
+                  <div className="h-px flex-1 bg-slate-200" />
                   <span className="mono text-xs text-violet-400/70 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded-full">
                     {playlists.length} playlist{playlists.length > 1 ? 's' : ''}
                   </span>
@@ -1435,7 +1391,7 @@ export default function CompanyPage() {
                       >
                         <Link
                           href={`/${company?.slug || slug}/playlist/${playlist.id}`}
-                          className="block group relative overflow-hidden rounded-2xl bg-slate-800/50 border border-slate-700/50 hover:border-violet-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-violet-500/20"
+                          className="group relative block overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:border-sky-300 hover:shadow-md"
                         >
                           {playlist.cover_image_url ? (
                             <div
@@ -1443,10 +1399,10 @@ export default function CompanyPage() {
                               style={{ backgroundImage: `url(${playlist.cover_image_url})` }}
                             />
                           ) : (
-                            <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-700 opacity-25 group-hover:opacity-40 transition-opacity" />
+                            <div className="absolute inset-0 bg-slate-100" />
                           )}
                           <div className="relative p-5 pt-24">
-                            <h3 className="text-lg font-semibold text-white mb-1 line-clamp-1 group-hover:text-violet-400 transition-colors">
+                            <h3 className="mb-1 line-clamp-1 text-lg font-semibold text-slate-950 transition-colors group-hover:text-sky-700">
                               {playlist.name}
                             </h3>
                             {playlist.description && (
@@ -1462,7 +1418,7 @@ export default function CompanyPage() {
                               )}
                             </div>
                             <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="w-14 h-14 bg-violet-500 rounded-full flex items-center justify-center shadow-lg shadow-violet-500/30 transform scale-0 group-hover:scale-100 transition-transform duration-300">
+                              <div className="flex h-14 w-14 scale-0 transform items-center justify-center rounded-full bg-sky-600 shadow-lg transition-transform duration-300 group-hover:scale-100">
                                 <Play className="w-6 h-6 text-white ml-1" />
                               </div>
                             </div>
@@ -1485,8 +1441,8 @@ export default function CompanyPage() {
               >
                 <div className="flex items-center gap-3 mb-6">
                   <Clock className="w-4 h-4 text-amber-400" />
-                  <h2 className="text-lg font-bold text-white uppercase tracking-widest">Previous Recordings</h2>
-                  <div className="flex-1 h-px bg-gradient-to-r from-amber-500/30 to-transparent" />
+                  <h2 className="text-2xl font-bold text-slate-950">Previous recordings</h2>
+                  <div className="h-px flex-1 bg-slate-200" />
                   <span className="mono text-xs text-amber-400/70 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
                     {recordings.length} recordings
                   </span>
@@ -1512,11 +1468,7 @@ export default function CompanyPage() {
                         >
                           <Link
                             href={`/${company?.slug || slug}/recording/${recording.id}`}
-                            className={`block group relative overflow-hidden rounded-2xl bg-slate-800/50 border transition-all duration-300 ${
-                              isVideo
-                                ? 'border-slate-700/50 hover:border-sky-500/50 hover:shadow-lg hover:shadow-sky-500/20'
-                                : 'border-slate-700/50 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/20'
-                            }`}
+                            className="group relative block overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:border-sky-300 hover:shadow-md"
                           >
                             {recording.thumbnail_url ? (
                               <div

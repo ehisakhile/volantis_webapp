@@ -97,10 +97,10 @@ function RecordingCard({
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className={`w-full text-left group relative overflow-hidden rounded-2xl bg-slate-800/50 border transition-all duration-300 ${
+      className={`group relative w-full overflow-hidden rounded-2xl border bg-white text-left transition-all duration-300 ${
         isActive 
-          ? 'border-amber-500/50 shadow-lg shadow-amber-500/20' 
-          : 'border-slate-700/50 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/20'
+          ? 'border-sky-500 ring-2 ring-sky-100'
+          : 'border-slate-200 hover:border-sky-300 hover:shadow-md'
       }`}
     >
       {recording.thumbnail_url ? (
@@ -109,11 +109,11 @@ function RecordingCard({
           style={{ backgroundImage: `url(${recording.thumbnail_url})` }}
         />
       ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-600 via-orange-500 to-rose-600 opacity-20 group-hover:opacity-30 transition-opacity" />
+        <div className="absolute inset-0 bg-slate-100" />
       )}
       
       {isActive && (
-        <div className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/90 rounded-full text-white text-xs font-medium z-10">
+        <div className="absolute left-4 top-4 z-10 flex items-center gap-1.5 rounded-full bg-sky-600 px-3 py-1.5 text-xs font-medium text-white">
           <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
           PLAYING
         </div>
@@ -121,18 +121,18 @@ function RecordingCard({
       
       <div className="relative p-4 pt-20">
         <div className="absolute top-4 right-4">
-          <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center overflow-hidden">
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-sky-100">
             {recording.thumbnail_url ? (
               <img src={recording.thumbnail_url} alt={recording.title} className="w-full h-full object-cover" />
             ) : recording.company_logo_url ? (
               <img src={recording.company_logo_url} alt={recording.company_name || 'Company'} className="w-full h-full object-cover" />
             ) : (
-              <Clock className="w-4 h-4 text-amber-400" />
+              <Clock className="h-4 w-4 text-sky-700" />
             )}
           </div>
         </div>
         
-        <h3 className="text-base font-semibold text-white mb-1 line-clamp-1 group-hover:text-amber-400 transition-colors">
+        <h3 className="mb-1 line-clamp-1 text-base font-semibold text-slate-950 transition-colors group-hover:text-sky-700">
           {recording.title}
         </h3>
         
@@ -144,7 +144,7 @@ function RecordingCard({
         </div>
         
         <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/30 transform scale-0 group-hover:scale-100 transition-transform duration-300">
+          <div className="flex h-12 w-12 scale-0 transform items-center justify-center rounded-full bg-sky-600 shadow-lg transition-transform duration-300 group-hover:scale-100">
             <Play className="w-5 h-5 text-white ml-0.5" />
           </div>
         </div>
@@ -491,9 +491,7 @@ export default function RecordingPage() {
         ::-webkit-scrollbar-thumb { background: rgba(245,158,11,0.3); border-radius: 2px; }
       `}</style>
 
-      <GrainOverlay />
-
-      <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #030712 0%, #060c1e 50%, #03060f 100%)' }}>
+      <div className="min-h-screen bg-slate-50">
         <Navbar />
 
         <main className="pt-20 pb-32">
@@ -516,26 +514,26 @@ export default function RecordingPage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="rounded-3xl border border-white/10 overflow-hidden shadow-2xl"
-              style={{ background: 'linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(8,14,28,0.98) 100%)' }}
+              className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
             >
-              <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400" />
+              <div className="h-1 w-full bg-sky-600" />
 
               <div className="p-6 sm:p-8">
-                <div className="flex items-start gap-4 mb-6">
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-slate-800">
+                <div className="mb-8 flex flex-col items-start gap-6 sm:flex-row sm:items-end">
+                  <div className="flex aspect-square w-full max-w-52 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-800 shadow-2xl sm:w-44">
                     {recording.thumbnail_url ? (
                       <img src={recording.thumbnail_url} alt={recording.title} className="w-full h-full object-cover" />
                     ) : recording.company_logo_url ? (
                       <img src={recording.company_logo_url} alt={recording.company_name || 'Company'} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 flex items-center justify-center">
-                        <Clock className="w-6 h-6 text-white" />
+                        <Clock className="h-12 w-12 text-white" />
                       </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h1 className="text-2xl font-bold text-white mb-1">{recording.title}</h1>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-widest text-sky-700">Recording</p>
+                    <h1 className="mb-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">{recording.title}</h1>
                     {recording.description && (
                       <p className="text-slate-400 text-sm line-clamp-2">{recording.description}</p>
                     )}
@@ -558,7 +556,7 @@ export default function RecordingPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex flex-shrink-0 items-center gap-2 sm:ml-auto">
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
@@ -593,33 +591,9 @@ export default function RecordingPage() {
                   />
                 ) : (
                   <>
-                    <div className="relative rounded-2xl overflow-hidden mb-6" style={{ background: 'linear-gradient(180deg, rgba(245,158,11,0.04) 0%, rgba(139,92,246,0.04) 100%)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'linear-gradient(rgba(245,158,11,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(245,158,11,0.3) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-
-                      <div className="relative py-8 flex flex-col items-center justify-center">
-                        <div className="relative mb-4">
-                          <PulseRings isActive={isPlaying && !isMuted} />
-                          <motion.div
-                            className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-2xl"
-                            animate={isPlaying ? { scale: [1, 1.05, 1], boxShadow: ['0 0 20px rgba(245,158,11,0.3)', '0 0 40px rgba(245,158,11,0.6)', '0 0 20px rgba(245,158,11,0.3)'] } : {}}
-                            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                          >
-                            {isLoadingAudio ? (
-                              <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            ) : isPlaying ? (
-                              <Pause className="w-8 h-8 text-white" />
-                            ) : (
-                              <Play className="w-8 h-8 text-white ml-1" />
-                            )}
-                          </motion.div>
-                        </div>
-
-                        <AudioVisualizer isActive={isPlaying} isMuted={isMuted} />
-
-                        {isLoadingAudio && (
-                          <p className="text-slate-500 text-sm mt-2">Loading audio...</p>
-                        )}
-                      </div>
+                    <div className="relative mb-6 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                      <AudioVisualizer isActive={isPlaying} isMuted={isMuted} />
+                      {isLoadingAudio && <p className="mt-2 text-center text-sm text-slate-500">Loading audio...</p>}
                     </div>
 
                     <div className="flex items-center gap-3 mb-2">
@@ -628,7 +602,7 @@ export default function RecordingPage() {
                       </button>
                       <div className="relative flex-1 h-2 bg-white/10 rounded-full overflow-hidden cursor-pointer">
                         <div className="absolute h-full bg-white/20 transition-all" style={{ width: `${bufferedPercent}%` }} />
-                        <div className="absolute h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all" style={{ width: `${progressPercent}%` }} />
+                        <div className="absolute h-full bg-sky-600 transition-all" style={{ width: `${progressPercent}%` }} />
                         <input
                           type="range"
                           min={0}
@@ -651,7 +625,7 @@ export default function RecordingPage() {
                       <button
                         onClick={togglePlayPause}
                         disabled={isLoadingAudio}
-                        className="w-14 h-14 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-500/25"
+                        className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-600 text-white shadow-md transition-colors hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {isLoadingAudio || isBuffering ? (
                           <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -692,9 +666,9 @@ export default function RecordingPage() {
                 className="mt-16"
               >
                 <div className="flex items-center gap-3 mb-6">
-                  <Radio className="w-4 h-4 text-amber-400" />
-                  <h2 className="text-lg font-bold text-white uppercase tracking-widest">Listen to Other Livestreams</h2>
-                  <div className="flex-1 h-px bg-gradient-to-r from-amber-500/30 to-transparent" />
+                  <Radio className="h-5 w-5 text-sky-600" />
+                  <h2 className="text-2xl font-bold text-slate-950">More from this creator</h2>
+                  <div className="h-px flex-1 bg-slate-200" />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -716,7 +690,7 @@ export default function RecordingPage() {
                 <div className="flex justify-center mt-8">
                   <Link
                     href={`/${companySlug}`}
-                    className="flex items-center gap-2 px-6 py-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 text-sm font-semibold transition-all"
+                    className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-sky-700"
                   >
                     View All Recordings
                     <ChevronRight className="w-4 h-4" />

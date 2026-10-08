@@ -27,7 +27,7 @@ function parseMessageContent(content: string) {
     return part.startsWith('@') ? (
       <span
         key={i}
-        className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-sky-500/20 text-sky-300 font-semibold text-xs leading-tight"
+        className="inline-flex items-center rounded-md bg-sky-50 px-1.5 py-0.5 text-xs font-semibold leading-tight text-sky-700"
       >
         {cleanPart}
       </span>
@@ -74,13 +74,13 @@ function ChatMessage({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ duration: 0.18, ease: 'easeOut' }}
-      className={`group relative flex gap-2.5 px-3 py-1.5 rounded-xl transition-colors hover:bg-slate-800/50 ${
+      className={`group relative flex gap-2.5 rounded-xl px-3 py-2 transition-colors hover:bg-slate-50 ${
         message.is_deleted ? 'opacity-40' : ''
-      } ${message.is_creator ? 'bg-sky-500/5 border border-sky-500/10' : ''}`}
+      } ${message.is_creator ? 'border border-sky-100 bg-sky-50/60' : ''}`}
     >
       {/* Avatar */}
       {message.is_creator ? (
-        <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-sky-400 to-violet-600 flex items-center justify-center text-white text-[10px] font-black border border-sky-400/40 shadow-lg shadow-sky-500/20 mt-0.5">
+        <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-sky-600 text-[10px] font-black text-white">
           {companyName?.slice(0, 1).toUpperCase() || 'C'}
         </div>
       ) : (
@@ -96,26 +96,26 @@ function ChatMessage({
         {/* Name + time */}
         <div className="flex items-baseline gap-1.5 flex-wrap">
           {message.is_creator ? (
-            <span className="text-sky-400 font-bold text-xs leading-none">
+            <span className="text-xs font-bold leading-none text-sky-700">
               {companyName || 'Creator'}
-              <span className="ml-1.5 text-[9px] bg-sky-500/20 border border-sky-500/30 text-sky-400 px-1.5 py-0.5 rounded-full font-semibold tracking-wide uppercase">
+              <span className="ml-1.5 rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-700">
                 Host
               </span>
             </span>
           ) : (
             <span className={`${color} font-bold text-xs leading-none`}>{message.username}</span>
           )}
-          <span className="text-slate-600 text-[10px] leading-none">{formatTime(message.created_at)}</span>
+          <span className="text-[10px] leading-none text-slate-400">{formatTime(message.created_at)}</span>
         </div>
 
         {/* Content */}
         <p
           className={`text-sm mt-1 leading-relaxed break-words ${
             message.is_deleted
-              ? 'text-slate-600 italic'
+              ? 'text-slate-400 italic'
               : message.is_creator
-              ? 'text-slate-100'
-              : 'text-slate-300'
+              ? 'text-slate-800'
+              : 'text-slate-700'
           }`}
         >
           {message.is_deleted ? 'Message removed' : parseMessageContent(message.content)}
@@ -124,10 +124,10 @@ function ChatMessage({
 
       {/* Hover actions */}
       {!message.is_deleted && (
-        <div className="absolute right-2 top-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-150 bg-slate-800/90 border border-white/10 rounded-lg px-1.5 py-1 shadow-xl backdrop-blur-sm">
+        <div className="absolute right-2 top-1.5 flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-1.5 py-1 opacity-0 shadow-sm transition-all duration-150 group-hover:opacity-100">
           <button
             onClick={() => onReply(message)}
-            className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-sky-400 transition-colors"
+            className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-sky-600"
             title="Reply"
           >
             <CornerUpLeft className="w-3 h-3" />
@@ -157,7 +157,7 @@ function ScrollToBottomButton({ visible, onClick }: { visible: boolean; onClick:
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.8, y: 8 }}
           onClick={onClick}
-          className="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold shadow-xl shadow-sky-500/30 transition-colors"
+          className="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 rounded-full bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white shadow-md transition-colors hover:bg-sky-500"
         >
           <ChevronDown className="w-3.5 h-3.5" />
           New messages
@@ -331,21 +331,21 @@ export function LiveChat({ slug, isCreator = false, companyName }: LiveChatProps
   // ─── Unauthenticated ──────────────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
-      <div className="flex flex-col h-full bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
+      <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <ChatHeader messageCount={0} />
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-slate-800/80 border border-white/8 flex items-center justify-center">
             <LogIn className="w-6 h-6 text-slate-500" />
           </div>
           <div>
-            <p className="text-white font-semibold text-sm">Join the conversation</p>
+            <p className="text-sm font-semibold text-slate-900">Join the conversation</p>
             <p className="text-slate-500 text-xs mt-1">Sign in to chat with the stream</p>
           </div>
           <div className="flex gap-2">
             <Link href="/login" className="px-4 py-2 rounded-full bg-sky-500 hover:bg-sky-400 text-white font-semibold text-xs transition-colors">
               Sign In
             </Link>
-            <Link href="/signup/user" className="px-4 py-2 rounded-full bg-white/8 hover:bg-white/12 text-slate-300 font-semibold text-xs transition-colors border border-white/10">
+            <Link href="/signup/user" className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50">
               Sign Up
             </Link>
           </div>
@@ -356,7 +356,7 @@ export function LiveChat({ slug, isCreator = false, companyName }: LiveChatProps
 
   // ─── Authenticated ────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <ChatHeader messageCount={messages.length} />
 
       {/* Messages */}
@@ -373,9 +373,9 @@ export function LiveChat({ slug, isCreator = false, companyName }: LiveChatProps
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-6">
-              <MessageCircle className="w-8 h-8 text-slate-700" />
+              <MessageCircle className="h-8 w-8 text-slate-300" />
               <p className="text-slate-500 text-sm">No messages yet</p>
-              <p className="text-slate-600 text-xs">Be the first to say something!</p>
+              <p className="text-xs text-slate-400">Be the first to say something!</p>
             </div>
           ) : (
             <AnimatePresence initial={false}>
@@ -456,7 +456,7 @@ export function LiveChat({ slug, isCreator = false, companyName }: LiveChatProps
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder={replyTo ? `Reply to ${replyTo.is_creator ? (companyName || 'Host') : `@${replyTo.username}`}…` : 'Send a message…'}
               maxLength={500}
-              className="w-full pl-3.5 pr-9 py-2.5 rounded-xl bg-slate-800/60 border border-white/10 focus:border-sky-500/60 text-white placeholder-slate-500 text-sm transition-all outline-none focus:bg-slate-800 focus:ring-1 focus:ring-sky-500/20"
+              className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100"
               disabled={isSending}
               onKeyDown={(e) => {
                 if (e.key === 'Escape' && replyTo) setReplyTo(null);
@@ -498,7 +498,7 @@ export function LiveChat({ slug, isCreator = false, companyName }: LiveChatProps
               >
                 <EmojiPicker
                   onEmojiClick={handleEmojiClick}
-                  theme={Theme.DARK}
+                  theme={Theme.LIGHT}
                   width={300}
                   height={380}
                   previewConfig={{ showPreview: false }}
@@ -515,12 +515,12 @@ export function LiveChat({ slug, isCreator = false, companyName }: LiveChatProps
 
 function ChatHeader({ messageCount }: { messageCount: number }) {
   return (
-    <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/5 bg-slate-800/40">
+    <div className="flex items-center gap-2.5 border-b border-slate-200 bg-white px-4 py-3">
       <div className="relative">
         <MessageCircle className="w-4 h-4 text-sky-400" />
         <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-1 ring-[#0d1117]" />
       </div>
-      <span className="text-white font-semibold text-sm tracking-tight">Live Chat</span>
+      <span className="text-sm font-semibold tracking-tight text-slate-900">Live chat</span>
       {messageCount > 0 && (
         <span className="ml-auto text-slate-600 text-[11px] font-medium tabular-nums">
           {messageCount.toLocaleString()}

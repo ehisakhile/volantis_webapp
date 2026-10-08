@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CircleDot,
@@ -11,7 +12,8 @@ import {
   Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn, formatDuration } from '@/lib/utils';
+import { formatDuration } from '@/lib/utils';
+import { RECORDING_PREFERENCE_KEY } from '@/hooks/useStreamRecorder';
 
 interface RecordingPromptProps {
   isOpen: boolean;
@@ -21,6 +23,13 @@ interface RecordingPromptProps {
 }
 
 export function RecordingPrompt({ isOpen, onAccept, onDecline, onAcceptWithAutoUpload }: RecordingPromptProps) {
+  const [rememberChoice, setRememberChoice] = useState(false);
+
+  const choose = (preference: 'auto-upload' | 'local' | 'none', callback: () => void) => {
+    if (rememberChoice) window.localStorage.setItem(RECORDING_PREFERENCE_KEY, preference);
+    callback();
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -77,10 +86,14 @@ export function RecordingPrompt({ isOpen, onAccept, onDecline, onAcceptWithAutoU
 
             {/* Actions */}
             <div className="space-y-3">
+              <label className="mb-4 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-700 bg-slate-950/50 p-3">
+                <input type="checkbox" checked={rememberChoice} onChange={(event) => setRememberChoice(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-slate-600 text-sky-500" />
+                <span><span className="block text-sm font-semibold text-white">Remember my choice</span><span className="mt-0.5 block text-xs text-slate-400">Use this option automatically for future broadcasts on this device.</span></span>
+              </label>
               {/* Auto-upload option - Primary */}
               {onAcceptWithAutoUpload && (
                 <Button
-                  onClick={onAcceptWithAutoUpload}
+                  onClick={() => choose('auto-upload', onAcceptWithAutoUpload)}
                   className="w-full bg-green-600 hover:bg-green-700 text-white"
                 >
                   <Upload className="w-4 h-4 mr-2" />
@@ -90,7 +103,7 @@ export function RecordingPrompt({ isOpen, onAccept, onDecline, onAcceptWithAutoU
               
               {/* Save locally only option */}
               <Button
-                onClick={onAccept}
+                onClick={() => choose('local', onAccept)}
                 className="w-full bg-red-500 hover:bg-red-600 text-white"
               >
                 <HardDrive className="w-4 h-4 mr-2" />
@@ -100,7 +113,7 @@ export function RecordingPrompt({ isOpen, onAccept, onDecline, onAcceptWithAutoU
               {/* Skip option */}
               <Button
                 variant="outline"
-                onClick={onDecline}
+                onClick={() => choose('none', onDecline)}
                 className="w-full border-slate-600 text-slate-300 hover:bg-slate-800"
               >
                 <X className="w-4 h-4 mr-2" />

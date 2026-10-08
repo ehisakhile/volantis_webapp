@@ -9,11 +9,9 @@ import {
   Radio,
   Square,
   Settings,
-  Headphones,
   Signal,
   SignalLow,
   SignalHigh,
-  Clock,
   Users,
   Loader2,
   Monitor,
@@ -256,7 +254,10 @@ export function CreatorStreaming({
   const [chatMessageInput, setChatMessageInput] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [replyingTo, setReplyingTo] = useState<VolChatMessageOut | null>(null);
+  const [chatToasts, setChatToasts] = useState<VolChatMessageOut[]>([]);
   const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
+  const knownChatMessageIdsRef = useRef<Set<number>>(new Set());
+  const chatInitializedRef = useRef(false);
   const chatPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
@@ -396,7 +397,7 @@ export function CreatorStreaming({
   }, [checkForActiveStream]);
 
   // Handle start streaming - exactly like test_webrtc.html
-  const handleStartStream = useCallback(async () => {
+  const handleStartStream = useCallback(async (recordingChoiceMade = false) => {
     if (!streamTitle.trim()) {
       setError("Please enter a stream title");
       return;
@@ -414,7 +415,7 @@ export function CreatorStreaming({
     }
 
     // Show recording prompt if user hasn't decided yet
-    if (recorder.shouldPromptRecording) {
+    if (recorder.shouldPromptRecording && !recordingChoiceMade) {
       recorder.promptRecording();
       return;
     }
@@ -968,6 +969,18 @@ export function CreatorStreaming({
     if (!currentStream?.slug) return;
     try {
       const messages = await chatApi.getMessages(currentStream.slug, 1, 50);
+      if (chatInitializedRef.current) {
+        const incoming = messages.filter((message) => !knownChatMessageIdsRef.current.has(message.id) && !message.is_creator && !message.is_deleted);
+        if (incoming.length > 0) {
+          setChatToasts((previous) => [...previous, ...incoming].slice(-3));
+          incoming.forEach((message) => {
+            window.setTimeout(() => setChatToasts((previous) => previous.filter((toast) => toast.id !== message.id)), 6000);
+          });
+        }
+      } else {
+        chatInitializedRef.current = true;
+      }
+      knownChatMessageIdsRef.current = new Set(messages.map((message) => message.id));
       setChatMessages(messages);
     } catch (err) {
       console.error("Failed to fetch chat messages:", err);
@@ -1007,6 +1020,9 @@ export function CreatorStreaming({
         chatPollIntervalRef.current = null;
       }
       setChatMessages([]);
+      setChatToasts([]);
+      knownChatMessageIdsRef.current.clear();
+      chatInitializedRef.current = false;
     }
 
     return () => {
@@ -1118,25 +1134,26 @@ export function CreatorStreaming({
   const connectionQuality = getConnectionQuality();
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-slate-950 pb-28 text-white lg:pb-8">
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-6 flex items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
-            <h1 className="text-2xl font-bold">Creator Studio</h1>
-            <p className="text-slate-400">WHIP Audio Streaming</p>
+            <Link href="/dashboard" className="text-xs font-semibold text-sky-400 hover:text-sky-300">← Dashboard</Link>
+            <h1 className="mt-1 text-xl font-bold sm:text-2xl">Audio studio</h1>
+            <p className="text-sm text-slate-400">Set up your audio and start broadcasting.</p>
           </div>
 
           <Link
             href="/creator/video"
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition-colors"
+            className="hidden items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold transition-colors hover:bg-slate-800 sm:flex"
           >
             <Video className="w-4 h-4" />
-            Switch to Video Stream (Beta)
+            Use video instead
           </Link>
 
           {/* Connection status */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1.5">
             {isStreaming && (
               <>
                 <connectionQuality.icon
@@ -1153,9 +1170,9 @@ export function CreatorStreaming({
         {/* Recording Prompt Modal */}
         <RecordingPrompt
           isOpen={recorder.shouldPromptRecording && !isStreaming}
-          onAccept={recorder.acceptRecording}
-          onAcceptWithAutoUpload={recorder.acceptRecordingWithAutoUpload}
-          onDecline={recorder.declineRecording}
+          onAccept={() => { recorder.acceptRecording(); void handleStartStream(true); }}
+          onAcceptWithAutoUpload={() => { recorder.acceptRecordingWithAutoUpload(); void handleStartStream(true); }}
+          onDecline={() => { recorder.declineRecording(); void handleStartStream(true); }}
         />
 
         {/* Stream Limit Modal — fixed overlay, shown when plan limit is hit */}
@@ -1241,12 +1258,12 @@ export function CreatorStreaming({
 
               {/* Headline */}
               <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-                That's a wrap!
+                That&apos;s a wrap!
               </h2>
 
               {/* Subtext */}
               <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-5">
-                Your stream ended smoothly. Here's a quick look at how it went.
+                Your stream ended smoothly. Here&apos;s a quick look at how it went.
               </p>
 
               {/* Stat card */}
@@ -1288,19 +1305,33 @@ export function CreatorStreaming({
           />
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* New viewer messages remain visible without requiring the creator to open chat. */}
+        <div className="pointer-events-none fixed right-4 top-24 z-40 flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2" aria-live="polite" aria-label="New chat messages">
+          {chatToasts.map((message) => (
+            <motion.div key={message.id} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }} className="pointer-events-auto rounded-xl border border-sky-500/30 bg-slate-900/95 p-4 shadow-2xl backdrop-blur">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-500/15 text-sky-400"><MessageCircle className="h-4 w-4" /></div>
+                <div className="min-w-0 flex-1"><p className="text-sm font-bold text-sky-400">{message.username}</p><p className="mt-1 line-clamp-2 text-sm text-slate-200">{message.content}</p></div>
+                <button onClick={() => setChatToasts((previous) => previous.filter((toast) => toast.id !== message.id))} aria-label="Dismiss message" className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white"><X className="h-4 w-4" /></button>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className={cn(isStreaming ? "block" : "mx-auto max-w-xl")}>
           {/* Left Panel - Controls */}
-          <div className="lg:col-span-1 space-y-6">
+          {!isStreaming && (
+          <div className="space-y-4">
             {/* Audio Source Selection (exactly like test_webrtc.html) */}
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-sky-500" />
-                Primary Audio Source
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-sm font-bold text-slate-950">1</span>
+                Choose your audio
               </h2>
 
               {/* Audio Source Checkboxes */}
               <div className="space-y-3 mb-4">
-                <label className="flex items-center gap-3 cursor-pointer">
+                <label className={cn("flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition", useMic && !useSystemAudio ? "border-sky-500 bg-sky-500/10" : "border-slate-700 hover:border-slate-600", (isStreaming || isStarting) && "cursor-not-allowed opacity-60")}>
                   <input
                     type="radio"
                     name="audioSource"
@@ -1316,13 +1347,13 @@ export function CreatorStreaming({
                     disabled={isStreaming || isStarting}
                     className="w-4 h-4 accent-sky-500"
                   />
-                  <Mic className="w-4 h-4 text-sky-400" />
-                  <span className="text-sm">Microphone</span>
+                  <Mic className="h-5 w-5 text-sky-400" />
+                  <span><span className="block text-sm font-semibold">Microphone</span><span className="block text-xs text-slate-400">Speak through a connected mic</span></span>
                 </label>
 
                 {/* Microphone Picker - show when mic is enabled */}
                 {useMic && (
-                  <div className="ml-7 mb-2">
+                  <div className="ml-7 mb-2 rounded-lg bg-slate-950/60 p-3">
                     <button
                       type="button"
                       onClick={() => setShowMicPicker(!showMicPicker)}
@@ -1371,7 +1402,7 @@ export function CreatorStreaming({
                   </div>
                 )}
 
-                <label className="flex items-center gap-3 cursor-pointer">
+                <label className={cn("flex cursor-pointer items-center gap-3 rounded-xl border p-4 transition", useSystemAudio && !useMic ? "border-sky-500 bg-sky-500/10" : "border-slate-700 hover:border-slate-600", (isStreaming || isStarting) && "cursor-not-allowed opacity-60")}>
                   <input
                     type="radio"
                     name="audioSource"
@@ -1387,8 +1418,8 @@ export function CreatorStreaming({
                     disabled={isStreaming || isStarting}
                     className="w-4 h-4 accent-purple-500"
                   />
-                  <Monitor className="w-4 h-4 text-purple-400" />
-                  <span className="text-sm">System Audio</span>
+                  <Monitor className="h-5 w-5 text-purple-400" />
+                  <span><span className="block text-sm font-semibold">Device audio</span><span className="block text-xs text-slate-400">Share sound playing on your device</span></span>
                 </label>
 
                 {/* <label 
@@ -1424,10 +1455,10 @@ export function CreatorStreaming({
             </div>
 
             {/* Stream Settings */}
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Radio className="w-5 h-5 text-sky-500" />
-                Stream Settings
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-sm font-bold text-slate-950">2</span>
+                Name your broadcast
               </h2>
 
               {/* Show existing stream info when resuming, otherwise show input fields */}
@@ -1461,18 +1492,23 @@ export function CreatorStreaming({
                     {/* Stream title */}
                     <div className="mb-4">
                       <label className="block text-sm text-slate-400 mb-2">
-                        Stream Title
+                        Broadcast title <span className="text-red-400">*</span>
                       </label>
                       <input
                         type="text"
                         value={streamTitle}
                         onChange={(e) => setStreamTitle(e.target.value)}
-                        placeholder="Enter stream title..."
+                        placeholder="e.g. Sunday morning service"
                         disabled={isStreaming || isStarting}
                         className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50"
                       />
                     </div>
 
+                    <details className="group mb-4 rounded-xl border border-slate-700 bg-slate-950/40">
+                      <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-300 marker:hidden">
+                        <span className="flex items-center justify-between">Add description or cover image <span className="text-xs font-normal text-slate-500 group-open:hidden">Optional</span></span>
+                      </summary>
+                      <div className="border-t border-slate-800 px-4 pb-1 pt-4">
                     {/* Stream description */}
                     <div className="mb-4">
                       <label className="block text-sm text-slate-400 mb-2">
@@ -1541,11 +1577,17 @@ export function CreatorStreaming({
                         Recommended: 1900x1900px
                       </p>
                     </div>
+                      </div>
+                    </details>
                   </>
                 )
               )}
 
               {/* Start/Stop buttons */}
+              <div className="mb-3 mt-5 flex items-center gap-2 border-t border-slate-800 pt-5 text-sm font-semibold">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500 text-sm font-bold text-slate-950">3</span>
+                {isStreaming ? "Your broadcast is live" : hasActiveStream ? "Continue your broadcast" : "Start broadcasting"}
+              </div>
               <div className="flex gap-3">
                 {!isStreaming ? (
                   hasActiveStream ? (
@@ -1580,9 +1622,9 @@ export function CreatorStreaming({
                   ) : (
                     /* Start New Stream button */
                     <Button
-                      onClick={handleStartStream}
+                      onClick={() => handleStartStream()}
                       disabled={!streamTitle.trim() || isStarting}
-                      className="flex-1 bg-emerald-500 hover:bg-emerald-600"
+                      className="min-h-12 flex-1 bg-emerald-500 text-base font-bold hover:bg-emerald-600"
                     >
                       {isStarting ? (
                         <>
@@ -1600,7 +1642,7 @@ export function CreatorStreaming({
                 ) : (
                   <Button
                     onClick={handleStopStream}
-                    className="flex-1 bg-red-500 hover:bg-red-600"
+                    className="min-h-12 flex-1 bg-red-500 text-base font-bold hover:bg-red-600"
                   >
                     <Square className="w-4 h-4 mr-2" />
                     End Stream
@@ -1621,138 +1663,67 @@ export function CreatorStreaming({
               )}
             </div>
           </div>
+          )}
 
           {/* Right Panel - Preview */}
-          <div className="lg:col-span-2 space-y-6">
+          {isStreaming && (
+          <div className="space-y-4">
             {/* Live Preview */}
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Live Preview</h2>
-                {companySlug && currentStream?.slug && (
-                  <button
-                    onClick={() => {
-                      const streamUrl = `${window.location.origin}/${companySlug}/${currentStream.slug}`;
-                      navigator.clipboard.writeText(streamUrl);
-                      setCopiedLink(true);
-                      setTimeout(() => setCopiedLink(false), 2000);
-                    }}
-                    className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors"
-                  >
-                    {copiedLink ? (
-                      <>
-                        <Check className="w-4 h-4 text-green-400" />
-                        <span className="text-green-400">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        <span>Copy Link</span>
-                      </>
-                    )}
-                  </button>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                {(thumbnailPreview || currentStream?.thumbnail_url) ? (
+                  <img
+                    src={thumbnailPreview || currentStream?.thumbnail_url || ""}
+                    alt="Broadcast cover"
+                    className="h-16 w-16 shrink-0 rounded-xl object-cover sm:h-20 sm:w-20"
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400 sm:h-20 sm:w-20">
+                    <Radio className="h-7 w-7" />
+                  </div>
                 )}
-              </div>
-
-              {/* Canvas Visualizer (like test_webrtc.html) */}
-              <div className="bg-slate-950 rounded-xl h-32 mb-4 overflow-hidden border border-slate-800 relative">
-                <canvas
-                  ref={canvasRef}
-                  width={800}
-                  height={128}
-                  className={cn(
-                    "w-full h-32",
-                    isStreaming ? "block" : "hidden",
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-red-500" /><span className="text-xs font-bold uppercase tracking-wider text-red-400">Live now</span></div>
+                  <h3 className="truncate text-lg font-bold sm:text-xl">{currentStream?.title || streamTitle}</h3>
+                  {streamDescription && <p className="mt-1 line-clamp-2 text-sm text-slate-400">{streamDescription}</p>}
+                </div>
+                <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center">
+                  <div className="rounded-lg bg-slate-800/80 px-3 py-2">
+                    <div className="text-[11px] text-slate-400">Status</div>
+                    <div className="mt-0.5 text-sm font-semibold text-emerald-400">Live</div>
+                  </div>
+                  <div className="rounded-lg bg-slate-800/80 px-3 py-2">
+                    <div className="text-[11px] text-slate-400">Duration</div>
+                    <div className="mt-0.5 font-mono text-sm font-semibold">{formatDuration(streamDuration)}</div>
+                  </div>
+                  <div className="rounded-lg bg-slate-800/80 px-3 py-2">
+                    <div className="text-[11px] text-slate-400">Viewers</div>
+                    <div className="mt-0.5 text-sm font-semibold">{creatorTotalViews || currentStream?.viewer_count || 0}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 sm:ml-auto">
+                  {companySlug && currentStream?.slug && (
+                    <button
+                      onClick={() => {
+                        const streamUrl = `${window.location.origin}/${companySlug}/${currentStream.slug}`;
+                        navigator.clipboard.writeText(streamUrl);
+                        setCopiedLink(true);
+                        setTimeout(() => setCopiedLink(false), 2000);
+                      }}
+                      className="hidden min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200 sm:flex"
+                    >
+                      {copiedLink ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                      <span>{copiedLink ? "Copied!" : "Copy link"}</span>
+                    </button>
                   )}
-                />
-                {!isStreaming && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-slate-500 text-sm">
-                      Visualizer will appear here when streaming
-                    </span>
-                  </div>
-                )}
-                {/* Label like in test_webrtc.html */}
-                {isStreaming && (
-                  <span className="absolute top-2 right-3 text-xs text-slate-500 uppercase tracking-wider">
-                    MIC INPUT
-                  </span>
-                )}
-              </div>
-
-              {/* Stats Row (exactly like test_webrtc.html) */}
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                <div className="bg-slate-800 rounded-lg p-3 text-center">
-                  <div className="text-xs text-slate-400 mb-1">State</div>
-                  <div className="text-sm font-semibold">{iceState || "—"}</div>
-                </div>
-                <div className="bg-slate-800 rounded-lg p-3 text-center">
-                  <div className="text-xs text-slate-400 mb-1">Codec</div>
-                  <div className="text-sm font-semibold">{codec}</div>
-                </div>
-                <div className="bg-slate-800 rounded-lg p-3 text-center">
-                  <div className="text-xs text-slate-400 mb-1">Bitrate</div>
-                  <div className="text-sm font-semibold">{bitrate}</div>
-                </div>
-              </div>
-
-              {/* Stream info */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {/* Status */}
-                <div className="bg-slate-800 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-slate-400 mb-1">
-                    <Signal className="w-4 h-4" />
-                    <span className="text-xs">Status</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isStreaming ? (
-                      <>
-                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                        <span className="font-semibold text-emerald-500">
-                          LIVE
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-slate-500">Offline</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Duration */}
-                <div className="bg-slate-800 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-slate-400 mb-1">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-xs">Duration</span>
-                  </div>
-                  <span className="font-mono font-semibold">
-                    {formatDuration(streamDuration)}
-                  </span>
-                </div>
-
-                {/* Viewers */}
-                <div className="bg-slate-800 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-slate-400 mb-1">
-                    <Users className="w-4 h-4" />
-                    <span className="text-xs">Viewers</span>
-                  </div>
-                  <span className="font-semibold">
-                    {creatorTotalViews || currentStream?.viewer_count || 0}
-                  </span>
-                </div>
-
-                {/* Audio Status */}
-                <div className="bg-slate-800 rounded-lg p-4">
-                  <div className="flex items-center gap-2 text-slate-400 mb-1">
-                    <Headphones className="w-4 h-4" />
-                    <span className="text-xs">Audio</span>
-                  </div>
-                  <span
-                    className={cn(
-                      "font-semibold",
-                      isStreaming ? "text-emerald-500" : "text-slate-500",
-                    )}
+                  <button
+                    onClick={handleStopStream}
+                    className="hidden min-h-11 items-center justify-center gap-2 rounded-xl bg-red-500 px-4 text-sm font-bold text-white shadow-lg shadow-red-950/20 transition hover:bg-red-600 sm:inline-flex"
+                    aria-label="End broadcast"
                   >
-                    {isStreaming ? "Active" : "Inactive"}
-                  </span>
+                    <Square className="h-4 w-4" />
+                    End broadcast
+                  </button>
                 </div>
               </div>
             </div>
@@ -1760,14 +1731,15 @@ export function CreatorStreaming({
 
             {/* Chat Panel */}
             {isStreaming && (
-              <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-                <div className="flex items-center gap-2 mb-4">
+              <details className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                <summary className="flex cursor-pointer list-none items-center gap-2">
                   <MessageCircle className="w-5 h-5 text-sky-500" />
-                  <h3 className="text-lg font-semibold">Live Chat</h3>
+                  <h3 className="text-base font-semibold">Live chat</h3>
                   <span className="text-xs text-slate-500 ml-auto">
                     {chatMessages.length} messages
                   </span>
-                </div>
+                </summary>
+                <div className="mt-4 border-t border-slate-800 pt-4">
 
                 {/* Messages List */}
                 <div className="bg-slate-950 rounded-lg p-3 mb-3 max-h-64 overflow-y-auto space-y-2">
@@ -1787,6 +1759,7 @@ export function CreatorStreaming({
                           </span>
                           <button
                             onClick={() => handleReplyToMessage(msg)}
+                            aria-label={`Reply to ${msg.username}`}
                             className="text-slate-500 hover:text-sky-400 p-1"
                             title="Reply"
                           >
@@ -1809,6 +1782,7 @@ export function CreatorStreaming({
                     <span>Replying to {replyingTo.username}</span>
                     <button
                       onClick={() => setReplyingTo(null)}
+                      aria-label="Cancel reply"
                       className="ml-auto text-slate-500 hover:text-white"
                     >
                       <X className="w-3 h-3" />
@@ -1838,6 +1812,7 @@ export function CreatorStreaming({
                   <Button
                     onClick={handleSendChatMessage}
                     disabled={!chatMessageInput.trim() || isSendingChat}
+                    aria-label="Send chat message"
                     size="sm"
                     className="bg-sky-500 hover:bg-sky-600"
                   >
@@ -1848,11 +1823,15 @@ export function CreatorStreaming({
                     )}
                   </Button>
                 </div>
-              </div>
+                </div>
+              </details>
             )}
 
             {/* Audio Mixer - Show when streaming */}
             {isStreaming && mixerEngineRef.current && (
+              <details className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                <summary className="cursor-pointer text-base font-semibold">Advanced audio mixer</summary>
+                <div className="mt-4 border-t border-slate-800 pt-4">
               <CreatorMixer
                 mixerEngine={mixerEngineRef.current}
                 isStreaming={isStreaming}
@@ -1887,19 +1866,31 @@ export function CreatorStreaming({
                   }
                 }}
               />
-            )}
-
-            {/* Stream Title Display */}
-            {isStreaming && streamTitle && (
-              <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
-                <h3 className="text-lg font-semibold mb-2">{streamTitle}</h3>
-                {streamDescription && (
-                  <p className="text-slate-400 text-sm">{streamDescription}</p>
-                )}
-              </div>
+                </div>
+              </details>
             )}
 
           </div>
+          )}
+        </div>
+
+        {/* The primary action stays reachable on a phone without scrolling back through setup. */}
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-700 bg-slate-950/95 p-3 backdrop-blur lg:hidden">
+          {!isStreaming ? (
+            hasActiveStream ? (
+              <button onClick={handleReconnectToStream} disabled={isStarting || isCheckingActiveStream} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 font-bold text-white disabled:opacity-50">
+                {(isStarting || isCheckingActiveStream) ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
+                {(isStarting || isCheckingActiveStream) ? "Resuming…" : "Resume broadcast"}
+              </button>
+            ) : (
+              <button onClick={() => handleStartStream()} disabled={!streamTitle.trim() || isStarting} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
+                {isStarting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Radio className="h-5 w-5" />}
+                {isStarting ? "Starting…" : streamTitle.trim() ? "Go live" : "Add a title to go live"}
+              </button>
+            )
+          ) : (
+            <button onClick={handleStopStream} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-500 px-4 font-bold text-white"><Square className="h-5 w-5" />End broadcast</button>
+          )}
         </div>
       </div>
     </div>

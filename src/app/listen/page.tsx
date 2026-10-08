@@ -80,9 +80,9 @@ function StreamArtwork({ stream }: { stream: ActiveStreamItem }) {
   return <img src={source} alt={thumbnail ? `${stream.title} thumbnail` : `${stream.company_name} logo`} className={`h-full w-full ${thumbnail ? 'object-cover' : 'object-contain bg-slate-100 p-8'}`} />;
 }
 
-function StreamCard({ stream, onPlay, isActive }: { stream: ActiveStreamItem; onPlay: () => void; isActive: boolean }) {
+function StreamCard({ stream }: { stream: ActiveStreamItem }) {
   return (
-    <article className={`group relative min-h-[380px] overflow-hidden rounded-3xl border bg-slate-900 shadow-sm transition hover:-translate-y-1 hover:shadow-xl sm:min-h-[420px] ${isActive ? 'border-sky-400 ring-4 ring-sky-100' : 'border-slate-200'}`}>
+    <Link href={`/${stream.company_slug}/${stream.slug}`} className="group relative block min-h-[380px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-900 shadow-sm transition hover:-translate-y-1 hover:shadow-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 sm:min-h-[420px]">
       <div className="absolute inset-0">
         <StreamArtwork stream={stream} />
       </div>
@@ -99,13 +99,13 @@ function StreamCard({ stream, onPlay, isActive }: { stream: ActiveStreamItem; on
           <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-sm">
             {stream.company_logo_url ? <img src={stream.company_logo_url} alt="" className="h-full w-full object-cover" /> : <Radio className="h-4 w-4" />}
           </div>
-          <div className="min-w-0 flex-1"><Link href={`/${stream.company_slug}`} className="block truncate text-sm font-semibold text-white hover:text-sky-300">{stream.company_name}</Link><p className="mt-0.5 text-xs text-slate-300">Started {formatTimeSince(stream.started_at)} ago</p></div>
+          <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-white">{stream.company_name}</p><p className="mt-0.5 text-xs text-slate-300">Started {formatTimeSince(stream.started_at)} ago</p></div>
         </div>
-        <button onClick={onPlay} aria-label={`${isActive ? 'Pause or resume' : 'Listen to'} ${stream.title}`} className={`mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold shadow-lg transition ${isActive ? 'bg-white text-slate-950 hover:bg-slate-100' : 'bg-sky-600 text-white hover:bg-sky-500'}`}>
-          {isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}{isActive ? 'Now playing' : 'Listen now'}
-        </button>
+        <span className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-3 font-semibold text-white shadow-lg transition group-hover:bg-sky-500">
+          <Play className="h-4 w-4 fill-current" /> Open live stream
+        </span>
       </div>
-    </article>
+    </Link>
   );
 }
 
@@ -507,7 +507,7 @@ export default function ListenPage() {
             <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
               <AnimatePresence mode="popLayout">
                 {filteredStreams.map((stream) => (
-                  <StreamCard key={stream.id} stream={stream} onPlay={() => handleStreamSelect(stream)} isActive={currentStream?.id === stream.id} />
+                  <StreamCard key={stream.id} stream={stream} />
                 ))}
               </AnimatePresence>
             </div>

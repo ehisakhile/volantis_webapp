@@ -5,8 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Radio, Play, X, Volume2, VolumeX, Wifi, Users, Activity, Signal, Video,
-  Eye, Share2, ArrowLeft, MessageCircle, ChevronDown, ChevronUp
+  Radio, Play, Pause, X, Volume2, VolumeX, Wifi, Users, Activity, Signal, Video,
+  Eye, Share2, ArrowLeft, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { LiveChat } from '@/components/streaming/live-chat';
 import { livestreamApi, type CompanyLivePageResponse } from '@/lib/api/livestream';
@@ -104,7 +104,6 @@ function StreamPlayer({
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
-  const [showStats, setShowStats] = useState(false);
   const [hasVideoTrack, setHasVideoTrack] = useState(false);
 
   // Check for video track in remote stream
@@ -128,10 +127,12 @@ function StreamPlayer({
   const statusColor = isConnected ? '#22d3ee' : isConnecting ? '#f59e0b' : '#ef4444';
   const statusLabel = isConnected ? 'Connected' : isConnecting ? 'Connecting…' : 'Disconnected';
   const liveViewers = viewerCount !== undefined ? viewerCount : stream.viewer_count;
+  const artworkUrl = stream.thumbnail_url || company?.logo_url;
+  const showVideo = isVideoStream === true && hasVideoTrack;
 
   // Auto-play video when stream has video track
   useEffect(() => {
-    if (hasVideoTrack && videoRef.current && remoteStream && isPlaying) {
+    if (showVideo && videoRef.current && remoteStream && isPlaying) {
       videoRef.current.srcObject = remoteStream;
       videoRef.current.play().then(() => {
         console.log('[StreamPlayer] Video playback started');
@@ -140,7 +141,7 @@ function StreamPlayer({
         console.error('[StreamPlayer] Video playback failed:', err);
       });
     }
-  }, [hasVideoTrack, remoteStream, isPlaying]);
+  }, [showVideo, remoteStream, isPlaying]);
 
 
   return (
@@ -148,16 +149,14 @@ function StreamPlayer({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="rounded-2xl border border-white/8 overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, rgba(13,18,32,0.97) 0%, rgba(6,10,22,0.99) 100%)' }}
+      className="shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:rounded-3xl"
     >
       {/* Accent bar */}
-      <div className="h-[2px] w-full bg-gradient-to-r from-cyan-400 via-violet-500 to-cyan-400" />
+      <div className="h-[2px] w-full bg-sky-600" />
 
-      <div className="p-4 sm:p-5">
+      <div className="p-3 sm:p-7">
         {/* Top row: status + close */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
+        <div className="mb-2 flex flex-wrap items-center gap-2 sm:mb-4">
             <div
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold"
               style={{ borderColor: `${statusColor}35`, background: `${statusColor}0d`, color: statusColor }}
@@ -171,72 +170,23 @@ function StreamPlayer({
               {statusLabel}
             </div>
             <LiveBadge />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setShowStats(s => !s)}
-              className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 active:scale-90 flex items-center justify-center text-slate-500 hover:text-cyan-400 transition-all"
-            >
-              <Activity className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={onStop}
-              className="w-8 h-8 rounded-xl bg-red-500/15 hover:bg-red-500/25 active:scale-90 flex items-center justify-center text-red-400 transition-all"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
+            <span className="flex items-center gap-1.5 text-xs text-slate-500"><Users className="h-3.5 w-3.5" />{liveViewers.toLocaleString()} listening</span>
         </div>
 
         {/* Channel info */}
-        <div className="flex items-center gap-3 mb-4">
-          <motion.div
-            className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center text-base font-black text-white flex-shrink-0 overflow-hidden"
-            animate={{
-              boxShadow: isPlaying
-                ? ['0 0 0px rgba(34,211,238,0.3)', '0 0 18px rgba(34,211,238,0.55)', '0 0 0px rgba(34,211,238,0.3)']
-                : '0 0 0px rgba(0,0,0,0)',
-            }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            {stream?.thumbnail_url
-              ? <img src={stream.thumbnail_url} alt={stream.title} className="w-full h-full object-cover" />
-              : stream?.title?.[0]?.toUpperCase() || '?'
-            }
-          </motion.div>
-          <div className="flex-1 min-w-0">
-            <Link href={`/${stream.company_slug || ''}`} className="text-cyan-400 text-[11px] font-bold uppercase tracking-widest hover:underline">
-              {company?.name || 'Channel'}
-            </Link>
-            <h2 className="text-white text-base sm:text-lg font-bold leading-tight truncate">{stream.title}</h2>
-            {stream.description && (
-              <p className="text-slate-500 text-xs mt-0.5 line-clamp-1">{stream.description}</p>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-1 flex-shrink-0 text-xs">
-            <div className="flex items-center gap-1 text-slate-400">
-              <Eye className="w-3 h-3 text-cyan-400" />
-              <span className="text-white font-semibold tabular-nums">{liveViewers.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Signal className="w-3 h-3 text-emerald-400" />
-              <span className="text-emerald-400 font-semibold">HD</span>
-            </div>
-          </div>
+        <div className="mb-3 text-center sm:mb-6">
+          <h1 className="text-xl font-bold leading-tight text-slate-950 sm:text-3xl">{stream.title}</h1>
+          <Link href={`/${company?.slug || ''}`} className="mt-1 inline-block text-sm font-medium text-slate-600 hover:text-sky-700 hover:underline">
+            {company?.name || 'Channel'}
+          </Link>
+          {stream.description && <p className="mx-auto mt-2 hidden max-w-xl text-sm text-slate-500 sm:block">{stream.description}</p>}
         </div>
 
         {/* Video or Audio Visualizer */}
         <div
-          className="relative rounded-xl overflow-hidden mb-4"
-          style={{
-            background: 'linear-gradient(180deg, rgba(34,211,238,0.04) 0%, rgba(139,92,246,0.04) 100%)',
-            border: '1px solid rgba(255,255,255,0.05)',
-            height: hasVideoTrack ? 'auto' : '80px',
-            aspectRatio: hasVideoTrack ? '16/9' : undefined,
-            maxHeight: hasVideoTrack ? '320px' : undefined,
-          }}
+          className={`relative mb-3 overflow-hidden rounded-xl border border-slate-300 bg-slate-200 sm:mb-4 ${showVideo ? 'aspect-video max-h-80' : 'h-36 sm:h-[300px]'}`}
         >
-          {hasVideoTrack ? (
+          {showVideo ? (
             <video
               ref={videoRef}
               autoPlay
@@ -246,29 +196,16 @@ function StreamPlayer({
             />
           ) : (
             <>
-              <div className="h-[80px]">
-                <div className="absolute inset-0 opacity-[0.07]"
-                  style={{
-                    backgroundImage: 'linear-gradient(rgba(34,211,238,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.4) 1px, transparent 1px)',
-                    backgroundSize: '36px 36px',
-                  }} />
+              <div className="flex h-full items-center justify-center bg-slate-200">
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="relative">
-                    <PulseRings isActive={isPlaying} />
-                    <motion.div
-                      className="w-11 h-11 rounded-full bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center shadow-lg z-10 relative"
-                      animate={isPlaying ? {
-                        scale: [1, 1.07, 1],
-                        boxShadow: ['0 0 12px rgba(34,211,238,0.25)', '0 0 32px rgba(34,211,238,0.55)', '0 0 12px rgba(34,211,238,0.25)'],
-                      } : {}}
-                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                    >
-                      <Radio className="w-4.5 h-4.5 text-white" />
-                    </motion.div>
+                  <div className={`relative flex h-28 w-28 items-center justify-center rounded-full border-8 border-slate-900 bg-slate-900 shadow-lg sm:h-60 sm:w-60 sm:border-[10px] ${isPlaying ? 'animate-[spin_8s_linear_infinite]' : ''}`}>
+                    {artworkUrl ? (
+                      <img src={artworkUrl} alt={stream.title} className="h-full w-full rounded-full object-cover" />
+                    ) : (
+                      <Radio className="h-14 w-14 text-white" />
+                    )}
+                    <span className="absolute h-10 w-10 rounded-full border-4 border-slate-900 bg-white" />
                   </div>
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 px-3 pb-2 h-9">
-                  <AudioVisualizer isActive={isPlaying} color="#22d3ee" />
                 </div>
               </div>
             </>
@@ -276,12 +213,12 @@ function StreamPlayer({
         </div>
 
         {/* Volume */}
-        <div className="flex items-center gap-3 mb-4">
-          <button onClick={() => setMuted(m => !m)} className="text-slate-500 hover:text-white transition-colors flex-shrink-0">
+        <div className="mb-3 flex items-center gap-3 sm:mb-4">
+          <button onClick={() => setMuted(m => !m)} className="flex-shrink-0 text-slate-500 transition-colors hover:text-slate-900">
             {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
-          <div className="relative flex-1 h-1.5 rounded-full bg-white/8 cursor-pointer group">
-            <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-500" style={{ width: `${volume * 100}%` }} />
+          <div className="group relative h-1.5 flex-1 cursor-pointer rounded-full bg-slate-200">
+            <div className="h-full rounded-full bg-sky-600" style={{ width: `${volume * 100}%` }} />
             <input
               type="range" min={0} max={1} step={0.01} value={volume}
               onChange={e => handleVolumeChange(parseFloat(e.target.value))}
@@ -297,27 +234,25 @@ function StreamPlayer({
 
         {/* Actions */}
         <div className="flex items-center gap-2.5">
-          {!isPlaying ? (
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={onPlay}
-              className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 transition-all active:opacity-80"
-              style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}
-            >
-              <Play className="w-4 h-4" />
-              Play Stream
-            </motion.button>
-          ) : !isConnected && isPlaying ? (
+          {(!isConnected && isPlaying) ? (
             <motion.button
               whileTap={{ scale: 0.97 }}
               onClick={onRetry}
-              className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2"
-              style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}
+              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-sky-600 py-2.5 text-sm font-bold text-white hover:bg-sky-500"
             >
               <Activity className="w-4 h-4" />
               Reconnect
             </motion.button>
-          ) : null}
+          ) : (
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={isPlaying ? onStop : onPlay}
+              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-sky-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-sky-500 active:opacity-80"
+            >
+              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
+              {isPlaying ? 'Pause' : 'Listen live'}
+            </motion.button>
+          )}
 
           <motion.button
             whileTap={{ scale: 0.9 }}
@@ -330,38 +265,12 @@ function StreamPlayer({
                 navigator.clipboard.writeText(shareUrl).catch(() => {});
               }
             }}
-            className="w-10 h-10 rounded-xl border border-white/8 bg-white/4 flex items-center justify-center text-slate-500 hover:text-cyan-400 transition-colors flex-shrink-0"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-sky-700"
           >
             <Share2 className="w-4 h-4" />
           </motion.button>
         </div>
 
-        {/* Stats panel */}
-        <AnimatePresence>
-          {showStats && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-3 gap-2">
-                {[
-                  { label: 'State', value: connectionState, icon: Wifi },
-                  { label: 'Viewers', value: liveViewers.toLocaleString(), icon: Users },
-                  { label: 'Peak', value: ((peakViewers ?? 0).toLocaleString()), icon: Activity },
-                ].map(({ label, value, icon: Icon }) => (
-                  <div key={label} className="rounded-xl p-2.5 text-center"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <Icon className="w-3 h-3 text-cyan-400 mx-auto mb-1.5" />
-                    <p className="text-white text-xs font-bold capitalize truncate">{value}</p>
-                    <p className="text-slate-600 text-[9px] uppercase tracking-wider mt-0.5">{label}</p>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </motion.div>
   );
@@ -369,47 +278,12 @@ function StreamPlayer({
 
 /* ─────────────────── Mobile Chat Drawer ─────────────────── */
 function MobileChatSection({ streamSlug, companyName }: { streamSlug: string; companyName?: string }) {
-  const [isOpen, setIsOpen] = useState(false);
-
   return (
-    <div className="lg:hidden mt-4">
-      {/* Toggle button */}
-      <button
-        onClick={() => setIsOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border border-white/8 bg-white/3 text-white font-semibold text-sm active:scale-[0.99] transition-all"
-      >
-        <div className="flex items-center gap-2.5">
-          <div className="relative w-7 h-7 rounded-lg bg-cyan-500/15 border border-cyan-500/20 flex items-center justify-center">
-            <MessageCircle className="w-3.5 h-3.5 text-cyan-400" />
-            {/* live dot */}
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#060a16]" />
-          </div>
-          <span>Live Chat</span>
-        </div>
-        <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
-          <ChevronDown className="w-4 h-4 text-slate-500" />
-        </motion.div>
-      </button>
-
-      {/* Chat panel — fixed height so messages are always visible */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 420 }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="mt-2 overflow-hidden rounded-2xl"
-            style={{ minHeight: 0 }}
-          >
-            {/* This wrapper gives LiveChat a concrete pixel height to fill */}
-            <div className="h-[420px]">
-              <LiveChat slug={streamSlug} companyName={companyName} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    <section className="mt-2 flex min-h-0 flex-1 flex-col pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <LiveChat slug={streamSlug} companyName={companyName} />
+      </div>
+    </section>
   );
 }
 
@@ -479,8 +353,7 @@ function VideoPlayerLayout({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
-      className="w-full rounded-2xl overflow-hidden border border-white/8"
-      style={{ background: 'linear-gradient(160deg, rgba(13,18,32,0.97) 0%, rgba(6,10,22,0.99) 100%)' }}
+      className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
     >
       {/* Video Output */}
       <div className="relative aspect-video bg-black max-h-[70vh]">
@@ -520,15 +393,15 @@ function VideoPlayerLayout({
       <div className="p-4">
         <div className="flex items-center justify-between">
           <div>
-            <Link href={`/${company?.slug || ''}`} className="text-cyan-400 text-xs font-bold uppercase tracking-widest hover:underline">
+            <Link href={`/${company?.slug || ''}`} className="text-xs font-bold uppercase tracking-widest text-sky-700 hover:underline">
               {company?.name || 'Channel'}
             </Link>
-            <h2 className="text-white font-bold">{stream.title}</h2>
+            <h2 className="font-bold text-slate-950">{stream.title}</h2>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1 text-slate-400">
               <Eye className="w-4 h-4" />
-              <span className="text-white font-semibold">{viewerCount ?? 0}</span>
+              <span className="font-semibold text-slate-900">{viewerCount ?? 0}</span>
             </div>
           </div>
         </div>
@@ -706,6 +579,13 @@ export default function StreamPage() {
     router.push(`/${companySlug}`);
   }
 
+  function handlePausePlayback() {
+    stop();
+    setIsPlaying(false);
+    setIsAudioInitialized(false);
+    stopPlayback();
+  }
+
   const handlePlay = useCallback(async () => {
     console.log('[StreamPage] handlePlay called, stream type:', stream?.stream_type);
     console.log('[StreamPage] playback URL:', stream?.cf_webrtc_playback_url);
@@ -797,18 +677,15 @@ export default function StreamPage() {
         ::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.25); border-radius: 2px; }
       `}</style>
 
-      <GrainOverlay />
-
-      <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #040810 0%, #060c1e 50%, #030610 100%)' }}>
+      <div className="min-h-screen bg-slate-50">
         {/* Navbar */}
         <div
-          className="fixed top-0 left-0 right-0 z-40 border-b border-white/5"
-          style={{ background: 'rgba(3,7,18,0.92)', backdropFilter: 'blur(24px)' }}
+          className="fixed left-0 right-0 top-0 z-40 border-b border-slate-200 bg-white/95"
         >
           <div className="container mx-auto px-4 max-w-6xl">
             <div className="flex items-center justify-between h-13 py-2.5">
-              <Link href={`/${companySlug}`} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
-                <div className="w-7 h-7 rounded-lg bg-white/5 group-hover:bg-white/10 flex items-center justify-center transition-colors">
+              <Link href={`/${companySlug}`} className="group flex items-center gap-2 text-slate-600 transition-colors hover:text-slate-950">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 transition-colors group-hover:bg-slate-200">
                   <ArrowLeft className="w-3.5 h-3.5" />
                 </div>
                 <span className="text-sm font-medium">{company?.name || 'Channel'}</span>
@@ -819,8 +696,8 @@ export default function StreamPage() {
         </div>
 
         {/* Main content */}
-        <main className="pt-16 pb-8">
-          <div className="container mx-auto px-4 max-w-6xl">
+        <main className="pb-0 pt-16 lg:pb-8">
+          <div className="container mx-auto max-w-6xl px-2 sm:px-4">
 
             {/* ── Desktop: player + sidebar chat side by side ── */}
             <div className="hidden lg:flex gap-6 items-start">
@@ -837,7 +714,7 @@ export default function StreamPage() {
                   <StreamPlayer
                     stream={stream} company={company} isPlaying={isPlaying}
                     connectionState={connectionState} remoteStream={remoteStream}
-                    audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
+                    audioStats={audioStats} onStop={handlePausePlayback} onPlay={handlePlay}
                     onRetry={handleRetry} onVolumeChange={updateVolume}
                     viewerCount={totalViews}
                     peakViewers={peakViewers}
@@ -855,7 +732,7 @@ export default function StreamPage() {
             </div>
 
             {/* ── Mobile: player stacked above collapsible chat ── */}
-            <div className="lg:hidden">
+            <div className="flex h-[calc(100dvh-64px)] min-h-0 flex-col overflow-hidden py-2 lg:hidden">
               {stream?.stream_type === 'video' ? (
                 <VideoPlayerLayout
                   stream={stream} company={company}
@@ -868,7 +745,7 @@ export default function StreamPage() {
                 <StreamPlayer
                   stream={stream} company={company} isPlaying={isPlaying}
                   connectionState={connectionState} remoteStream={remoteStream}
-                  audioStats={audioStats} onStop={handleStopPlayback} onPlay={handlePlay}
+                  audioStats={audioStats} onStop={handlePausePlayback} onPlay={handlePlay}
                   onRetry={handleRetry} onVolumeChange={updateVolume}
                   viewerCount={totalViews}
                   peakViewers={peakViewers}
