@@ -132,16 +132,16 @@
   gap: 8px;
 }
 
-/* Preview container with glow */
+/* Preview container */
 .preview-container {
   background: #000000;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(0, 229, 160, 0.15), 0 8px 32px rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--border);
 }
 
 .preview-container.streaming {
-  box-shadow: 0 0 0 1px var(--glow-color), 0 8px 32px rgba(0, 0, 0, 0.6);
+  border-color: var(--live);
 }
 
 /* Live badge */

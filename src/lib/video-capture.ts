@@ -5,6 +5,7 @@ export interface VideoCaptureOptions {
   height?: number;
   frameRate?: number;
   deviceId?: string;
+  facingMode?: 'user' | 'environment';
 }
 
 export interface CameraStreamResult {
@@ -25,6 +26,7 @@ export async function captureCamera(options: VideoCaptureOptions = {}): Promise<
     height = 1080,
     frameRate = 30,
     deviceId,
+    facingMode = 'user',
   } = options;
 
   const constraints: MediaStreamConstraints = {
@@ -33,6 +35,7 @@ export async function captureCamera(options: VideoCaptureOptions = {}): Promise<
       height: { ideal: height },
       frameRate: { ideal: frameRate },
       ...(deviceId && { deviceId: { exact: deviceId } }),
+      ...(!deviceId && { facingMode: { ideal: facingMode } }),
     },
     audio: false,
   };
@@ -54,6 +57,7 @@ export async function captureCameraWithAudio(options: VideoCaptureOptions = {}):
     height = 1080,
     frameRate = 30,
     deviceId,
+    facingMode = 'user',
   } = options;
 
   const videoConstraints: MediaStreamConstraints = {
@@ -62,6 +66,7 @@ export async function captureCameraWithAudio(options: VideoCaptureOptions = {}):
       height: { ideal: height },
       frameRate: { ideal: frameRate },
       ...(deviceId && { deviceId: { exact: deviceId } }),
+      ...(!deviceId && { facingMode: { ideal: facingMode } }),
     },
     audio: {
       echoCancellation: true,

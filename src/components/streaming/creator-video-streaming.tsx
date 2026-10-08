@@ -230,7 +230,7 @@ export function CreatorVideoStreaming({
   // DESIGN: Theme state with localStorage persistence
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("creator-studio-theme") as "dark" | "light") || "dark";
+      return (localStorage.getItem("creator-studio-theme") as "dark" | "light") || "light";
     }
     return "dark";
   });
@@ -1165,7 +1165,7 @@ export function CreatorVideoStreaming({
                  <img src="/logo.png" alt="Volantislive" className="h-8 w-auto" />
               </div>
             </Link>
-            <nav className="flex items-center gap-2 text-sm">
+            <nav className="hidden items-center gap-2 text-sm sm:flex">
               <span className="text-[var(--text-muted)]">Creator Studio</span>
               <span className="text-[var(--text-muted)]">›</span>
               <Link href="/creator/stream" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
@@ -1174,6 +1174,7 @@ export function CreatorVideoStreaming({
               <span className="text-[var(--text-muted)]">›</span>
               <span className="text-[var(--accent)] font-medium">Video</span>
             </nav>
+            <span className="text-sm font-semibold sm:hidden">Video studio</span>
           </div>
 
           {/* Center: Live badge (only when streaming) */}
@@ -1223,7 +1224,7 @@ export function CreatorVideoStreaming({
         console.error("Copy failed", err);
       }
     }}
-    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+    className="hidden items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all sm:flex"
     style={{
       backgroundColor: copied ? "#22c55e" : "var(--accent)",
       color: copied ? "#fff" : theme === "dark" ? "#000" : "#fff",
@@ -1643,6 +1644,50 @@ export function CreatorVideoStreaming({
 
         {/* CENTER: Main Preview Area */}
         <main className="studio-main-preview">
+          {!isStreaming && (
+            <section className="mb-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-4 lg:hidden">
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--accent)]">Quick setup</p>
+                <h1 className="mt-1 text-xl font-bold">Start a video stream</h1>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">Your front camera and microphone are ready by default.</p>
+              </div>
+
+              <label className="mb-2 block text-sm font-medium" htmlFor="mobile-video-stream-title">Stream title</label>
+              <input
+                id="mobile-video-stream-title"
+                type="text"
+                value={streamTitle}
+                onChange={(event) => setStreamTitle(event.target.value)}
+                placeholder="What are you streaming?"
+                disabled={isStarting}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-base)] px-4 py-3 text-base outline-none focus:border-[var(--accent)]"
+              />
+
+              <details className="mt-3 rounded-xl border border-[var(--border)]">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Add a description <span className="font-normal text-[var(--text-muted)]">(optional)</span></summary>
+                <div className="border-t border-[var(--border)] p-3">
+                  <textarea
+                    value={streamDescription}
+                    onChange={(event) => setStreamDescription(event.target.value)}
+                    placeholder="Tell viewers what this stream is about"
+                    disabled={isStarting}
+                    rows={2}
+                    className="w-full resize-none rounded-xl border border-[var(--border)] bg-[var(--bg-base)] px-4 py-3 text-sm outline-none focus:border-[var(--accent)]"
+                  />
+                </div>
+              </details>
+
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] text-sm font-semibold text-[var(--text-secondary)]"
+              >
+                <Settings className="h-4 w-4" />
+                Advanced camera and audio setup
+              </button>
+            </section>
+          )}
+
           {/* No Signal placeholder when not streaming */}
           {!isStreaming && !isPreviewActive && videoSourceType === "screen" && (
             <div className="studio-surface p-8 text-center mb-4">
@@ -1674,7 +1719,7 @@ export function CreatorVideoStreaming({
           )}
 
           {/* Visualizer Canvas + Live Preview */}
-          <div className="preview-container mb-4" style={{ aspectRatio: "16/9" }}>
+          <div className="preview-container mb-4 aspect-[3/4] sm:aspect-video">
             {isStreaming ? (
               <>
                 <video
@@ -1682,7 +1727,7 @@ export function CreatorVideoStreaming({
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-full object-contain"
+                  className="h-full w-full object-cover lg:object-contain"
                   aria-label="Live stream preview"
                 />
                 {/* Live overlay badge + Share button */}
@@ -1720,7 +1765,7 @@ export function CreatorVideoStreaming({
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-full object-contain"
+                  className="h-full w-full object-cover lg:object-contain"
                   aria-label="Camera preview"
                 />
                 {!isPreviewActive && videoSourceType === "camera" && (
@@ -1764,11 +1809,13 @@ export function CreatorVideoStreaming({
           </div>
 
           {/* Audio Visualizer */}
-          <AudioVisualizer
-            isActive={isStreaming && !!mixerEngineRef.current}
-            canvasRef={canvasRef}
-            accentColor={theme === "dark" ? "#00E5A0" : "#00A86B"}
-          />
+          <div className="hidden lg:block">
+            <AudioVisualizer
+              isActive={isStreaming && !!mixerEngineRef.current}
+              canvasRef={canvasRef}
+              accentColor={theme === "dark" ? "#00E5A0" : "#00A86B"}
+            />
+          </div>
 
           {/* Preview controls (toggle video/audio) */}
           {/* <div className="flex gap-2 mt-4">
@@ -1865,7 +1912,7 @@ export function CreatorVideoStreaming({
 
 
           {/* Go Live / End Stream CTA */}
-          <div className="mt-6">
+          <div className="mt-6 hidden lg:block">
             {!isStreaming ? (
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -2219,5 +2266,3 @@ export function CreatorVideoStreaming({
     </div>
   );
 }
-
-            
