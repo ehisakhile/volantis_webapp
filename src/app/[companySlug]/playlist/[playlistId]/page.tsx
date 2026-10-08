@@ -20,9 +20,7 @@ function resolveUrl(url: string | null): string {
   const absolute = url.startsWith('http://') || url.startsWith('https://')
     ? url
     : `${API_BASE_URL}${url}`;
-  // Proxy media through the same-origin /media-proxy route so the browser
-  // never makes cross-origin range requests (206 responses) that S3/CDN
-  // block via CORS.
+
   return `/media-proxy?url=${encodeURIComponent(absolute)}`;
 }
 
