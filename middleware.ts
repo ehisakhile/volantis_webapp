@@ -45,8 +45,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const cleanHostname = hostname.replace(/^www\./, '').split(':')[0];
+  const cleanHostname = hostname.replace(/^www\./, '').split(':')[0].toLowerCase();
   const baseDomain = BASE_DOMAIN.replace(/^www\./, '');
+  const isPlatformHost =
+    cleanHostname.endsWith('.vercel.app') ||
+    cleanHostname === 'localhost' ||
+    cleanHostname.endsWith('.localhost');
 
   if (pathname.startsWith(API_PREFIX)) {
     return NextResponse.next();
@@ -61,6 +65,20 @@ export function middleware(request: NextRequest) {
   }
 
   if (isStaticAsset(pathname)) {
+    return NextResponse.next();
+  }
+
+  // Hosts outside our domain use path-based company routing. In particular,
+  // Vercel preview hostnames must not be interpreted as company subdomains.
+  if (isPlatformHost) {
+    if (isPlaylistPath(pathname)) {
+      const normalized = normalizePlaylistPath(pathname);
+      if (normalized !== pathname) {
+        const url = request.nextUrl.clone();
+        url.pathname = normalized;
+        return NextResponse.redirect(url, 308);
+      }
+    }
     return NextResponse.next();
   }
 
@@ -86,7 +104,10 @@ export function middleware(request: NextRequest) {
         return NextResponse.rewrite(url);
       }
       // Unknown subdomain: keep the original behavior and never resolve as a stream.
-      return NextResponse.redirect(new URL('/', request.url));
+      if (pathname !== '/') {
+        return NextResponse.redirect(new URL('/', request.url));
+      }
+      return NextResponse.next();
     }
     return NextResponse.next();
   }
@@ -125,7 +146,10 @@ export function middleware(request: NextRequest) {
         return NextResponse.next();
       }
       
-      return NextResponse.redirect(new URL('/', request.url));
+      if (pathname !== '/') {
+        return NextResponse.redirect(new URL('/', request.url));
+      }
+      return NextResponse.next();
     }
   }
 
