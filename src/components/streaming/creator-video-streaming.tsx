@@ -181,6 +181,12 @@ export function CreatorVideoStreaming({
 
   const [streamDuration, setStreamDuration] = useState(0);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamStartedAtRef = useRef<number | null>(null);
+  const streamDurationRef = useRef(0);
+  const peakViewerCountRef = useRef(0);
+  const forceStopRef = useRef(false);
+  const isStoppingRef = useRef(false);
+  const [endedStreamStats, setEndedStreamStats] = useState({ duration: 0, peakViewers: 0 });
 
   const [videoSourceType, setVideoSourceType] = useState<VideoSourceType>("camera");
   const [useMic, setUseMic] = useState(true);
@@ -668,6 +674,14 @@ export function CreatorVideoStreaming({
   });
 
   useEffect(() => {
+    streamDurationRef.current = streamDuration;
+  }, [streamDuration]);
+
+  useEffect(() => {
+    peakViewerCountRef.current = peakViewerCount;
+  }, [peakViewerCount]);
+
+  useEffect(() => {
     if (viewerCount > 0) {
       setRealtimeViewerCount(viewerCount);
     }
@@ -731,9 +745,11 @@ export function CreatorVideoStreaming({
     onLimitReached: () => {
       setShowUsageBanner(false);
       setShowLimitModal(true);
+      forceStopRef.current = true;
       setTimeout(() => handleStopStream(), 400);
     },
     onStreamStopped: () => {
+      forceStopRef.current = true;
       handleStopStream();
     },
   });
@@ -920,12 +936,23 @@ export function CreatorVideoStreaming({
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current);
       }
-      setStreamDuration(0);
+
+      // Measure the broadcast from the point publishing actually succeeds. The
+      // API's start_time may be older when a stream record is reused/resumed.
+      streamStartedAtRef.current = Date.now();
+      const updateDuration = () => {
+        const startedAt = streamStartedAtRef.current;
+        setStreamDuration(startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0);
+      };
+      updateDuration();
 
       durationIntervalRef.current = setInterval(() => {
-        setStreamDuration((prev) => prev + 1);
+        updateDuration();
       }, 1000);
 
+      setRealtimeViewerCount(0);
+      setPeakViewerCount(streamData.peak_viewers || 0);
+      setEndedStreamStats({ duration: 0, peakViewers: 0 });
       setIsStreaming(true);
       const hasVideo = pubStreamRef.current !== null && pubStreamRef.current.getVideoTracks().length > 0;
       setHasStreamingVideo(hasVideo);
@@ -1008,7 +1035,10 @@ export function CreatorVideoStreaming({
   }, []);
 
   const handleStopStream = useCallback(async () => {
-    if (stopConfirmPending) {
+    if (stopConfirmPending || forceStopRef.current) {
+      if (isStoppingRef.current) return;
+      isStoppingRef.current = true;
+      forceStopRef.current = false;
       if (stopConfirmTimeoutRef.current) {
         clearTimeout(stopConfirmTimeoutRef.current);
         stopConfirmTimeoutRef.current = null;
@@ -1021,13 +1051,30 @@ export function CreatorVideoStreaming({
         durationIntervalRef.current = null;
       }
 
+      const startedAt = streamStartedAtRef.current;
+      const finalDuration = Math.max(
+        streamDurationRef.current,
+        startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0,
+      );
+
+      let stoppedStream: VolLivestreamOut | null = null;
       if (currentStream?.slug) {
         try {
-          await livestreamApi.stopStream(currentStream.slug);
+          stoppedStream = await livestreamApi.stopStream(currentStream.slug);
         } catch (err) {
           console.error("Failed to stop stream via API:", err);
         }
       }
+
+      setEndedStreamStats({
+        duration: finalDuration,
+        peakViewers: Math.max(
+          peakViewerCountRef.current,
+          currentStream?.peak_viewers || 0,
+          stoppedStream?.peak_viewers || 0,
+        ),
+      });
+      streamStartedAtRef.current = null;
 
       setIsStreaming(false);
       setStreamDuration(0);
@@ -1045,6 +1092,7 @@ export function CreatorVideoStreaming({
       }
 
       onStreamStopped?.();
+      isStoppingRef.current = false;
     } else {
       setStopConfirmPending(true);
       stopConfirmTimeoutRef.current = setTimeout(() => {
@@ -1351,11 +1399,11 @@ export function CreatorVideoStreaming({
               <div className="flex items-center justify-between rounded-xl px-4 py-3 mb-6" style={{ backgroundColor: "var(--bg-base)" }}>
                 <div className="text-left">
                   <p className="text-xs mb-0.5" style={{ color: "var(--text-muted)" }}>Peak viewers</p>
-                  <p className="text-2xl font-semibold">{peakViewerCount > 0 ? peakViewerCount.toLocaleString() : "0"}</p>
+                  <p className="text-2xl font-semibold">{endedStreamStats.peakViewers.toLocaleString()}</p>
                 </div>
                 <div className="text-left">
                   <p className="text-xs mb-0.5" style={{ color: "var(--text-muted)" }}>Duration</p>
-                  <p className="text-2xl font-semibold font-mono">{formatDuration(streamDuration)}</p>
+                  <p className="text-2xl font-semibold font-mono">{formatDuration(endedStreamStats.duration)}</p>
                 </div>
                 <Users className="w-8 h-8 opacity-50" style={{ color: "var(--accent)" }} />
               </div>
